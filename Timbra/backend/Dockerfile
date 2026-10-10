@@ -16,7 +16,8 @@ COPY migraciones ./migraciones
 COPY app ./app
 COPY static ./static
 
-# /data debe ser un VOLUMEN persistente: ahí viven la base de datos, los XML timbrados y la configuración.
-VOLUME ["/data"]
+# /data debe ser un disco persistente: ahí viven la base de datos, los XML timbrados y la configuración.
+# En Railway se crea desde el panel (Volume montado en /data): Railway NO acepta la instrucción VOLUME en el Dockerfile.
+# Con Docker a secas: docker run -v timbra_datos:/data ...
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

@@ -17,6 +17,8 @@ Hay dos formas. Empieza por la **A**: es un solo servicio y una sola dirección.
 1. En railway.com: **New Project → Deploy from GitHub repo →** `factureedp`.
 2. En el servicio → **Settings → Root Directory:** `Timbra/backend`. Railway detecta el `Dockerfile`.
 3. **Volumes → New Volume**, montado en `/data`. **Sin volumen se pierden la base de datos y los XML en cada despliegue.**
+   (El disco se crea en el panel de Railway; el Dockerfile no lo declara porque Railway rechaza la instrucción `VOLUME`.)
+   **No agregues** las variables `DATA_DIR`, `DATABASE_URL` ni `DEBUG` que Railway sugiere: sobreescriben las del Dockerfile y sacan la base del volumen.
 4. **Variables** (pestaña Variables):
 
    | Variable | Valor |
