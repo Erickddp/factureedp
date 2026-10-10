@@ -451,7 +451,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [listo, setListo] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) router.replace("/login/");
+    // Sin sesión: en tu PC vas directo a entrar; en web, a la página de inicio pública
+    if (!getToken()) router.replace(/^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) ? "/login/" : "/inicio/");
     else setListo(true);
   }, [router]);
 
