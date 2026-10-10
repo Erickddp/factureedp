@@ -60,7 +60,7 @@ const leer = (k: string) => { try { return localStorage.getItem(k); } catch { re
 const guardar = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch {} };
 const iniciales = (s: string) => s.trim().split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "?";
 
-type Yo = { email: string; nombre: string | null; admin: boolean; creado?: string | null };
+type Yo = { email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null };
 
 function SelectorEmisor() {
   const { emisores, emisor, setEmisorId } = useEmisor();
@@ -135,6 +135,13 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
     try { await api("/auth/password", { method: "POST", json: pwd }); setPwd({ actual: "", nueva: "" }); toast.success("Contraseña cambiada"); }
     catch (e) { mostrarError(e); } finally { setTrabajando(""); }
   };
+  // Conectar Google: después podrás entrar con «Continuar con Google» (y será la base para Drive y Sheets)
+  const conectarGoogle = async () => {
+    try { window.location.href = (await api<{ url: string }>("/auth/google/vincular")).url; } catch (e) { mostrarError(e); }
+  };
+  const desconectarGoogle = async () => {
+    try { cambio(await api<Yo>("/auth/google", { method: "DELETE" })); toast.success("Google desconectado"); } catch (e) { mostrarError(e); }
+  };
   const dato = (k: string, v: React.ReactNode) => <div className="flex justify-between gap-3 py-1.5 text-sm"><dt className="text-grafito">{k}</dt><dd className="min-w-0 truncate text-right">{v}</dd></div>;
   return (
     <Modal open={abierto} onClose={cerrar} title="Mi perfil"
@@ -152,7 +159,11 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
           </div>
         </Field>
         <dl className="divide-y divide-linea rounded-xl px-4 ring-1 ring-linea">
+          {yo?.usuario && dato("Usuario", yo.usuario)}
           {dato("Correo de acceso", yo?.email)}
+          {dato("Google", yo?.google_email
+            ? <span>{yo.google_email} · <button className="underline" onClick={desconectarGoogle}>Desconectar</button></span>
+            : <button className="underline" onClick={conectarGoogle}>Conectar mi cuenta de Google</button>)}
           {yo?.creado && dato("Usuario desde", new Date(yo.creado).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }))}
           {dato("Emisor activo", emisor ? `${emisor.rfc} · ${emisor.nombre}` : "Ninguno")}
           {dato("Emisores dados de alta", emisores.length)}

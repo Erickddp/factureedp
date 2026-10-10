@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from ..db import get_db, solo_admin
 from ..models import Cliente, Factura
 from ..schemas import CancelarIn, EnviarIn, FacturaIn, FacturaOut, PagoIn, TotalesOut
 from ..security import current_user
@@ -207,7 +207,7 @@ def exportar_csv(emisor_id: int, desde: datetime | None = None, hasta: datetime 
                     headers={"Content-Disposition": 'attachment; filename="facturas.csv"'})
 
 
-@router.post("/recuperar")
+@router.post("/recuperar", dependencies=[Depends(solo_admin)])
 def recuperar(db: Session = Depends(get_db)):
     """Reimporta XML del respaldo en disco que no estén en la BD."""
     return {"recuperadas": svc.recuperar(db)}

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..logs import log
+from ..db import solo_admin
 from ..security import current_user
 from ..services import mailer
 
@@ -27,7 +28,7 @@ def ver():
     return mailer.publica()
 
 
-@router.put("")
+@router.put("", dependencies=[Depends(solo_admin)])
 def guardar(data: CorreoIn):
     if "@" not in data.user or not data.host.strip():
         raise HTTPException(422, "Escribe el correo completo y el servidor.")
@@ -39,12 +40,12 @@ def guardar(data: CorreoIn):
     return r
 
 
-@router.delete("")
+@router.delete("", dependencies=[Depends(solo_admin)])
 def quitar():
     return mailer.quitar()
 
 
-@router.post("/probar")
+@router.post("/probar", dependencies=[Depends(solo_admin)])
 def probar(data: PruebaIn):
     try:
         mailer.enviar([data.para], "Prueba de Timbra", "Si lees esto, el correo de envío de Timbra quedó bien configurado.", [])

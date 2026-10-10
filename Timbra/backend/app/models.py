@@ -22,6 +22,7 @@ class Pac(Base):
     """Credenciales de un PAC. Lo compras, lo das de alta aquí y listo."""
     __tablename__ = "pacs"
     id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"), index=True)  # dueño de la cuenta (ver db.py)
     nombre: Mapped[str] = mapped_column(String(80))
     # finkok | swsapien | diverza | prodigia | facturama | comerciodigital | mysuite | demo
     proveedor: Mapped[str] = mapped_column(String(30))
@@ -40,6 +41,7 @@ class Pac(Base):
 class Emisor(Base):
     __tablename__ = "emisores"
     id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"), index=True)  # dueño de la cuenta (ver db.py)
     rfc: Mapped[str] = mapped_column(String(13), unique=True, index=True)
     nombre: Mapped[str] = mapped_column(String(300))
     regimen_fiscal: Mapped[str] = mapped_column(String(3))
@@ -208,8 +210,11 @@ class Usuario(Base):
     __tablename__ = "usuarios"
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    usuario: Mapped[str | None] = mapped_column(String(60), unique=True, index=True)  # para entrar sin correo
     nombre: Mapped[str | None] = mapped_column(String(150))
     password_hash: Mapped[str] = mapped_column(String(300))
+    google_sub: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)  # identidad de Google conectada
+    google_email: Mapped[str | None] = mapped_column(String(200))
     admin: Mapped[bool] = mapped_column(Boolean, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

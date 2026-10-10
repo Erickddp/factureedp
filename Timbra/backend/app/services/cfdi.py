@@ -106,7 +106,7 @@ def _concepto(c: ConceptoIn, tipo: str) -> cfdi40.Concepto:
         no_identificacion=c.no_identificacion,
         descripcion=c.descripcion,
         valor_unitario=Decimal(0) if tipo == "T" and not c.valor_unitario else c.valor_unitario,
-        descuento=c.descuento or None,
+        descuento=round(c.descuento, 2) if c.descuento else None,  # siempre 2 decimales: Finkok rechaza otra cosa (CFDI40112)
         objeto_imp=c.objeto_imp,
         impuestos=None if tipo == "T" else _impuestos(c),
         cuenta_predial=[x.strip() for x in c.cuenta_predial.split(",") if x.strip()] or None if c.cuenta_predial else None,
@@ -222,8 +222,9 @@ def construir_pago(emisor: Emisor, cliente: Cliente, docs: list[tuple[bytes, int
                    tipo_cambio: Decimal | None = None):
     """docs = [(xml_timbrado, num_parcialidad, saldo_anterior, importe_pagado)]"""
     comprobantes = [
+        # La BD guarda dinero con 6 decimales; el complemento de pago exige los de la moneda (CRP20240)
         cfdi40.PagoComprobante(comprobante=CFDI.from_string(x), num_parcialidad=n,
-                               imp_saldo_ant=sa, imp_pagado=ip)
+                               imp_saldo_ant=round(Decimal(sa), 2), imp_pagado=round(Decimal(ip), 2))
         for x, n, sa, ip in docs
     ]
     receptor = cfdi40.Receptor(

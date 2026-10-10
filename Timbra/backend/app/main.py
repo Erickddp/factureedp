@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
     log.info("Timbra apagado")
 
 
-app = FastAPI(title="Timbra API", version="2.6.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan)
+app = FastAPI(title="Timbra API", version="2.7.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
                    allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 

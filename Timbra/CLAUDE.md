@@ -164,6 +164,18 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - Diseño: tokens en `globals.css` (marino + `acento`), tipografía Geist, `select` y barras con estilo global. El único botón
   sólido del menú es Nueva factura; la pantalla actual va con tinte suave. `Menu` (⋯) usa posición fija para no recortarse.
 
+## Cuentas separadas y Google (2.7, no lo rompas)
+- Cada cuenta ve SÓLO sus emisores y todo lo que cuelga de ellos. La separación vive en `app/db.py` (eventos de la sesión), no en
+  cada ruta: lecturas filtradas por dueño (`Emisor.usuario_id`, `Pac.usuario_id`, y toda tabla con `emisor_id`) y 403 al escribir
+  en lo ajeno. Una tabla nueva queda protegida si tiene `emisor_id`; si no lo tiene, NO lo está: agrégalo o filtra a mano.
+  El administrador y las sesiones del sistema (`SessionLocal()` directo: lotes, programador, portal público) no tienen filtro.
+- Sólo administrador (`Depends(solo_admin)`): usuarios, consola de depuración, configurar correo, editar addendas, recuperar XML.
+- Entrada con usuario o correo (`Usuario.usuario`). `crear_admin.py` crea la cuenta de pruebas admin/admin; en servidor (`EN_WEB`)
+  las contraseñas de práctica no entran.
+- Google (`routers/auth.py`): `/auth/google/entrar` y `/vincular` devuelven la URL; `/callback` canjea el código y regresa a
+  `/login/#token=…` (fragmento, nunca query). Sólo entra quien ya tiene cuenta, salvo `REGISTRO_ABIERTO=true`. Permisos pedidos:
+  openid, email, profile; Drive y Sheets se pedirán aparte cuando se construyan. tests/test_w1_cuentas.py.
+
 ## Estabilidad (no la rompas)
 - `satcfdi.catalogs.conn` es UNA conexión SQLite compartida: con peticiones simultáneas fallaba (~16% de consultas, «API misuse», 500).
   `app/__init__.py` la reemplaza por una conexión de sólo lectura por hilo. tests/test_v6_catalogo_hilos.py lo vigila. Nunca uses
@@ -226,3 +238,11 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - PDF directo requiere weasyprint + GTK; sin eso el botón PDF abre HTML con diálogo de impresión.
 - Recuperación desde respaldo no reconstruye parcialidades de REP.
 - Auth simple (JWT 7 días, sin roles finos). Pensado para uso local o LAN, no expuesto a internet sin HTTPS.
+
+## Lo que enseñó el PAC real (Finkok pruebas, 10-oct-2026)
+- El PAC demo NO valida decimales. Todo importe que vaya al XML debe llevar los decimales de la moneda: `Descuento` (CFDI40112) y
+  `ImpSaldoAnt`/`ImpPagado` del complemento de pago (CRP20240) se redondean en `services/cfdi.py`. La BD guarda dinero con 6
+  decimales (`Money`): nunca lo pases directo al CFDI. tests/test_w2_pac_real.py.
+- Probado de verdad en pruebas: ingreso PUE y PPD, descuento, factura global, nota de crédito relacionada, complemento de pago
+  parcial, cancelación motivo 02 y estatus SAT ("Cancelado"). Sin probar contra PAC: nómina, traslado, IEPS, impuestos locales.
+- Antes de dar algo por bueno, pruébalo con el emisor EKU9003173C9 y el PAC de Finkok en pruebas (no gasta timbres reales).

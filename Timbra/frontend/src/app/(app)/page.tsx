@@ -96,7 +96,7 @@ export default function Inicio() {
             </div>
             <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-white/10 pt-5">
               <div><dt className="text-xs text-white/55">Comprobantes timbrados</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{data?.comprobantes_mes ?? 0}</dd></div>
-              <div><dt className="text-xs text-white/55">Por cobrar</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{dinero(data?.por_cobrar)}</dd></div>
+              <div><dt className="text-xs text-white/55">Promedio por comprobante</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{dinero(data?.comprobantes_mes ? facturado / data.comprobantes_mes : 0)}</dd></div>
             </dl>
           </div>
         </section>

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from .. import logs
 from ..config import settings
-from ..db import get_db
+from ..db import get_db, solo_admin
 from ..models import Cliente, Emisor, Factura, Pac
 from ..security import current_user
 
@@ -34,7 +34,7 @@ URLS_PAC = {
 }
 
 
-@router.get("/logs")
+@router.get("/logs", dependencies=[Depends(solo_admin)])
 def ver_logs(despues: int = 0, nivel: str | None = None, q: str | None = None, req: str | None = None,
              limite: int = 500):
     return {"items": logs.BUFFER.consultar(despues, nivel, q, req, limite), "ultimo": logs.BUFFER.ultimo_id()}
@@ -53,7 +53,7 @@ def log_navegador(data: ClienteLog):
     return {"ok": True}
 
 
-@router.get("/descargar")
+@router.get("/descargar", dependencies=[Depends(solo_admin)])
 def descargar_log():
     if not logs.ARCHIVO or not os.path.exists(logs.ARCHIVO):
         raise HTTPException(404, "Todavía no hay archivo de registro")
@@ -75,7 +75,7 @@ def _http(url: str) -> tuple[bool, int, str]:
         return False, ms, f"{type(e).__name__}: {e}"
 
 
-@router.get("/servicios")
+@router.get("/servicios", dependencies=[Depends(solo_admin)])
 def servicios(db: Session = Depends(get_db)):
     out = []
     up = int(time.time() - INICIO)
@@ -155,7 +155,7 @@ class CorreoPrueba(BaseModel):
     para: str
 
 
-@router.post("/probar-correo")
+@router.post("/probar-correo", dependencies=[Depends(solo_admin)])
 def probar_correo(data: CorreoPrueba):
     from ..services import mailer
     try:
@@ -166,7 +166,7 @@ def probar_correo(data: CorreoPrueba):
     return {"ok": True}
 
 
-@router.get("/info")
+@router.get("/info", dependencies=[Depends(solo_admin)])
 def info():
     return {"python": sys.version, "plataforma": platform.platform(), "satcfdi": version("satcfdi"),
             "data_dir": os.path.abspath(settings.data_dir), "log": logs.ARCHIVO, "debug": settings.debug}

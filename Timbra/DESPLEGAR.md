@@ -51,8 +51,11 @@ Si prefieres empezar limpio, sólo vuelve a subir el CSD en el servidor.
 - **Base de datos:** el mismo archivo SQLite, en el volumen. Sirve bien para una sola instancia; para muchos usuarios
   simultáneos habrá que pasar a Postgres.
 - **Carpeta de Drive (G:\)** y respaldos locales: no existen en el servidor; ahí Drive tendrá que ir por la API de Google.
-- **Google (inicio de sesión):** agrega en Google Cloud la dirección web como origen y como URI de redirección, y pon
-  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI` en las variables de Railway.
+- **Google (inicio de sesión):** agrega en Google Cloud la dirección web como origen y como URI de redirección
+  (`https://TU-DIRECCION/api/auth/google/callback`), y pon `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI`
+  en las variables de Railway. Con Vercel aparte, pon también `FRONT_URL` con la dirección de Vercel.
+- **Cuentas:** cada usuario ve sólo sus emisores. Las cuentas las crea el administrador; `REGISTRO_ABIERTO=true` deja que
+  cualquiera con Google cree la suya (no lo actives hasta tener cobro y términos de servicio).
 
 ## Estado
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from ..db import get_db, solo_admin
 from ..models import Addenda
 from ..schemas import AddendaIn, AddendaOut
 from ..security import current_user
@@ -23,7 +23,7 @@ def crear(data: AddendaIn, db: Session = Depends(get_db)):
     return a
 
 
-@router.put("/{addenda_id}", response_model=AddendaOut)
+@router.put("/{addenda_id}", response_model=AddendaOut, dependencies=[Depends(solo_admin)])
 def editar(addenda_id: int, data: AddendaIn, db: Session = Depends(get_db)):
     a = db.get(Addenda, addenda_id)
     if not a:

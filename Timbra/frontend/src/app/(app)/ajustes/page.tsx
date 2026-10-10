@@ -8,7 +8,7 @@ import { api, fetcher } from "@/lib/api";
 import type { Addenda, Pac } from "@/lib/types";
 import { useEmisor } from "@/components/emisor-context";
 import { consola } from "@/lib/debug";
-import { Badge, Button, Field, Input, Modal, PageHeader, Select } from "@/components/ui";
+import { Badge, Button, Field, Input, Modal, PageHeader, Select, cx } from "@/components/ui";
 
 const PROVEEDORES: Record<string, { label: string; campos: ("usuario" | "password" | "token" | "rfc" | "contrato" | "requestor")[] }> = {
   finkok: { label: "Finkok", campos: ["usuario", "password"] },
@@ -197,6 +197,7 @@ const SERVIDORES: Record<string, { label: string; host: string; port: number }> 
 /** La cuenta desde la que salen facturas, estados de cuenta y recordatorios. La contraseña se guarda cifrada. */
 function CorreoEnvio() {
   const { data: cfg, mutate } = useSWR<CorreoCfg>("/correo", fetcher);
+  const { data: yo } = useSWR<{ admin: boolean }>("/auth/yo", fetcher);
   const [f, setF] = useState<{ tipo: string; host: string; port: string; user: string; password: string; nombre: string } | null>(null);
   const [para, setPara] = useState("");
   const [trabajando, setTrabajando] = useState("");
@@ -223,7 +224,7 @@ function CorreoEnvio() {
     <section className="mt-10">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Correo de envío</h2>
-        <Button onClick={abrir}>{cfg?.configurado ? "Cambiar cuenta" : "Configurar correo"}</Button>
+        {yo?.admin && <Button onClick={abrir}>{cfg?.configurado ? "Cambiar cuenta" : "Configurar correo"}</Button>}
       </div>
       <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
         {cfg?.configurado ? (
@@ -233,7 +234,7 @@ function CorreoEnvio() {
               <p className="text-sm text-grafito">Sale por {cfg.host}:{cfg.port}{cfg.origen === "env" ? " (configurado en el archivo .env)" : ""}</p>
             </div>
             <Field label="Mandar prueba a" className="w-64"><Input value={para} onChange={(e) => setPara(e.target.value)} placeholder="tu@correo.com" inputMode="email" /></Field>
-            <Button variant="primario" onClick={probar} loading={trabajando === "probar"} disabled={!para.includes("@")}>Enviar prueba</Button>
+            {yo?.admin && <Button variant="primario" onClick={probar} loading={trabajando === "probar"} disabled={!para.includes("@")}>Enviar prueba</Button>}
           </div>
         ) : (
           <p className="text-sm text-grafito">Sin configurar: «Mandar por correo al cliente» y los recordatorios de cobranza todavía no envían nada. Conecta la cuenta desde la que quieres que salgan tus facturas.</p>
@@ -273,19 +274,26 @@ function CorreoEnvio() {
   );
 }
 
+type UsuarioFila = { id: number; email: string; usuario: string | null; nombre: string | null; admin: boolean; activo: boolean; google: boolean; emisores: number };
+
+/** Cuentas: cada usuario ve sólo sus emisores, clientes y facturas. Sólo el administrador las da de alta. */
 function Usuarios() {
-  const { data = [], mutate } = useSWR<{ id: number; email: string; nombre: string | null; admin: boolean }[]>("/auth/usuarios", fetcher);
-  const [nuevo, setNuevo] = useState({ email: "", nombre: "", password: "" });
+  const { data: yo } = useSWR<{ admin: boolean; email: string }>("/auth/yo", fetcher);
+  const { data = [], mutate } = useSWR<UsuarioFila[]>(yo?.admin ? "/auth/usuarios" : null, fetcher);
+  const [nuevo, setNuevo] = useState({ email: "", usuario: "", nombre: "", password: "" });
   const [pwd, setPwd] = useState({ actual: "", nueva: "" });
   const crear = async () => {
     try {
-      await api("/auth/usuarios", { method: "POST", json: nuevo });
-      toast.success("Usuario creado");
-      setNuevo({ email: "", nombre: "", password: "" });
+      await api("/auth/usuarios", { method: "POST", json: { ...nuevo, usuario: nuevo.usuario || null } });
+      toast.success("Cuenta creada. Esa persona sólo verá los emisores que ella dé de alta.");
+      setNuevo({ email: "", usuario: "", nombre: "", password: "" });
       mutate();
     } catch (e) {
       mostrarError(e);
     }
+  };
+  const activar = async (u: UsuarioFila) => {
+    try { await api(`/auth/usuarios/${u.id}/activo`, { method: "PUT", json: { activo: !u.activo } }); mutate(); } catch (e) { mostrarError(e); }
   };
   const cambiar = async () => {
     try {
@@ -298,18 +306,29 @@ function Usuarios() {
   };
   return (
     <section className="mt-10 grid gap-4 md:grid-cols-2">
-      <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
-        <h2 className="mb-3 text-lg font-semibold">Usuarios</h2>
-        <ul className="mb-4 text-sm">
-          {data.map((u) => <li key={u.id} className="border-b border-linea py-2 last:border-0">{u.email} {u.admin && <Badge tono="cobalto">admin</Badge>}</li>)}
-        </ul>
-        <div className="grid gap-2">
-          <Input placeholder="Correo" value={nuevo.email} onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })} />
-          <Input placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} />
-          <Input placeholder="Contraseña (mín. 8)" type="password" value={nuevo.password} onChange={(e) => setNuevo({ ...nuevo, password: e.target.value })} />
-          <Button onClick={crear} disabled={!nuevo.email || nuevo.password.length < 8}>Agregar usuario</Button>
+      {yo?.admin && (
+        <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
+          <h2 className="text-lg font-semibold">Cuentas</h2>
+          <p className="mb-3 text-sm text-grafito">Cada cuenta ve sólo sus propios emisores, clientes y facturas. Tú, como administrador, ves todo.</p>
+          <ul className="mb-4 text-sm">
+            {data.map((u) => (
+              <li key={u.id} className={cx("flex flex-wrap items-center gap-2 border-b border-linea py-2 last:border-0", !u.activo && "opacity-50")}>
+                <span className="min-w-0 flex-1"><b className="font-medium">{u.usuario || u.email}</b>{u.usuario && <span className="text-grafito"> · {u.email}</span>}
+                  <span className="block text-xs text-grafito">{u.emisores} {u.emisores === 1 ? "emisor" : "emisores"}{u.google ? " · Google conectado" : ""}</span></span>
+                {u.admin && <Badge tono="cobalto">admin</Badge>}
+                {u.email !== yo.email && <button className="text-xs text-grafito underline hover:text-tinta" onClick={() => activar(u)}>{u.activo ? "Desactivar" : "Activar"}</button>}
+              </li>
+            ))}
+          </ul>
+          <div className="grid gap-2">
+            <Input placeholder="Nombre de usuario (para entrar)" autoCapitalize="none" value={nuevo.usuario} onChange={(e) => setNuevo({ ...nuevo, usuario: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, "") })} />
+            <Input placeholder="Correo" value={nuevo.email} onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })} />
+            <Input placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} />
+            <Input placeholder="Contraseña (mín. 8)" type="password" autoComplete="new-password" value={nuevo.password} onChange={(e) => setNuevo({ ...nuevo, password: e.target.value })} />
+            <Button onClick={crear} disabled={!nuevo.email.includes("@") || nuevo.password.length < 8}>Crear cuenta</Button>
+          </div>
         </div>
-      </div>
+      )}
       <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
         <h2 className="mb-3 text-lg font-semibold">Cambiar mi contraseña</h2>
         <div className="grid gap-2">
