@@ -23,9 +23,35 @@ def pedimento_normal(p: str) -> str:
     from .validacion import pedimento_normal as _n
     return _n(p)
 
-def ahora_mx() -> datetime:
-    # El CFDI lleva hora local del lugar de expedición, sin zona.
-    return datetime.now(ZoneInfo(settings.timezone)).replace(tzinfo=None, microsecond=0)
+# Husos del catálogo c_CodigoPostal del SAT → zona IANA. El PAC valida la Fecha contra el huso del CP de expedición.
+HUSOS = {"Tiempo del Centro": "America/Mexico_City", "Tiempo del Centro en Frontera": "America/Matamoros",
+         "Tiempo del Pacífico": "America/Mazatlan", "Tiempo del Noroeste": "America/Tijuana", "Tiempo del Sureste": "America/Cancun"}
+
+
+def zona_de(cp: str | None) -> ZoneInfo:
+    """Zona horaria del código postal de expedición según el SAT; sin CP o si no está en el catálogo, la de la configuración."""
+    if cp:
+        try:
+            from satcfdi import catalogs
+            return ZoneInfo(HUSOS[catalogs.select("C756_c_CodigoPostal", cp)[4]])
+        except Exception:
+            pass
+    return ZoneInfo(settings.timezone)
+
+
+def ahora_mx(cp: str | None = None) -> datetime:
+    """Hora local del lugar de expedición, sin zona (así la pide el CFDI).
+
+    Un CFDI con Fecha en el futuro lo rechaza el PAC; con Fecha un poco atrás, no. Por eso, si el reloj de esta PC va
+    atrás de la hora del catálogo (municipios cuyo huso cambió, como Cd. Juárez, o PC en otra zona) pero a menos de
+    2 horas, se usa el de la PC: es la hora real del lugar y nunca queda adelantada.
+    """
+    oficial = datetime.now(zona_de(cp)).replace(tzinfo=None, microsecond=0)
+    if cp:
+        local = datetime.now().replace(microsecond=0)
+        if local < oficial and (oficial - local).total_seconds() <= 2 * 3600 + 300:
+            return local
+    return oficial
 
 
 SEIS = Decimal("0.000001")
@@ -169,7 +195,7 @@ def construir(emisor: Emisor, data: FacturaIn, cliente: Cliente | None,
         cfdi_relacionados=[cfdi40.CfdiRelacionados(tipo_relacion=r.tipo_relacion, cfdi_relacionado=r.uuids)
                            for r in data.relacionados] or None,
         complemento=implocal,
-        fecha=data.fecha or ahora_mx(),
+        fecha=data.fecha or ahora_mx(emisor.lugar_expedicion),
     )
     # Regla SAT: PPD siempre con forma de pago 99
     if kw["metodo_pago"] == "PPD":
@@ -208,5 +234,5 @@ def construir_pago(emisor: Emisor, cliente: Cliente, docs: list[tuple[bytes, int
         comprobantes=comprobantes, fecha_pago=fecha_pago, forma_pago=forma_pago,
         emisor=cfdi40.Emisor(rfc=emisor.rfc, nombre=emisor.nombre, regimen_fiscal=emisor.regimen_fiscal),
         lugar_expedicion=emisor.lugar_expedicion, receptor=receptor,
-        tipo_cambio=tipo_cambio, serie=serie, folio=folio, fecha=ahora_mx(),
+        tipo_cambio=tipo_cambio, serie=serie, folio=folio, fecha=ahora_mx(emisor.lugar_expedicion),
     )

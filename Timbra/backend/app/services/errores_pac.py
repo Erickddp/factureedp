@@ -35,7 +35,7 @@ REGLAS: list[tuple[str, Diagnostico]] = [
                  "reintentar")),
     (r"fecha.{0,40}(fuera de rango|no est[aá] dentro|mayor|posterior|72 horas)|cfdi40101|\b401\b.{0,30}fecha",
      Diagnostico("fecha", "La fecha del CFDI quedó fuera del rango que acepta el SAT",
-                 "Timbra lo re-armó con la hora actual. Si se repite, ajusta el reloj y la zona horaria de Windows (Ciudad de México).",
+                 "Timbra lo re-armó con la hora actual. Si se repite, ajusta el reloj y la zona horaria de Windows a la de tu ciudad.",
                  "refechar", "fecha")),
     (r"\b702\b|no se encontr[oó] el rfc|rfc.{0,30}no (est[aá]|se encuentra) (registrado|dado de alta)|emisor no registrado|"
      r"no tiene permiso para timbrar",

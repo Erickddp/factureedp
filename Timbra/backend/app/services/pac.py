@@ -165,7 +165,8 @@ def probar(pac: Pac, emisor, signer, ciclo: bool = False) -> dict:
 
     if not pac.pruebas:
         raise PacError("La prueba sólo corre con el PAC en ambiente de pruebas (para no gastar un timbre real).")
-    ahora = datetime.now(ZoneInfo("America/Mexico_City")).replace(tzinfo=None, microsecond=0)
+    from .cfdi import ahora_mx
+    ahora = ahora_mx(emisor.lugar_expedicion)
     comp = cfdi40.Comprobante(
         emisor=cfdi40.Emisor(rfc=emisor.rfc, nombre=emisor.nombre, regimen_fiscal=emisor.regimen_fiscal),
         lugar_expedicion=emisor.lugar_expedicion,

@@ -145,6 +145,14 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - PDF real: weasyprint si hay GTK; si no, Edge/Chrome sin ventana (`_pdf_navegador`, ~4 s por PDF; Edge regresa ANTES de escribir el
   archivo, por eso se espera; la carpeta temporal va con ruta larga, no `ERICKD~1`). Varios a la vez: `pdf_varios` (ZIP de lotes).
 
+## Antes de producción (no lo rompas)
+- Fecha del CFDI: `cfdi.ahora_mx(cp)` usa el huso del CP de expedición (catálogo c_CodigoPostal → `HUSOS`), no siempre CDMX;
+  si el reloj de la PC va hasta 2 h atrás del huso oficial se usa el de la PC (nunca queda en el futuro: el PAC la rechazaría).
+- Facturas de práctica: `POST /emisores/{id}/practica/borrar` quita SÓLO las del PAC demo (`pdf.es_demo`), mueve sus XML a
+  `datos/practica_xml` y regresa cada serie al folio siguiente a la última factura real. tests/test_v9_produccion.py.
+- `ClaveSearch` (catalogo.tsx): el blur corre 150 ms tarde; usa refs y la bandera `elegido` para no pisar la clave recién elegida.
+  En la descripción del concepto, Enter sólo elige una sugerencia si la marcaste con flechas (`act` empieza en -1).
+
 ## Estabilidad (no la rompas)
 - `satcfdi.catalogs.conn` es UNA conexión SQLite compartida: con peticiones simultáneas fallaba (~16% de consultas, «API misuse», 500).
   `app/__init__.py` la reemplaza por una conexión de sólo lectura por hilo. tests/test_v6_catalogo_hilos.py lo vigila. Nunca uses

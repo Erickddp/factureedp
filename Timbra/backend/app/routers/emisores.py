@@ -107,3 +107,61 @@ def guardar_config(emisor_id: int, data: dict, db: Session = Depends(get_db)):
     e.config_facturar = {**(e.config_facturar or {}), **limpiar(data)}
     db.commit()
     return efectiva(e.config_facturar)
+
+
+# ---------------- Facturas de práctica (modo demo) ----------------
+def _de_practica(db: Session, emisor_id: int):
+    from ..models import Factura
+    from ..services.pdf import es_demo
+    return [f for f in db.query(Factura).filter(Factura.emisor_id == emisor_id) if es_demo(f.xml)]
+
+
+@router.get("/{emisor_id}/practica")
+def practica(emisor_id: int, db: Session = Depends(get_db)):
+    """Cuántas facturas de práctica (timbradas con el PAC demo, sin validez fiscal) tiene el emisor."""
+    _get(db, emisor_id)
+    return {"facturas": len(_de_practica(db, emisor_id))}
+
+
+@router.post("/{emisor_id}/practica/borrar")
+def borrar_practica(emisor_id: int, db: Session = Depends(get_db)):
+    """Antes de timbrar de verdad: quita SÓLO las facturas del PAC demo y regresa los folios. Las reales no se tocan.
+    Sus XML no se destruyen: se mueven a datos/practica_xml por si se quieren consultar."""
+    import os
+    import shutil
+
+    from ..config import settings
+    from ..logs import log
+    from ..models import Factura, LoteFila, Plantilla, Ticket
+    from ..services import respaldo
+
+    e = _get(db, emisor_id)
+    demo = _de_practica(db, emisor_id)
+    ids = [f.id for f in demo]
+    if ids:
+        db.query(LoteFila).filter(LoteFila.factura_id.in_(ids)).update({LoteFila.factura_id: None}, synchronize_session=False)
+        db.query(Ticket).filter(Ticket.factura_id.in_(ids)).update({Ticket.factura_id: None}, synchronize_session=False)
+        db.query(Plantilla).filter(Plantilla.ultima_factura_id.in_(ids)).update({Plantilla.ultima_factura_id: None}, synchronize_session=False)
+    destino = os.path.join(settings.data_dir, "practica_xml", e.rfc.upper())
+    uuids = {(f.uuid or "").upper() for f in demo}
+    movidos = 0
+    for p in list(respaldo.todos()):
+        if os.path.splitext(os.path.basename(p))[0].upper() in uuids:
+            os.makedirs(destino, exist_ok=True)
+            try:
+                shutil.move(p, os.path.join(destino, os.path.basename(p)))
+                movidos += 1
+            except OSError:
+                pass
+    for f in demo:
+        db.delete(f)
+    db.flush()
+    # Folios: cada serie continúa después de la última factura REAL (o desde 1 si no hay ninguna)
+    folios = {}
+    for s in e.series:
+        usados = [int(x) for (x,) in db.query(Factura.folio).filter(Factura.emisor_id == e.id, Factura.serie == s.serie) if x and str(x).isdigit()]
+        s.siguiente_folio = max(usados) + 1 if usados else 1
+        folios[s.serie] = s.siguiente_folio
+    db.commit()
+    log.warning("Facturas de práctica de %s borradas: %s (XML movidos: %s). Folios: %s", e.rfc, len(ids), movidos, folios)
+    return {"borradas": len(ids), "xml_movidos": movidos, "folios": folios}

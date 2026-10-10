@@ -280,7 +280,7 @@ def emitir_nomina(db: Session, data: NominaIn) -> list[dict]:
             serie, folio = folios.siguiente(db, emisor.id, "N", data.serie)
             log.info("Emitiendo recibo de nómina %s%s para %s", serie, folio, emp.nombre)
             with paso("Armar nómina 1.2", empleado=emp.num_empleado):
-                comp = nomina_svc.construir(emisor, emp, r, serie, folio, cfdi_svc.ahora_mx())
+                comp = nomina_svc.construir(emisor, emp, r, serie, folio, cfdi_svc.ahora_mx(emisor.lugar_expedicion))
             with paso("Sellar con CSD", no_certificado=emisor.no_certificado):
                 comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
             uuid, xml = pac_svc.timbrar(emisor.pac, comp)
