@@ -305,6 +305,7 @@ class PagoIn(BaseModel):
 class EnviarIn(BaseModel):
     para: list[str] = []
     mensaje: str | None = None
+    guardar: bool = False  # agrega estos correos al cliente
 
 
 class ImportarConfirmarIn(BaseModel):

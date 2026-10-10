@@ -1199,7 +1199,7 @@ function Ticket(p: TicketProps) {
         <div className="mt-5 flex flex-col gap-2">
           {!resultado ? (
             <>
-              <Button variant="primario" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo}>Timbrar</Button>
+              <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo}>Timbrar</Button>
               <label className="flex items-center gap-2 text-sm text-grafito">
                 <input type="checkbox" checked={enviar} onChange={(e) => setEnviar(e.target.checked)} className="accent-cobalto" /> Mandar por correo al cliente
               </label>
@@ -1248,7 +1248,7 @@ function BarraMovil(p: TicketProps) {
             </span>
           </span>
         </button>
-        <Button variant="primario" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} className="px-5">Timbrar</Button>
+        <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} className="px-5">Timbrar</Button>
       </div>
     </div>
   );

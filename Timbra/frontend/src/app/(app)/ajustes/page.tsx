@@ -93,6 +93,7 @@ export default function Ajustes() {
         </div>
       </section>
 
+      <CorreoEnvio />
       <Usuarios />
 
       <Modal open={!!pac} onClose={() => setPac(null)} title={pac?.id ? "Editar PAC" : "Nuevo PAC"}>
@@ -182,6 +183,92 @@ function GuiaCompra() {
         Tu app no se “certifica” ante el SAT: sólo el PAC está autorizado. Lo único que piden es que pruebes en su ambiente de pruebas antes de darte producción.
         Además de timbres, cada RFC necesita su CSD (Certificado de Sello Digital) vigente. Se tramita gratis en el portal del SAT con la e.firma (Certisat / SAT ID).
       </p>
+    </section>
+  );
+}
+
+type CorreoCfg = { configurado: boolean; host: string; port: number; user: string; remitente: string; nombre: string; tiene_password: boolean; origen: string | null };
+const SERVIDORES: Record<string, { label: string; host: string; port: number }> = {
+  gmail: { label: "Gmail o Google Workspace", host: "smtp.gmail.com", port: 587 },
+  outlook: { label: "Outlook / Microsoft 365", host: "smtp.office365.com", port: 587 },
+  otro: { label: "Otro servidor", host: "", port: 587 },
+};
+
+/** La cuenta desde la que salen facturas, estados de cuenta y recordatorios. La contraseña se guarda cifrada. */
+function CorreoEnvio() {
+  const { data: cfg, mutate } = useSWR<CorreoCfg>("/correo", fetcher);
+  const [f, setF] = useState<{ tipo: string; host: string; port: string; user: string; password: string; nombre: string } | null>(null);
+  const [para, setPara] = useState("");
+  const [trabajando, setTrabajando] = useState("");
+  const abrir = () => setF({
+    tipo: !cfg?.host || cfg.host.includes("gmail") ? "gmail" : cfg.host.includes("office365") ? "outlook" : "otro",
+    host: cfg?.host || SERVIDORES.gmail.host, port: String(cfg?.port || 587), user: cfg?.user ?? "", password: "", nombre: cfg?.nombre ?? "",
+  });
+  const guardar = async () => {
+    if (!f) return;
+    setTrabajando("guardar");
+    try {
+      mutate(await api<CorreoCfg>("/correo", { method: "PUT", json: { host: f.host, port: Number(f.port) || 587, user: f.user.trim(), password: f.password || null, nombre: f.nombre } }), false);
+      toast.success("Correo guardado. Manda una prueba para confirmar.");
+      setPara((p) => p || f.user.trim());
+      setF(null);
+    } catch (e) { mostrarError(e); } finally { setTrabajando(""); }
+  };
+  const probar = async () => {
+    setTrabajando("probar");
+    try { await api("/correo/probar", { method: "POST", json: { para } }); toast.success(`Prueba enviada a ${para}. Revisa la bandeja (y spam).`); }
+    catch (e) { mostrarError(e); } finally { setTrabajando(""); }
+  };
+  return (
+    <section className="mt-10">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Correo de envío</h2>
+        <Button onClick={abrir}>{cfg?.configurado ? "Cambiar cuenta" : "Configurar correo"}</Button>
+      </div>
+      <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
+        {cfg?.configurado ? (
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">{cfg.nombre ? `${cfg.nombre} · ` : ""}{cfg.user}</p>
+              <p className="text-sm text-grafito">Sale por {cfg.host}:{cfg.port}{cfg.origen === "env" ? " (configurado en el archivo .env)" : ""}</p>
+            </div>
+            <Field label="Mandar prueba a" className="w-64"><Input value={para} onChange={(e) => setPara(e.target.value)} placeholder="tu@correo.com" inputMode="email" /></Field>
+            <Button variant="primario" onClick={probar} loading={trabajando === "probar"} disabled={!para.includes("@")}>Enviar prueba</Button>
+          </div>
+        ) : (
+          <p className="text-sm text-grafito">Sin configurar: «Mandar por correo al cliente» y los recordatorios de cobranza todavía no envían nada. Conecta la cuenta desde la que quieres que salgan tus facturas.</p>
+        )}
+      </div>
+      <Modal open={!!f} onClose={() => setF(null)} title="Correo de envío"
+        footer={<><Button onClick={() => setF(null)}>Cancelar</Button><Button variant="primario" onClick={guardar} loading={trabajando === "guardar"} disabled={!f?.user.includes("@") || !f.host || (!f.password && !cfg?.tiene_password)}>Guardar</Button></>}>
+        {f && (
+          <div className="grid gap-4">
+            <Field label="Servicio">
+              <Select value={f.tipo} onChange={(e) => { const s = SERVIDORES[e.target.value]; setF({ ...f, tipo: e.target.value, host: s.host || f.host, port: String(s.port) }); }}>
+                {Object.entries(SERVIDORES).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
+              </Select>
+            </Field>
+            <Field label="Correo desde el que se envía"><Input value={f.user} onChange={(e) => setF({ ...f, user: e.target.value })} placeholder="facturacion@tudominio.com" inputMode="email" autoComplete="off" /></Field>
+            <Field label="Contraseña de aplicación" hint={cfg?.tiene_password ? "Déjala vacía para conservar la guardada" : f.tipo === "gmail" ? "16 letras que genera Google; no es la contraseña de tu cuenta" : undefined}>
+              <Input type="password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} autoComplete="new-password" />
+            </Field>
+            <Field label="Nombre que verá tu cliente (opcional)"><Input value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} placeholder="Facturación EDDP" /></Field>
+            {f.tipo === "otro" && (
+              <div className="grid grid-cols-[1fr_96px] gap-2">
+                <Field label="Servidor SMTP"><Input value={f.host} onChange={(e) => setF({ ...f, host: e.target.value })} placeholder="smtp.tudominio.com" /></Field>
+                <Field label="Puerto"><Input value={f.port} onChange={(e) => setF({ ...f, port: e.target.value.replace(/\D/g, "") })} inputMode="numeric" /></Field>
+              </div>
+            )}
+            {f.tipo === "gmail" && (
+              <ol className="list-decimal space-y-1 rounded-xl bg-papel py-3 pl-8 pr-4 text-sm text-grafito">
+                <li>En tu cuenta de Google activa la <b>verificación en 2 pasos</b> (Seguridad).</li>
+                <li>Abre <a className="text-cobalto underline" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">myaccount.google.com/apppasswords</a>, crea una llamada «Timbra» y copia las 16 letras.</li>
+                <li>Pégalas aquí. Se guardan cifradas en esta computadora y puedes revocarlas en Google cuando quieras.</li>
+              </ol>
+            )}
+          </div>
+        )}
+      </Modal>
     </section>
   );
 }

@@ -51,3 +51,33 @@ def test_borrar_practica_solo_quita_demo_y_regresa_folios():
             assert [x.id for x in quedan] == [real_id]
         assert c.get(f"/api/emisores/{e['id']}/practica", headers=h).json()["facturas"] == 0
         assert not c.post("/api/facturas/recuperar", headers=h).json()["recuperadas"]  # los XML de práctica ya no están en el respaldo
+
+
+def test_correo_de_envio_se_configura_desde_la_app(monkeypatch):
+    from app.services import mailer
+    enviados = []
+
+    class Falso:
+        def __init__(self, host, port, timeout=None): self.host = host
+        def starttls(self): pass
+        def login(self, u, p): self.cred = (u, p)
+        def send_message(self, m): enviados.append((self.cred, m["From"], m["To"]))
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    monkeypatch.setattr(mailer.smtplib, "SMTP", Falso)
+    with TestClient(app) as c:
+        h, _ = _preparar(c)
+        c.delete("/api/correo", headers=h)
+        assert c.put("/api/correo", headers=h, json={"host": "smtp.gmail.com", "user": "facturas@ejemplo.mx", "password": ""}).status_code == 422
+        r = c.put("/api/correo", headers=h, json={"host": "smtp.gmail.com", "port": 587, "user": "facturas@ejemplo.mx",
+                                                  "password": "abcd efgh ijkl mnop", "nombre": "Facturación de prueba"}).json()
+        assert r["configurado"] and r["tiene_password"] and "password" not in r
+        guardado = open(mailer._ruta(), encoding="utf-8").read()
+        assert "abcd" not in guardado and "abcdefghijklmnop" not in guardado  # cifrada en disco
+        assert c.post("/api/correo/probar", headers=h, json={"para": "destino@ejemplo.mx"}).status_code == 200
+        assert enviados[-1][0] == ("facturas@ejemplo.mx", "abcdefghijklmnop") and "Facturación de prueba" in enviados[-1][1]
+        # cambiar el nombre sin volver a escribir la contraseña la conserva
+        c.put("/api/correo", headers=h, json={"host": "smtp.gmail.com", "user": "facturas@ejemplo.mx", "nombre": "Otro"})
+        assert mailer.config()["password"] == "abcdefghijklmnop"
+        assert c.delete("/api/correo", headers=h).json()["configurado"] is False

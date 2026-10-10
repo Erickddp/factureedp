@@ -27,7 +27,7 @@ export default function Inicio() {
   return (
     <>
       <PageHeader title={emisor?.nombre ?? "Resumen"}>
-        <Link href="/facturar"><Button variant="primario"><Zap className="size-4" /> Facturar <Kbd>F2</Kbd></Button></Link>
+        <Link href="/facturar"><Button variant="acento" size="lg"><Zap className="size-4" /> Nueva factura <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[11px] font-medium">F2</kbd></Button></Link>
       </PageHeader>
 
       {data?.alertas.filter((a) => a.nivel !== "info").map((a, i) => (

@@ -54,8 +54,24 @@ function Facturas() {
   };
   const pdf = (f: Factura) => descargar(`/facturas/${f.id}/pdf`, `${f.uuid}.pdf`).catch(mostrarError);
   const xml = (f: Factura) => descargar(`/facturas/${f.id}/xml`, `${f.uuid}.xml`).catch(mostrarError);
+  // Si el cliente no tiene correo guardado, se pregunta a quién mandarlo y queda guardado para la próxima
+  const enviarCorreo = async (f: Factura) => {
+    try {
+      const r = await api<{ para: string[] }>(`/facturas/${f.id}/enviar`, { method: "POST", json: {} });
+      toast.success(`Enviada a ${r.para.join(", ")}`);
+    } catch (e) {
+      if ((e as { status?: number }).status !== 422) return mostrarError(e);
+      const correo = window.prompt(`${f.receptor_nombre ?? "El cliente"} no tiene correo guardado. ¿A qué correo mando la factura?`)?.trim();
+      if (!correo) return;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return void toast.error("Ese correo no parece válido.");
+      try {
+        await api(`/facturas/${f.id}/enviar`, { method: "POST", json: { para: [correo], guardar: true } });
+        toast.success(`Enviada a ${correo} y guardado en el cliente`);
+      } catch (e2) { mostrarError(e2); }
+    }
+  };
   const acciones = (f: Factura) => [
-    { label: "Enviar por correo", icon: <Mail className="size-4" />, onClick: () => api(`/facturas/${f.id}/enviar`, { method: "POST", json: {} }).then(() => toast.success("Enviada")).catch(mostrarError) },
+    { label: "Enviar por correo", icon: <Mail className="size-4" />, onClick: () => enviarCorreo(f) },
     { label: "Clonar", icon: <Copy className="size-4" />, onClick: () => router.push(`/facturar?clonar=${f.id}`), oculto: f.tipo === "P" },
     { label: "Guardar como plantilla", icon: <BookmarkPlus className="size-4" />, onClick: () => guardarPlantilla(f), oculto: f.tipo === "P" },
     { label: "Consultar estatus en el SAT", icon: <ShieldCheck className="size-4" />, oculto: !f.uuid || f.tipo === undefined, onClick: () =>

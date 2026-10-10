@@ -1,21 +1,24 @@
 @import "tailwindcss";
 
-/* EDDP · minimalista blanco y negro, un solo acento. El modo oscuro sólo cambia los tokens. */
+/* EDDP · azul marino sobre papel frío, con un acento azul vivo para lo que importa (Nueva factura, enlaces, foco).
+   El modo oscuro sólo cambia los tokens: marino profundo, no negro. */
 @theme {
-  --color-papel: #f6f6f4;
+  --color-papel: #f3f5f9;
   --color-hoja: #ffffff;
-  --color-tinta: #0b0b0c;
-  --color-grafito: #66666b;
-  --color-linea: #e7e7e4;
-  --color-primario: #0b0b0c;
+  --color-tinta: #0c1629;
+  --color-grafito: #5b667b;
+  --color-linea: #e2e7ef;
+  --color-primario: #10244a;
   --color-sobre-primario: #ffffff;
-  --color-panel: #0b0b0c;
-  --color-cobalto: #3149e0;
-  --color-cobalto-suave: #ecefff;
+  --color-panel: #10244a;
+  --color-acento: #2f63ff;
+  --color-acento-suave: #e8eeff;
+  --color-cobalto: #2f55e6;
+  --color-cobalto-suave: #e8eeff;
   --color-sello: #0b8457;
-  --color-sello-suave: #e3f4ec;
-  --color-alerta: #a86a12;
-  --color-alerta-suave: #fbf1de;
+  --color-sello-suave: #e2f4ec;
+  --color-alerta: #a3650c;
+  --color-alerta-suave: #fbf0dc;
   --color-rojo: #c0392b;
   --color-rojo-suave: #fbe7e4;
   --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
@@ -23,18 +26,20 @@
 
 @layer base {
   :root[data-theme="dark"] {
-    --color-papel: #0a0a0b; --color-hoja: #141416; --color-tinta: #f1f1ee; --color-grafito: #9b9ba1;
-    --color-linea: #26262a; --color-primario: #f1f1ee; --color-sobre-primario: #0b0b0c; --color-panel: #1b1b1e;
-    --color-cobalto: #8098ff; --color-cobalto-suave: #1a2142; --color-sello: #3fcf92; --color-sello-suave: #0f2a1f;
-    --color-alerta: #e3ab4f; --color-alerta-suave: #2d2414; --color-rojo: #ff6f61; --color-rojo-suave: #301614;
+    --color-papel: #070b14; --color-hoja: #0e1524; --color-tinta: #e9edf6; --color-grafito: #93a0b8;
+    --color-linea: #1d2940; --color-primario: #e9edf6; --color-sobre-primario: #0b1220; --color-panel: #14203a;
+    --color-acento: #4f7cff; --color-acento-suave: #14224a;
+    --color-cobalto: #86a4ff; --color-cobalto-suave: #16224a; --color-sello: #3fcf92; --color-sello-suave: #0c2a22;
+    --color-alerta: #e9b25a; --color-alerta-suave: #2c2414; --color-rojo: #ff7466; --color-rojo-suave: #311716;
     color-scheme: dark;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --color-papel: #0a0a0b; --color-hoja: #141416; --color-tinta: #f1f1ee; --color-grafito: #9b9ba1;
-      --color-linea: #26262a; --color-primario: #f1f1ee; --color-sobre-primario: #0b0b0c; --color-panel: #1b1b1e;
-      --color-cobalto: #8098ff; --color-cobalto-suave: #1a2142; --color-sello: #3fcf92; --color-sello-suave: #0f2a1f;
-      --color-alerta: #e3ab4f; --color-alerta-suave: #2d2414; --color-rojo: #ff6f61; --color-rojo-suave: #301614;
+      --color-papel: #070b14; --color-hoja: #0e1524; --color-tinta: #e9edf6; --color-grafito: #93a0b8;
+      --color-linea: #1d2940; --color-primario: #e9edf6; --color-sobre-primario: #0b1220; --color-panel: #14203a;
+      --color-acento: #4f7cff; --color-acento-suave: #14224a;
+      --color-cobalto: #86a4ff; --color-cobalto-suave: #16224a; --color-sello: #3fcf92; --color-sello-suave: #0c2a22;
+      --color-alerta: #e9b25a; --color-alerta-suave: #2c2414; --color-rojo: #ff7466; --color-rojo-suave: #311716;
       color-scheme: dark;
     }
   }
@@ -71,3 +76,23 @@
   mask: radial-gradient(circle at 50% 0, transparent 5px, #000 5.5px) 0 0 / var(--d) 100% repeat-x;
   height: 8px;
 }
+
+/* Descarga SAT: pila de XML en 3D que flota y gira despacio */
+.portada-xml { background: radial-gradient(120% 90% at 50% 0%, #1b3a7a 0%, #10244a 45%, #0a1630 100%); color: #fff; }
+.portada-brillo { position: absolute; inset: -40% -20% auto; height: 80%; pointer-events: none;
+  background: radial-gradient(closest-side, rgb(79 124 255 / .35), transparent 70%); animation: respirar 7s ease-in-out infinite; }
+.escena-xml { perspective: 900px; width: 220px; height: 150px; }
+.pila-xml { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: girar-pila 9s ease-in-out infinite; }
+.hoja-xml { position: absolute; inset: 0; border-radius: 14px; background: #fff; padding: 16px 18px; text-align: left; color: #0c1629;
+  box-shadow: 0 18px 40px rgb(3 10 30 / .45); backface-visibility: hidden; }
+.hoja-xml i { display: block; height: 5px; border-radius: 3px; background: #e2e7ef; margin-top: 8px; }
+.hoja-xml i:nth-of-type(2) { width: 72%; } .hoja-xml i:nth-of-type(3) { width: 46%; background: #2f63ff; }
+.hoja-a { transform: translateZ(-70px) translateY(-26px) rotateZ(-7deg); opacity: .55; animation: flotar 6s ease-in-out infinite; }
+.hoja-b { transform: translateZ(-35px) translateY(-13px) rotateZ(4deg); opacity: .8; animation: flotar 6s ease-in-out -2s infinite; }
+.hoja-c { transform: translateZ(0); animation: flotar 6s ease-in-out -4s infinite; }
+.boton-xml { box-shadow: 0 10px 30px rgb(47 99 255 / .45); transition: transform .18s ease, box-shadow .18s ease; }
+.boton-xml:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 16px 44px rgb(47 99 255 / .6); }
+.boton-xml:active { transform: scale(.98); }
+@keyframes girar-pila { 0%, 100% { transform: rotateX(18deg) rotateY(-22deg); } 50% { transform: rotateX(10deg) rotateY(22deg); } }
+@keyframes flotar { 0%, 100% { translate: 0 0; } 50% { translate: 0 -9px; } }
+@keyframes respirar { 0%, 100% { opacity: .7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }

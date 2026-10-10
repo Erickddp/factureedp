@@ -7,7 +7,7 @@ export function cx(...c: (string | false | null | undefined)[]) {
 }
 
 type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primario" | "secundario" | "fantasma" | "peligro";
+  variant?: "primario" | "acento" | "secundario" | "fantasma" | "peligro";
   size?: "sm" | "md" | "lg";
   loading?: boolean;
 };
@@ -27,6 +27,7 @@ export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button(
         size === "md" && "h-10 px-4 text-sm",
         size === "lg" && "h-12 px-6 text-base",
         variant === "primario" && "bg-primario text-sobre-primario hover:opacity-85 active:scale-[.98]",
+        variant === "acento" && "bg-acento text-white shadow-sm shadow-acento/30 hover:brightness-110 active:scale-[.98]",
         variant === "secundario" && "border border-linea bg-hoja hover:border-grafito/50",
         variant === "fantasma" && "hover:bg-tinta/5",
         variant === "peligro" && "bg-rojo text-white hover:bg-[#a02e22]",
@@ -233,7 +234,7 @@ export function Interruptor({ checked, onChange, label, hint }: { checked: boole
   return (
     <label className="flex cursor-pointer items-start gap-3">
       <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
-        className={cx("relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors", checked ? "bg-primario" : "bg-linea")}>
+        className={cx("relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors", checked ? "bg-acento" : "bg-linea")}>
         <span className={cx("absolute top-0.5 size-4 rounded-full bg-hoja shadow transition-all", checked ? "left-[18px]" : "left-0.5")} />
       </button>
       <span className="min-w-0 text-sm"><span className="font-medium">{label}</span>{hint && <span className="block text-xs text-grafito">{hint}</span>}</span>

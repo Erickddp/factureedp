@@ -212,7 +212,7 @@ def test_cobranza_y_estado_de_cuenta():
         assert "Estado de cuenta" in c.get(f"/api/cobranza/estado-cuenta/{cli['id']}/html", headers=h).text
         # Sin SMTP configurado: el recordatorio dice por qué no salió, no truena
         r = c.post("/api/cobranza/recordar", headers=h, json={"cliente_ids": [cli["id"]]}).json()
-        assert r[0]["ok"] is False and "SMTP" in r[0]["error"]
+        assert r[0]["ok"] is False and "correo de envío" in r[0]["error"]
 
 
 def test_sat_importar_conciliar_y_fiel():

@@ -282,4 +282,7 @@ def enviar(fid: int, data: EnviarIn, db: Session = Depends(get_db)):
         svc.enviar(f, para, data.mensaje)
     except Exception as e:
         raise HTTPException(502, str(e))
+    if data.guardar and data.para and f.cliente:
+        f.cliente.emails = sorted(set((f.cliente.emails or []) + data.para))
+        db.commit()
     return {"ok": True, "para": para}

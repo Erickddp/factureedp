@@ -19,14 +19,14 @@ import { Consola } from "./consola";
 import { EmisorProvider, useEmisor } from "./emisor-context";
 import { Badge, Button, Field, Input, Modal, cx } from "./ui";
 
-type Item = { href: string; label: string; icon: typeof Zap; k?: string };
+type Item = { href: string; label: string; icon: typeof Zap; k?: string; cta?: boolean };
+// Pendientes ya no va en el menú: si hay algo por atender sale el aviso arriba de la pantalla (y Alt+J sigue abriéndola).
 // Orden por uso: primero el tablero y lo de todos los días; luego por tarea. En el riel, un grupo plegado se ve como un solo icono.
 const NAV: { id: string; grupo?: string; icon?: typeof Zap; plegado?: boolean; items: Item[] }[] = [
   { id: "diario", items: [
     { href: "/", label: "Resumen", icon: LayoutDashboard },
-    { href: "/facturar", label: "Nueva factura", icon: FilePlus2, k: "F2" },
+    { href: "/facturar", label: "Nueva factura", icon: FilePlus2, k: "F2", cta: true },
     { href: "/facturas", label: "Facturas emitidas", icon: Files, k: "Alt F" },
-    { href: "/pendientes", label: "Pendientes", icon: ListChecks, k: "Alt J" },
   ] },
   { id: "emitir", grupo: "Emitir", icon: Send, items: [
     { href: "/lotes", label: "Lotes desde tabla", icon: Table2, k: "Alt L" },
@@ -230,6 +230,7 @@ function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; 
   const fila = (it: Item, cerrar?: () => void) => (
     <Link key={it.href} href={it.href} onClick={() => { cerrar?.(); onIr?.(); }}
       className={cx("relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+        it.cta ? "bg-acento font-medium text-white shadow-sm hover:brightness-110" :
         activo(path, it.href) ? "bg-primario font-medium text-sobre-primario" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
       <it.icon className="size-[18px] shrink-0" />
       <span className="min-w-0 truncate">{it.label}</span>
@@ -246,7 +247,8 @@ function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; 
         {NAV[0].items.map((it) => (
           <Link key={it.href} href={it.href} aria-label={it.label}
             onMouseEnter={(e) => abrir(it.href, e.currentTarget)} onMouseLeave={cerrarLuego} onFocus={(e) => abrir(it.href, e.currentTarget)} onBlur={cerrarLuego}
-            className={cx(boton, activo(path, it.href) ? "bg-primario text-sobre-primario" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
+            className={cx(boton, it.cta ? "bg-acento text-white shadow-md shadow-acento/30 hover:brightness-110" :
+              activo(path, it.href) ? "bg-primario text-sobre-primario" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
             <it.icon className="size-6" strokeWidth={1.75} />
             {it.href === "/pendientes" && !!pend?.total && globo(pend.total, pend.errores, true)}
           </Link>
