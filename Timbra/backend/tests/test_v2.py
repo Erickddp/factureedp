@@ -68,7 +68,7 @@ def test_timbres_y_pdf_con_marca():
         cli = _cliente(c, h, e)
         f, _ = _factura(c, h, e, cli)
         html = c.get(f"/api/facturas/{f['id']}/html", headers=h).text
-        assert 'class="marca"' in html and "#0a7c66" in html and "data:image/png;base64" in html
+        assert 'class="logo"' in html and "#0a7c66" in html and "data:image/png;base64" in html
         assert "ESCUELA KEMPER URGATE" in html
 
         # Paquete de 2 timbres en un PAC de producción: con 2 UUID ya usados, bloquea antes de timbrar

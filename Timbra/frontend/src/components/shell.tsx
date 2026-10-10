@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR, { SWRConfig } from "swr";
 import { toast } from "sonner";
 import {
-  BookMarked, Building2, Calculator, ChevronDown, CloudDownload, Coins, FileText, Gauge, HandCoins, Keyboard, LogOut, Menu as MenuIcon,
-  Monitor, Moon, Package, PanelLeftClose, PanelLeftOpen, Palette, Plug, Store, Sun, Terminal, Users, Wallet, X, Zap, BadgeDollarSign, AlertTriangle,
-  CalendarClock, UserSquare, Layers, Telescope, ListChecks,
+  AlertTriangle, BadgeDollarSign, Building2, Calculator, CalendarClock, ChevronDown, CloudDownload, FilePlus2, Files, HandCoins, Handshake, Keyboard,
+  LayoutDashboard, LayoutTemplate, ListChecks, LogOut, Menu as MenuIcon, Monitor, Moon, Package, Palette, ChevronLeft, ChevronRight, Plug, QrCode,
+  ReceiptText, Repeat, ScanSearch, Settings, Stamp, Sun, Table2, Terminal, Users, X, Zap, FolderOpen, Send, Wallet,
 } from "lucide-react";
 import { api, fetcher, getToken, reportarNavegador, setToken } from "@/lib/api";
 import { consola, useConsola } from "@/lib/debug";
@@ -20,37 +20,37 @@ import { EmisorProvider, useEmisor } from "./emisor-context";
 import { Badge, Button, Field, Input, Modal, cx } from "./ui";
 
 type Item = { href: string; label: string; icon: typeof Zap; k?: string };
-// Orden por uso: arriba lo de todos los días; los grupos de abajo se pliegan (Control y Configuración vienen plegados).
-const NAV: { id: string; grupo?: string; plegado?: boolean; items: Item[] }[] = [
+// Orden por uso: primero el tablero y lo de todos los días; luego por tarea. En el riel, un grupo plegado se ve como un solo icono.
+const NAV: { id: string; grupo?: string; icon?: typeof Zap; plegado?: boolean; items: Item[] }[] = [
   { id: "diario", items: [
-    { href: "/facturar", label: "Facturar", icon: Zap, k: "F2" },
-    { href: "/facturas", label: "Facturas", icon: FileText, k: "Alt F" },
+    { href: "/", label: "Resumen", icon: LayoutDashboard },
+    { href: "/facturar", label: "Nueva factura", icon: FilePlus2, k: "F2" },
+    { href: "/facturas", label: "Facturas emitidas", icon: Files, k: "Alt F" },
     { href: "/pendientes", label: "Pendientes", icon: ListChecks, k: "Alt J" },
-    { href: "/", label: "Resumen", icon: Gauge },
   ] },
-  { id: "emitir", grupo: "Emitir", items: [
-    { href: "/lotes", label: "Lotes desde tabla", icon: Layers, k: "Alt L" },
-    { href: "/recurrentes", label: "Recurrentes", icon: CalendarClock, k: "Alt R" },
-    { href: "/pagos", label: "Pagos (REP)", icon: Wallet },
+  { id: "emitir", grupo: "Emitir", icon: Send, items: [
+    { href: "/lotes", label: "Lotes desde tabla", icon: Table2, k: "Alt L" },
+    { href: "/recurrentes", label: "Recurrentes", icon: Repeat, k: "Alt R" },
+    { href: "/pagos", label: "Pagos (REP)", icon: ReceiptText },
     { href: "/nomina", label: "Nómina", icon: BadgeDollarSign, k: "Alt E" },
-    { href: "/portal", label: "Autofactura", icon: Store },
+    { href: "/portal", label: "Autofactura", icon: QrCode },
   ] },
-  { id: "catalogos", grupo: "Catálogos", items: [
-    { href: "/clientes", label: "Clientes", icon: Users },
-    { href: "/productos", label: "Productos", icon: Package },
-    { href: "/claves", label: "Claves SAT", icon: Telescope, k: "Alt K" },
-    { href: "/plantillas", label: "Plantillas", icon: BookMarked },
-    { href: "/terceros", label: "Terceros", icon: UserSquare },
-  ] },
-  { id: "control", grupo: "Control", plegado: true, items: [
+  { id: "control", grupo: "Cobrar y revisar", icon: Wallet, items: [
     { href: "/cobranza", label: "Cobranza", icon: HandCoins, k: "Alt B" },
-    { href: "/calculadora", label: "Calculadora", icon: Calculator },
     { href: "/sat", label: "Descarga SAT", icon: CloudDownload },
+    { href: "/calculadora", label: "Calculadora", icon: Calculator },
   ] },
-  { id: "config", grupo: "Configuración", plegado: true, items: [
+  { id: "catalogos", grupo: "Catálogos", icon: FolderOpen, items: [
+    { href: "/clientes", label: "Clientes", icon: Users },
+    { href: "/productos", label: "Productos y servicios", icon: Package },
+    { href: "/claves", label: "Claves SAT", icon: ScanSearch, k: "Alt K" },
+    { href: "/plantillas", label: "Plantillas", icon: LayoutTemplate },
+    { href: "/terceros", label: "Terceros", icon: Handshake },
+  ] },
+  { id: "config", grupo: "Configuración", icon: Settings, plegado: true, items: [
     { href: "/emisores", label: "Emisores y CSD", icon: Building2 },
     { href: "/ajustes", label: "PAC y usuarios", icon: Plug },
-    { href: "/timbres", label: "Timbres", icon: Coins, k: "Alt T" },
+    { href: "/timbres", label: "Timbres", icon: Stamp, k: "Alt T" },
     { href: "/marca", label: "Marca y e.firma", icon: Palette },
   ] },
 ];
@@ -89,13 +89,14 @@ function Utilidades({ riel }: { riel?: boolean }) {
   const txtTema = t === "oscuro" ? "Oscuro" : t === "claro" ? "Claro" : "Como el sistema";
   const b = "relative grid size-9 place-items-center rounded-lg text-grafito hover:bg-tinta/5 hover:text-tinta";
   return (
-    <div className={cx("flex gap-1", riel ? "flex-col items-center" : "items-center")}>
+    <div className={cx("flex items-center gap-1", riel && "justify-center gap-0")}>
       <button onClick={() => tema.siguiente()} title={`Tema: ${txtTema} (Ctrl+Shift+L)`} aria-label={`Tema: ${txtTema}`} className={b}><IconTema className="size-4" /></button>
-      <button onClick={() => consola.alternar()} title="Consola de depuración (F9)" aria-label="Consola" className={b}>
+      <button onClick={() => consola.alternar()} title="Consola de depuración (F9)" aria-label="Consola" className={cx(b, riel && "hidden")}>
         <Terminal className="size-4" />
         {erroresNuevos > 0 && <span className="absolute right-0.5 top-0.5 grid size-4 place-items-center rounded-full bg-rojo text-[10px] text-white">{erroresNuevos > 9 ? "9+" : erroresNuevos}</span>}
       </button>
       <button onClick={abrirAyuda} title="Atajos de teclado (F1)" aria-label="Atajos" className={b}><Keyboard className="size-4" /></button>
+      {riel && erroresNuevos > 0 && <button onClick={() => consola.alternar()} title="Hay errores: abrir consola (F9)" aria-label="Consola" className={b}><Terminal className="size-4 text-rojo" /></button>}
     </div>
   );
 }
@@ -105,7 +106,7 @@ function BotonPerfil({ yo, riel, abrir }: { yo?: Yo; riel?: boolean; abrir: () =
   const nombre = yo?.nombre || yo?.email || "Mi perfil";
   return (
     <button onClick={abrir} title={riel ? `${nombre} · Mi perfil` : "Mi perfil"} className={cx("flex min-w-0 items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-tinta/5", riel && "justify-center")}>
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-tinta/10 text-[11px] font-semibold">{iniciales(nombre)}</span>
+      <span className={cx("grid shrink-0 place-items-center rounded-full bg-tinta/10 font-semibold", riel ? "size-10 text-xs" : "size-8 text-[11px]")}>{iniciales(nombre)}</span>
       {!riel && (
         <span className="min-w-0 leading-tight">
           <b className="block truncate text-sm font-medium">{nombre}</b>
@@ -171,45 +172,129 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
   );
 }
 
+/** Riel: el emisor con el que se trabaja, bien a la vista bajo el logo. Clic = cambiar de emisor. */
+function EmisorRiel() {
+  const { emisores, emisor, setEmisorId } = useEmisor();
+  const [abierto, setAbierto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setAbierto(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAbierto(false);
+    document.addEventListener("mousedown", fuera);
+    window.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", fuera); window.removeEventListener("keydown", esc); };
+  }, [abierto]);
+  if (!emisor) return <Link href="/emisores" title="Da de alta tu primer RFC" className="mx-auto grid size-12 place-items-center rounded-xl border border-dashed border-linea text-grafito hover:text-tinta"><Building2 className="size-5" /></Link>;
+  const letras = (rfc: string) => rfc.slice(0, rfc.length === 12 ? 3 : 4);
+  return (
+    <div ref={ref} className="relative mx-auto">
+      <button onClick={() => setAbierto((a) => !a)} aria-haspopup="menu" aria-expanded={abierto} title={`Trabajas con ${emisor.rfc} · ${emisor.nombre}`}
+        className={cx("flex h-[52px] w-[60px] flex-col items-center justify-center rounded-xl border bg-tinta/5 leading-none transition-colors hover:border-grafito/60", abierto ? "border-grafito/60" : "border-linea")}>
+        <b className="text-[15px] tracking-tight">{letras(emisor.rfc)}</b>
+        <span className="mt-1 text-[9px] tabular-nums tracking-wide text-grafito">{emisor.rfc.slice(letras(emisor.rfc).length, letras(emisor.rfc).length + 6)}</span>
+      </button>
+      {abierto && (
+        <div role="menu" className="absolute left-full top-0 z-[60] ml-3 w-72 rounded-xl border border-linea bg-hoja p-1.5 shadow-2xl">
+          <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-[.08em] text-grafito/70">Emisor con el que trabajas</p>
+          {emisores.map((e) => (
+            <button key={e.id} role="menuitemradio" aria-checked={e.id === emisor.id} onClick={() => { setEmisorId(e.id); setAbierto(false); }}
+              className={cx("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm", e.id === emisor.id ? "bg-primario text-sobre-primario" : "hover:bg-tinta/5")}>
+              <b className="w-11 shrink-0 text-[13px]">{letras(e.rfc)}</b>
+              <span className="min-w-0"><span className="block truncate font-medium">{e.nombre}</span><span className="block text-[11px] tabular-nums opacity-70">{e.rfc}</span></span>
+            </button>
+          ))}
+          <Link href="/emisores" onClick={() => setAbierto(false)} className="mt-1 block rounded-lg px-3 py-2 text-sm text-grafito hover:bg-tinta/5 hover:text-tinta">Administrar emisores…</Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; onIr?: () => void; pend?: { total: number; errores: number } }) {
-  // Grupos plegados: lo que el usuario eligió, o el valor por defecto. El grupo de la pantalla actual siempre se ve.
+  // Grupos plegados (barra abierta): lo que el usuario eligió, o el valor por defecto. La pantalla actual siempre se ve.
   const [plegados, setPlegados] = useState<Record<string, boolean>>({});
   useEffect(() => { try { setPlegados(JSON.parse(leer("timbra_grupos") || "{}")); } catch {} }, []);
   const alternar = (id: string, ahora: boolean) => setPlegados((p) => { const n = { ...p, [id]: !ahora }; guardar("timbra_grupos", JSON.stringify(n)); return n; });
+  // Riel: cada grupo es UN icono; al pasar el mouse (o con clic) sale su menú con nombres completos. Lo diario lleva etiqueta flotante.
+  const [flota, setFlota] = useState<{ id: string; y: number } | null>(null);
+  const cierre = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abrir = (id: string, el: HTMLElement) => { if (cierre.current) clearTimeout(cierre.current); const r = el.getBoundingClientRect(); setFlota({ id, y: r.top }); };
+  const cerrarLuego = () => { if (cierre.current) clearTimeout(cierre.current); cierre.current = setTimeout(() => setFlota(null), 180); };
+  const quedarse = () => { if (cierre.current) clearTimeout(cierre.current); };
+  useEffect(() => setFlota(null), [path, riel]);
+  const globo = (total: number, errores: number, enRiel: boolean) => (
+    <span className={cx("grid place-items-center rounded-full font-semibold tabular-nums text-white", errores ? "bg-rojo" : "bg-alerta",
+      enRiel ? "absolute -right-0.5 -top-0.5 min-w-[18px] px-1 text-[10px] leading-[18px]" : "ml-auto min-w-5 px-1.5 text-[11px]")}>{total > 99 ? "99+" : total}</span>
+  );
+  const fila = (it: Item, cerrar?: () => void) => (
+    <Link key={it.href} href={it.href} onClick={() => { cerrar?.(); onIr?.(); }}
+      className={cx("relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+        activo(path, it.href) ? "bg-primario font-medium text-sobre-primario" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
+      <it.icon className="size-[18px] shrink-0" />
+      <span className="min-w-0 truncate">{it.label}</span>
+      {it.href === "/pendientes" && !!pend?.total ? globo(pend.total, pend.errores, false) : it.k && <kbd className="ml-auto pl-3 font-sans text-[10px] opacity-50">{it.k}</kbd>}
+    </Link>
+  );
+
+  if (riel) {
+    const g = flota ? NAV.find((x) => x.id === flota.id) : undefined;
+    const item = flota ? NAV[0].items.find((x) => x.href === flota.id) : undefined;
+    const boton = "relative grid size-12 place-items-center rounded-xl transition-colors";
+    return (
+      <nav className="flex flex-1 flex-col items-center gap-1.5">
+        {NAV[0].items.map((it) => (
+          <Link key={it.href} href={it.href} aria-label={it.label}
+            onMouseEnter={(e) => abrir(it.href, e.currentTarget)} onMouseLeave={cerrarLuego} onFocus={(e) => abrir(it.href, e.currentTarget)} onBlur={cerrarLuego}
+            className={cx(boton, activo(path, it.href) ? "bg-primario text-sobre-primario" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
+            <it.icon className="size-6" strokeWidth={1.75} />
+            {it.href === "/pendientes" && !!pend?.total && globo(pend.total, pend.errores, true)}
+          </Link>
+        ))}
+        <span className="my-1 h-px w-8 bg-linea" />
+        {NAV.slice(1).map((gr) => {
+          const GIcon = gr.icon!;
+          const aqui = gr.items.some((i) => activo(path, i.href));
+          return (
+            <button key={gr.id} aria-label={gr.grupo} aria-haspopup="menu" aria-expanded={flota?.id === gr.id}
+              onMouseEnter={(e) => abrir(gr.id, e.currentTarget)} onMouseLeave={cerrarLuego} onClick={(e) => abrir(gr.id, e.currentTarget)}
+              className={cx(boton, aqui ? "bg-tinta/10 text-tinta ring-1 ring-linea" : flota?.id === gr.id ? "bg-tinta/5 text-tinta" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
+              <GIcon className="size-6" strokeWidth={1.75} />
+            </button>
+          );
+        })}
+        {item && flota && (
+          <div role="tooltip" style={{ top: flota.y + 24 }} className="pointer-events-none fixed left-[84px] z-[60] flex -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-lg border border-linea bg-hoja px-3 py-2 text-sm font-medium shadow-xl">
+            {item.label}{item.k && <kbd className="rounded bg-tinta/10 px-1.5 py-0.5 font-sans text-[11px] font-normal text-grafito">{item.k}</kbd>}
+          </div>
+        )}
+        {g && flota && (
+          <div role="menu" onMouseEnter={quedarse} onMouseLeave={cerrarLuego}
+            style={{ top: Math.max(8, Math.min(flota.y - 8, (typeof window === "undefined" ? 800 : window.innerHeight) - (g.items.length * 40 + 56))) }}
+            className="fixed left-[76px] z-[60] w-60 pl-2">
+            <div className="flex flex-col gap-0.5 rounded-xl border border-linea bg-hoja p-1.5 shadow-2xl">
+              <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-[.08em] text-grafito/70">{g.grupo}</p>
+              {g.items.map((it) => fila(it, () => setFlota(null)))}
+            </div>
+          </div>
+        )}
+      </nav>
+    );
+  }
+
   return (
-    <nav className={cx("flex flex-1 flex-col overflow-y-auto", riel ? "gap-1" : "gap-2")}>
+    <nav className="flex flex-1 flex-col gap-2 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--color-linea)_transparent]">
       {NAV.map((g) => {
-        const aqui = g.items.some((i) => activo(path, i.href));
-        const plegado = !riel && !!g.grupo && (plegados[g.id] ?? !!g.plegado);
+        const plegado = !!g.grupo && (plegados[g.id] ?? !!g.plegado);
         return (
-          <div key={g.id} className={cx("flex flex-col gap-0.5", riel && g.grupo && "border-t border-linea pt-1")}>
-            {g.grupo && !riel && (
+          <div key={g.id} className="flex flex-col gap-0.5">
+            {g.grupo && (
               <button onClick={() => alternar(g.id, plegado)} aria-expanded={!plegado}
                 className="flex items-center justify-between rounded-md px-3 py-1 text-[11px] font-medium uppercase tracking-[.08em] text-grafito/70 hover:text-tinta">
                 {g.grupo}<ChevronDown className={cx("size-3.5 transition-transform", plegado && "-rotate-90")} />
               </button>
             )}
-            {g.items.map(({ href, label, icon: Icon, k }) => (plegado && !activo(path, href) && !(href === "/pendientes")) ? null : (
-              <Link
-                key={href}
-                href={href}
-                onClick={onIr}
-                title={riel ? `${label}${k ? ` (${k})` : ""}` : undefined}
-                className={cx(
-                  "relative flex items-center gap-3 rounded-lg px-3 py-[7px] text-sm transition-colors",
-                  riel && "justify-center px-0",
-                  activo(path, href) ? "bg-primario font-medium text-sobre-primario" : "text-grafito hover:bg-tinta/5 hover:text-tinta",
-                )}
-              >
-                <Icon className="size-4 shrink-0" />
-                {!riel && <span className="min-w-0 truncate">{label}</span>}
-                {href === "/pendientes" && !!pend?.total ? (
-                  <span className={cx("grid place-items-center rounded-full font-semibold tabular-nums text-white", pend.errores ? "bg-rojo" : "bg-alerta",
-                    riel ? "absolute right-0.5 top-0 min-w-4 px-1 text-[10px]" : "ml-auto min-w-5 px-1.5 text-[11px]")}>{pend.total > 99 ? "99+" : pend.total}</span>
-                ) : !riel && k && <kbd className="ml-auto font-sans text-[10px] opacity-50">{k}</kbd>}
-              </Link>
-            ))}
-            {plegado && aqui && <span className="sr-only">Grupo plegado</span>}
+            {g.items.map((it) => (plegado && !activo(path, it.href) ? null : fila(it)))}
           </div>
         );
       })}
@@ -220,7 +305,8 @@ function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; 
 function Marca({ riel }: { riel?: boolean }) {
   return (
     <Link href="/" className={cx("flex min-w-0 items-center gap-2.5", riel && "justify-center")}>
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primario text-[11px] font-bold tracking-tight text-sobre-primario">ED</span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.png" alt="Timbra" className={cx("shrink-0 rounded-xl bg-black ring-1 ring-linea", riel ? "size-12" : "size-9")} />
       {!riel && (
         <span className="min-w-0 leading-tight">
           <b className="block text-[15px] tracking-tight">Timbra</b>
@@ -290,18 +376,14 @@ function Marco({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh">
       {/* Barra lateral: abierta o riel de iconos (Ctrl+B) */}
-      <aside className={cx("sticky top-0 hidden h-dvh shrink-0 flex-col gap-3 border-r border-linea bg-hoja py-3 transition-[width] duration-150 md:flex", riel ? "w-[60px] px-2" : "w-64 px-3")}>
-        <div className={cx("flex items-center gap-1", riel ? "flex-col" : "justify-between pl-2")}>
-          <Marca riel={riel} />
-          <button onClick={alternarBarra} title={riel ? "Abrir menú (Ctrl+B)" : "Plegar menú (Ctrl+B)"} aria-label={riel ? "Abrir menú" : "Plegar menú"} aria-expanded={!riel}
-            className="grid size-9 shrink-0 place-items-center rounded-lg text-grafito hover:bg-tinta/5 hover:text-tinta">
-            {riel ? <PanelLeftOpen className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
-          </button>
-        </div>
-        {riel ? (
-          emisorActivo && <button onClick={alternarBarra} title={`${emisorActivo.rfc} · ${emisorActivo.nombre} · clic para cambiar de emisor`}
-            className="mx-auto grid h-8 w-10 place-items-center rounded-lg border border-linea text-[10px] font-semibold tracking-tight text-grafito hover:text-tinta">{emisorActivo.rfc.slice(0, 4)}</button>
-        ) : <SelectorEmisor />}
+      <aside className={cx("sticky top-0 z-40 hidden h-dvh shrink-0 flex-col gap-3 border-r border-linea bg-hoja py-3 transition-[width] duration-150 md:flex", riel ? "w-[76px] px-2" : "w-64 px-3")}>
+        <div className={cx("flex", riel ? "justify-center" : "pl-1")}><Marca riel={riel} /></div>
+        {riel ? <EmisorRiel /> : <SelectorEmisor />}
+        {/* Pestaña en el borde, a media altura: pliega o abre el menú (Ctrl+B) */}
+        <button onClick={alternarBarra} title={riel ? "Abrir menú (Ctrl+B)" : "Plegar menú (Ctrl+B)"} aria-label={riel ? "Abrir menú" : "Plegar menú"} aria-expanded={!riel}
+          className="absolute left-full top-1/2 grid h-16 w-4 -translate-y-1/2 place-items-center rounded-r-full border border-l-0 border-linea bg-hoja text-grafito shadow-sm transition-[width,color] hover:w-5 hover:text-tinta">
+          {riel ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
+        </button>
         <Navegacion path={path} riel={riel} pend={pend} />
         <div className={cx("flex flex-col gap-1 border-t border-linea pt-2", riel && "items-center")}>
           <BotonPerfil yo={yo} riel={riel} abrir={() => setPerfil(true)} />

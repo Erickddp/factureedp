@@ -30,11 +30,20 @@ export default function Clientes() {
   const [importar, setImportar] = useState(false);
   const [revisar, setRevisar] = useState<"problemas" | "duplicados" | "lista" | null>(null);
   const buscar = useRef<HTMLInputElement>(null);
+  // Nuevo cliente con lo que ya escribiste en la búsqueda (RFC o nombre): no hay que volver a teclearlo
+  const qRef = useRef(q);
+  qRef.current = q;
+  const nuevo = () => {
+    const t = qRef.current.trim().toUpperCase();
+    setEdit({ ...vacio, ...(RFC_RE.test(t) ? { rfc: t } : { nombre: t }) });
+  };
   const { data = [], mutate, isLoading } = useSWR<(Cliente & { telefono?: string | null; direccion?: string | null })[]>(
     emisor ? `/clientes?emisor_id=${emisor.id}&limit=1000${q ? `&q=${encodeURIComponent(q)}` : ""}` : null,
     fetcher,
   );
   const { data: addendas = [] } = useSWR<Addenda[]>("/addendas", fetcher);
+  const nuevoRef = useRef(nuevo);
+  nuevoRef.current = nuevo;
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -49,7 +58,7 @@ export default function Clientes() {
       const t = e.target as HTMLElement;
       const escribiendo = ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName);
       if (e.key === "/" && !escribiendo) { e.preventDefault(); buscar.current?.focus(); }
-      if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); setEdit({ ...vacio }); }
+      if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); nuevoRef.current(); }
       if (e.altKey && e.key.toLowerCase() === "i") { e.preventDefault(); setImportar(true); }
     };
     window.addEventListener("keydown", k);
@@ -68,7 +77,7 @@ export default function Clientes() {
       <PageHeader title="Clientes">
         <Button onClick={() => setRevisar("problemas")}><ShieldCheck className="size-4" /> Revisar clientes</Button>
         <Button onClick={() => setImportar(true)} title="Alt + I"><FileUp className="size-4" /> Importar de Excel</Button>
-        <Button variant="primario" onClick={() => setEdit({ ...vacio })} title="Alt + N"><Plus className="size-4" /> Cliente</Button>
+        <Button variant="primario" onClick={nuevo} title="Alt + N"><Plus className="size-4" /> Cliente</Button>
       </PageHeader>
       <div className="relative mb-4">
         <Search className="pointer-events-none absolute left-3 top-3 size-4 text-grafito" />

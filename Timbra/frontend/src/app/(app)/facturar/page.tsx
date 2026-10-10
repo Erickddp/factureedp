@@ -86,10 +86,14 @@ function Facturar() {
   const [tc, setTc] = useState("");
   const [conceptos, setConceptos] = useState<Concepto[]>([nuevoConcepto()]);
   // Al cargar o cambiar de emisor: si no has capturado nada, los conceptos toman su IVA (8% frontera o 16%)
+  const defectoDe = useRef("");
   useEffect(() => {
+    const llave = `${emisor?.id}|${frontera}|${!!cfg}|${cfg?.defaults.impuesto ?? ""}|${cfg?.defaults.clave_prod_serv ?? ""}|${cfg?.defaults.clave_unidad ?? ""}`;
+    if (defectoDe.current === llave) return; // sólo al entrar, cambiar de emisor o cambiar los valores por defecto: nunca pisa lo que elegiste
+    defectoDe.current = llave;
     setConceptos((cs) => (cs.every(vacio) ? cs.map((c) => ({ ...c, impuestos: [...defecto.imps], objeto_imp: defecto.imps.length ? "02" : "01",
       clave_prod_serv: c.clave_prod_serv || defecto.clave, clave_unidad: c.clave_unidad || defecto.unidad })) : cs));
-  }, [frontera, cfg]);
+  }, [frontera, cfg, emisor?.id]);
   const [avanzado, setAvanzado] = useState(false);
   const [condiciones, setCondiciones] = useState("");
   const [relTipo, setRelTipo] = useState("01");
@@ -493,7 +497,7 @@ function Facturar() {
                 emisorId={emisor.id}
                 cliente={cliente}
                 onCliente={(c) => { setCliente(c); setNuevo(null); if (c) setFoco([0, 0]); }}
-                onNuevo={(rfc) => { setCliente(null); setNuevo({ ...receptorVacio, rfc }); }}
+                onNuevo={(rfc, nombre) => { setCliente(null); setNuevo({ ...receptorVacio, rfc, nombre }); }}
               />
               {nuevo && !cliente && <FormNuevoReceptor nuevo={nuevo} setNuevo={setNuevo} />}
               {ultima && conceptos.every(vacio) && (
@@ -738,7 +742,7 @@ function Facturar() {
 // ======================= Receptor =======================
 
 
-const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: Cliente | null; onCliente: (c: Cliente | null) => void; onNuevo: (rfc: string) => void }>(
+const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: Cliente | null; onCliente: (c: Cliente | null) => void; onNuevo: (rfc: string, nombre: string) => void }>(
   function BuscarCliente({ emisorId, cliente, onCliente, onNuevo }, ref) {
     const [q, setQ] = useState("");
     const [open, setOpen] = useState(false);
@@ -750,7 +754,7 @@ const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: 
 
     const elegir = (i: number) => {
       if (i < data.length) onCliente(data[i]);
-      else onNuevo(rfcTecleado);
+      else onNuevo(rfcTecleado, rfcTecleado ? "" : q.trim().toUpperCase()); // lo que ya escribiste pasa al formulario
       setOpen(false);
       setQ("");
     };
@@ -802,7 +806,7 @@ const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: 
             ))}
             <li role="option" aria-selected={act === data.length}>
               <button tabIndex={-1} onMouseDown={() => elegir(data.length)} onMouseEnter={() => setAct(data.length)} className={cx("flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-cobalto", act === data.length && "bg-cobalto-suave")}>
-                <Plus className="size-4 shrink-0" /> Nuevo receptor{rfcTecleado ? ` con RFC ${rfcTecleado}` : ""}
+                <Plus className="size-4 shrink-0" /> Nuevo receptor{rfcTecleado ? ` con RFC ${rfcTecleado}` : q.trim().length >= 2 ? ` «${q.trim().toUpperCase()}»` : ""}
               </button>
             </li>
           </ul>
@@ -817,7 +821,7 @@ function FormNuevoReceptor({ nuevo, setNuevo }: { nuevo: NuevoReceptor; setNuevo
   return (
     <div className="mt-4 grid gap-3 @min-[480px]:grid-cols-2">
       <Field label="RFC" error={nuevo.rfc && !RFC_RE.test(nuevo.rfc) ? "Formato de RFC inválido" : undefined}>
-        <Input data-campo="receptor" autoFocus value={nuevo.rfc} onChange={(e) => setNuevo({ ...nuevo, rfc: e.target.value.toUpperCase().trim() })} />
+        <Input data-campo="receptor" autoFocus value={nuevo.rfc} placeholder={nuevo.nombre ? "RFC de " + nuevo.nombre : undefined} onChange={(e) => setNuevo({ ...nuevo, rfc: e.target.value.toUpperCase().trim() })} />
       </Field>
       <Field label="Código postal fiscal">
         <Input value={nuevo.codigo_postal} maxLength={5} inputMode="numeric" onChange={(e) => setNuevo({ ...nuevo, codigo_postal: e.target.value.replace(/\D/g, "") })} />
@@ -850,7 +854,7 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
   onChange: (p: Partial<Concepto>) => void; onDuplicar: () => void; onBorrar: () => void; onMover: (d: number) => void; onElegido: () => void;
 }) {
   const [sug, setSug] = useState(false);
-  const [act, setAct] = useState(0);
+  const [act, setAct] = useState(-1);
   const [calc, setCalc] = useState(false);
   const [editarImp, setEditarImp] = useState(false);
   const { data: sugs } = useSWR<Sugerencias>(sug && c.descripcion.trim().length >= 2 && !c.producto_id ? `/productos/sugerencias?emisor_id=${emisorId}&q=${encodeURIComponent(c.descripcion.trim())}${vis.clave_sat ? "" : "&sat=false"}` : null, fetcher, { keepPreviousData: true });
@@ -858,10 +862,10 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
   const opciones = useMemo(() => [
     ...(sugs?.productos ?? []).map((p) => ({ k: `p${p.id}`, grupo: "Mi catálogo", texto: p.descripcion, dato: Number(p.precio) ? dinero(p.precio) : p.clave_prod_serv, patch: deProducto(p, c.valor_unitario) })),
     ...(sugs?.facturados ?? []).map((f) => ({ k: `f${f.descripcion}${f.clave_prod_serv}`, grupo: "Ya facturado", texto: f.descripcion, dato: Number(f.valor_unitario) ? dinero(f.valor_unitario) : f.clave_prod_serv, patch: deFacturado(f, c.valor_unitario) })),
-    ...(sugs?.sat ?? []).map((x) => ({ k: `s${x.clave}`, grupo: "Catálogo del SAT · pone la clave", texto: x.descripcion, dato: x.clave, patch: { clave_prod_serv: x.clave } as Partial<Concepto> })),
+    ...(sugs?.sat ?? []).map((x) => ({ k: `s${x.clave}`, grupo: "Catálogo del SAT · pone descripción y clave", texto: x.descripcion, dato: x.clave, patch: { descripcion: x.descripcion, clave_prod_serv: x.clave, producto_id: null } as Partial<Concepto> })),
   ], [sugs, c.valor_unitario]);
   const abierto = sug && opciones.length > 0 && c.descripcion.trim().length >= 2 && !c.producto_id;
-  useEffect(() => setAct(0), [c.descripcion]);
+  useEffect(() => setAct(-1), [c.descripcion]);
   const cant = Number(evaluarMonto(c.cantidad) || 0);
   const pu = Number(evaluarMonto(c.valor_unitario) || 0);
   const importe = cant * pu - Number(evaluarMonto(c.descuento ?? "") || 0);
@@ -901,8 +905,9 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
             onKeyDown={(e) => {
               if (!abierto) return;
               if (e.key === "ArrowDown") { e.preventDefault(); setAct((a) => Math.min(a + 1, opciones.length - 1)); }
-              else if (e.key === "ArrowUp") { e.preventDefault(); setAct((a) => Math.max(a - 1, 0)); }
-              else if (e.key === "Enter" && !e.ctrlKey) { e.preventDefault(); usarOpcion(opciones[act]); }
+              else if (e.key === "ArrowUp") { e.preventDefault(); setAct((a) => Math.max(a - 1, -1)); }
+              else if (e.key === "Enter" && !e.ctrlKey && act >= 0 && opciones[act]) { e.preventDefault(); usarOpcion(opciones[act]); }
+              else if (e.key === "Enter") setSug(false); // sin elegir: se queda lo que escribiste y Enter avanza de campo
               else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setSug(false); }
             }}
           />

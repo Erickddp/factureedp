@@ -47,6 +47,14 @@ export const ClaveSearch = forwardRef<HTMLInputElement, {
   const router = useRouter();
   const t = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // Lo último que hay en pantalla y en el formulario: el blur corre 150 ms después y no debe usar valores viejos
+  const qRef = useRef(q);
+  qRef.current = q;
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const elegido = useRef(false);
+  const VALIDA = tipo === "prod_serv" ? /^\d{8}$/ : /^[A-Z0-9]{2,3}$/i;
+
   useEffect(() => setQ(value), [value]);
   useEffect(() => {
     if (!open || q.length < 2 || q === value) return setRes([]);
@@ -60,6 +68,7 @@ export const ClaveSearch = forwardRef<HTMLInputElement, {
   }, [q, open, tipo, value]);
 
   const elegir = (c: Cat) => {
+    elegido.current = true;
     onChange(c.clave, c.descripcion);
     setQ(c.clave);
     setOpen(false);
@@ -77,13 +86,17 @@ export const ClaveSearch = forwardRef<HTMLInputElement, {
         role="combobox"
         aria-expanded={abierto}
         autoComplete="off"
-        onFocus={(e) => { setOpen(true); e.currentTarget.select(); }}
+        onFocus={(e) => { elegido.current = false; setOpen(true); e.currentTarget.select(); }}
         onBlur={() => setTimeout(() => {
           setOpen(false);
-          // Si escribió la clave exacta a mano, respétala
-          if (q !== value && /^[A-Z0-9]{2,8}$/i.test(q)) onChange(q.toUpperCase(), "");
+          if (elegido.current) return; // ya eligió de la lista: no tocar
+          const escrito = qRef.current.trim();
+          if (escrito === valueRef.current) return;
+          // Clave completa escrita a mano: se respeta. Texto a medias (una búsqueda sin elegir): regresa a la clave que había.
+          if (VALIDA.test(escrito)) onChange(escrito.toUpperCase(), "");
+          else setQ(valueRef.current);
         }, 150)}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onChange={(e) => { elegido.current = false; setQ(e.target.value); setOpen(true); }}
         onKeyDown={(e) => {
           if (!abierto) return;
           if (e.key === "ArrowDown") { e.preventDefault(); setAct((a) => Math.min(a + 1, res.length - 1)); }

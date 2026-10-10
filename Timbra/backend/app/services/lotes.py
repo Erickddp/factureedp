@@ -758,16 +758,18 @@ def _limpio(s: str) -> str:
 
 def zip_cfdi(db: Session, lote: Lote) -> bytes:
     """PDF y XML de cada factura timbrada, nombrados {folio de la hoja}_{UUID}."""
+    facs = []
+    for f in db.query(LoteFila).filter(LoteFila.lote_id == lote.id, LoteFila.estado == "timbrada").order_by(LoteFila.n):
+        fac = db.get(Factura, f.factura_id)
+        if fac and fac.xml:
+            facs.append((f"{_limpio(f.referencia or (fac.serie or '') + (fac.folio or ''))}_{fac.uuid}", fac))
+    pdfs = pdf_svc.pdf_varios([(fac.xml, fac.emisor) for _, fac in facs])  # en paralelo: cada PDF tarda unos segundos
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for f in db.query(LoteFila).filter(LoteFila.lote_id == lote.id, LoteFila.estado == "timbrada").order_by(LoteFila.n):
-            fac = db.get(Factura, f.factura_id)
-            if not fac or not fac.xml:
-                continue
-            base = f"{_limpio(f.referencia or (fac.serie or '') + (fac.folio or ''))}_{fac.uuid}"
+        for (base, fac), data in zip(facs, pdfs):
             z.writestr(f"{base}.xml", fac.xml)
-            try:
-                z.writestr(f"{base}.pdf", pdf_svc.pdf(fac.xml, fac.emisor))
-            except RuntimeError:
+            if data:
+                z.writestr(f"{base}.pdf", data)
+            else:
                 z.writestr(f"{base}.html", pdf_svc.html(fac.xml, emisor=fac.emisor))
     return buf.getvalue()

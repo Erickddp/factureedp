@@ -132,8 +132,18 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - Modo demo: `Emisor.modo_demo` (sin PAC o PAC demo) y `FacturaOut.demo` (`pdf.es_demo`: SelloSAT="DEMO"). Aviso en Facturar,
   etiqueta en Facturas y banda roja en el PDF. No lo quites: una factura demo NO vale ante el SAT.
 - Addendas básicas: `addenda.SEMILLAS`; al arrancar se agregan las que falten por nombre (no pisa las editadas).
-- Menú (`shell.tsx`): se pliega a riel con el botón o Ctrl+B (`timbra_barra`), grupos plegables (`timbra_grupos`), perfil abajo
+- Menú (`shell.tsx`, `NAV`): Resumen primero, luego lo diario y 4 grupos (Emitir, Cobrar y revisar, Catálogos, Configuración).
+  En riel cada grupo es UN icono con menú flotante al pasar el mouse (así cabe en pantallas de 720 px); lo diario lleva etiqueta.
+  Se pliega a riel con el botón o Ctrl+B (`timbra_barra`), grupos plegables (`timbra_grupos`), perfil abajo
   (`GET/PUT /auth/yo`). Descarga SAT queda como está: se conectará a la app externa DESCARGA XML SAT del usuario (falta el link).
+
+## PDF (no lo rompas)
+- `services/pdf.py`: facturas, notas de crédito y traslados usan plantilla PROPIA (`_propia`); nómina y pagos, la de satcfdi con marca.
+- Requisitos fiscales de la representación impresa (regla 2.7.1.7 RMF, art. 29-A CFF) listados en `pdf.REQUISITOS` y vigilados por
+  tests/test_v8_pdf.py: QR, UUID, certificados emisor y SAT, RFC del PAC, sellos, cadena original del timbre, fechas, leyenda, etc.
+  Si cambias la plantilla, esa prueba debe seguir pasando. Importe con letra: `pdf.con_letra`.
+- PDF real: weasyprint si hay GTK; si no, Edge/Chrome sin ventana (`_pdf_navegador`, ~4 s por PDF; Edge regresa ANTES de escribir el
+  archivo, por eso se espera; la carpeta temporal va con ruta larga, no `ERICKD~1`). Varios a la vez: `pdf_varios` (ZIP de lotes).
 
 ## Estabilidad (no la rompas)
 - `satcfdi.catalogs.conn` es UNA conexión SQLite compartida: con peticiones simultáneas fallaba (~16% de consultas, «API misuse», 500).
