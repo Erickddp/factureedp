@@ -1,0 +1,53 @@
+# ===== Secretos y datos reales: NUNCA al repo =====
+.env
+.env.*
+!.env.ejemplo
+datos/
+_test_datos/
+Respaldos/
+respaldo_xml/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.log
+# Sellos y firmas (los únicos permitidos son los CSD públicos de prueba del SAT)
+*.key
+*.cer
+*.pfx
+*.p12
+*.pem
+!Timbra/backend/tests/csd/*.cer
+!Timbra/backend/tests/csd/*.key
+# Llaves de servicios (Google, etc.)
+*credentials*.json
+*service-account*.json
+token.json
+
+# ===== Python =====
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# PyInstaller
+Timbra/backend/build/
+Timbra/backend/dist/
+
+# ===== Frontend =====
+node_modules/
+.next/
+Timbra/frontend/out/
+*.tsbuildinfo
+
+# ===== Instalador =====
+Timbra/instalador/salida/
+*.exe
+
+# ===== Sistema y editores =====
+desktop.ini
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+.claude/settings.local.json

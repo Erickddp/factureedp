@@ -1,0 +1,4 @@
+# Opcional: PDF directo en el servidor. En Windows además necesitas GTK
+# (https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#windows).
+# Sin esto, el botón PDF abre la factura lista para imprimir y "Guardar como PDF".
+weasyprint

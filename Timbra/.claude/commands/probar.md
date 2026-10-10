@@ -1,0 +1,1 @@
+Corre las pruebas del backend (`cd backend && .venv/Scripts/python -m pytest -q tests`, o `python -m pytest` si no hay venv) y el chequeo de tipos del front (`cd frontend && npx tsc --noEmit`). Si algo falla, arréglalo sin tocar las reglas de oro de CLAUDE.md y vuelve a correr hasta que todo pase. Resume en 3 líneas qué arreglaste.

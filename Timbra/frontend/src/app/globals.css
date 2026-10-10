@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* EDDP · minimalista blanco y negro, un solo acento. El modo oscuro sólo cambia los tokens. */
+@theme {
+  --color-papel: #f6f6f4;
+  --color-hoja: #ffffff;
+  --color-tinta: #0b0b0c;
+  --color-grafito: #66666b;
+  --color-linea: #e7e7e4;
+  --color-primario: #0b0b0c;
+  --color-sobre-primario: #ffffff;
+  --color-panel: #0b0b0c;
+  --color-cobalto: #3149e0;
+  --color-cobalto-suave: #ecefff;
+  --color-sello: #0b8457;
+  --color-sello-suave: #e3f4ec;
+  --color-alerta: #a86a12;
+  --color-alerta-suave: #fbf1de;
+  --color-rojo: #c0392b;
+  --color-rojo-suave: #fbe7e4;
+  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  :root[data-theme="dark"] {
+    --color-papel: #0a0a0b; --color-hoja: #141416; --color-tinta: #f1f1ee; --color-grafito: #9b9ba1;
+    --color-linea: #26262a; --color-primario: #f1f1ee; --color-sobre-primario: #0b0b0c; --color-panel: #1b1b1e;
+    --color-cobalto: #8098ff; --color-cobalto-suave: #1a2142; --color-sello: #3fcf92; --color-sello-suave: #0f2a1f;
+    --color-alerta: #e3ab4f; --color-alerta-suave: #2d2414; --color-rojo: #ff6f61; --color-rojo-suave: #301614;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-papel: #0a0a0b; --color-hoja: #141416; --color-tinta: #f1f1ee; --color-grafito: #9b9ba1;
+      --color-linea: #26262a; --color-primario: #f1f1ee; --color-sobre-primario: #0b0b0c; --color-panel: #1b1b1e;
+      --color-cobalto: #8098ff; --color-cobalto-suave: #1a2142; --color-sello: #3fcf92; --color-sello-suave: #0f2a1f;
+      --color-alerta: #e3ab4f; --color-alerta-suave: #2d2414; --color-rojo: #ff6f61; --color-rojo-suave: #301614;
+      color-scheme: dark;
+    }
+  }
+  html { background: var(--color-papel); color: var(--color-tinta); transition: background-color .2s, color .2s; }
+  ::selection { background: var(--color-tinta); color: var(--color-hoja); }
+  body { font-feature-settings: "tnum" 1, "ss01" 1; -webkit-font-smoothing: antialiased; }
+  :focus-visible { outline: 2px solid var(--color-cobalto); outline-offset: 2px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+}
+
+/* Paneles "tinta" con texto blanco (ticket, tarjetas destacadas): en oscuro quedan como superficie elevada */
+:root[data-theme="dark"] .bg-tinta { background-color: var(--color-panel); }
+:root[data-theme="dark"] .bg-tinta\/40 { background-color: rgb(0 0 0 / .6); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bg-tinta { background-color: var(--color-panel); }
+  :root:not([data-theme="light"]) .bg-tinta\/40 { background-color: rgb(0 0 0 / .6); }
+}
+
+/* Entrada suave de cada pantalla */
+@keyframes entrar { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.animate-entrar { animation: entrar 180ms ease-out both; }
+
+/* El sello: el único momento con movimiento de la app */
+@keyframes sellar {
+  0% { transform: scale(1.8) rotate(-18deg); opacity: 0; }
+  60% { transform: scale(0.94) rotate(-8deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-8deg); opacity: 1; }
+}
+.animate-sellar { animation: sellar 420ms cubic-bezier(.2,.9,.3,1.2) both; }
+
+/* Borde dentado del ticket */
+.ticket-borde {
+  --d: 10px;
+  mask: radial-gradient(circle at 50% 0, transparent 5px, #000 5.5px) 0 0 / var(--d) 100% repeat-x;
+  height: 8px;
+}

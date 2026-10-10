@@ -1,0 +1,16 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32
+sqlalchemy>=2.0,<3
+alembic>=1.13
+pydantic>=2.7,<3
+pydantic-settings>=2.3
+python-multipart
+satcfdi>=26.1  # trae los catálogos SAT 2026; ACTUALIZAR_CATALOGOS.bat lo sube
+cryptography
+pyjwt>=2.8
+jinja2
+lxml
+httpx
+pytest
+openpyxl
+tzdata  # Windows no trae zonas horarias: sin esto falla America/Mexico_City y no se arma ningún CFDI
