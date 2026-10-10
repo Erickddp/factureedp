@@ -1,0 +1,10 @@
+# Railway: en el servicio pon "Root Directory" = Timbra/backend y agrega un Volume montado en /data
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

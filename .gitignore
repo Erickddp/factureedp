@@ -21,6 +21,7 @@ respaldo_xml/
 !Timbra/backend/tests/csd/*.key
 # Llaves de servicios (Google, etc.)
 *credentials*.json
+client_secret*.json
 *service-account*.json
 token.json
 

@@ -87,7 +87,7 @@ function Utilidades({ riel }: { riel?: boolean }) {
   const { abrirAyuda } = useAtajos();
   const IconTema = t === "oscuro" ? Moon : t === "claro" ? Sun : Monitor;
   const txtTema = t === "oscuro" ? "Oscuro" : t === "claro" ? "Claro" : "Como el sistema";
-  const b = "relative grid size-9 place-items-center rounded-lg text-grafito hover:bg-tinta/5 hover:text-tinta";
+  const b = "relative grid size-9 place-items-center rounded-lg text-grafito transition-colors hover:bg-tinta/5 hover:text-tinta";
   return (
     <div className={cx("flex items-center gap-1", riel && "justify-center gap-0")}>
       <button onClick={() => tema.siguiente()} title={`Tema: ${txtTema} (Ctrl+Shift+L)`} aria-label={`Tema: ${txtTema}`} className={b}><IconTema className="size-4" /></button>
@@ -105,8 +105,8 @@ function Utilidades({ riel }: { riel?: boolean }) {
 function BotonPerfil({ yo, riel, abrir }: { yo?: Yo; riel?: boolean; abrir: () => void }) {
   const nombre = yo?.nombre || yo?.email || "Mi perfil";
   return (
-    <button onClick={abrir} title={riel ? `${nombre} · Mi perfil` : "Mi perfil"} className={cx("flex min-w-0 items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-tinta/5", riel && "justify-center")}>
-      <span className={cx("grid shrink-0 place-items-center rounded-full bg-tinta/10 font-semibold", riel ? "size-10 text-xs" : "size-8 text-[11px]")}>{iniciales(nombre)}</span>
+    <button onClick={abrir} title={riel ? `${nombre} · Mi perfil` : "Mi perfil"} className={cx("flex min-w-0 items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors hover:bg-tinta/5", riel && "justify-center")}>
+      <span className={cx("grid shrink-0 place-items-center rounded-full bg-linear-to-br from-acento-suave to-tinta/10 font-semibold text-tinta ring-1 ring-linea", riel ? "size-10 text-xs" : "size-8 text-[11px]")}>{iniciales(nombre)}</span>
       {!riel && (
         <span className="min-w-0 leading-tight">
           <b className="block truncate text-sm font-medium">{nombre}</b>
@@ -190,16 +190,16 @@ function EmisorRiel() {
   return (
     <div ref={ref} className="relative mx-auto">
       <button onClick={() => setAbierto((a) => !a)} aria-haspopup="menu" aria-expanded={abierto} title={`Trabajas con ${emisor.rfc} · ${emisor.nombre}`}
-        className={cx("flex h-[52px] w-[60px] flex-col items-center justify-center rounded-xl border bg-tinta/5 leading-none transition-colors hover:border-grafito/60", abierto ? "border-grafito/60" : "border-linea")}>
+        className={cx("flex h-[52px] w-[60px] flex-col items-center justify-center rounded-xl border bg-papel leading-none shadow-[0_1px_2px_rgb(12_22_41/.06)] transition-[border-color,box-shadow] duration-150 hover:border-acento/50 hover:shadow-[0_0_0_3px_var(--color-acento-suave)]", abierto ? "border-acento/50 shadow-[0_0_0_3px_var(--color-acento-suave)]" : "border-linea")}>
         <b className="text-[15px] tracking-tight">{letras(emisor.rfc)}</b>
         <span className="mt-1 text-[9px] tabular-nums tracking-wide text-grafito">{emisor.rfc.slice(letras(emisor.rfc).length, letras(emisor.rfc).length + 6)}</span>
       </button>
       {abierto && (
-        <div role="menu" className="absolute left-full top-0 z-[60] ml-3 w-72 rounded-xl border border-linea bg-hoja p-1.5 shadow-2xl">
+        <div role="menu" className="absolute left-full top-0 z-[60] ml-3 w-72 origin-top-left rounded-xl border border-linea bg-hoja p-1.5 shadow-flotante animate-aparecer">
           <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-[.08em] text-grafito/70">Emisor con el que trabajas</p>
           {emisores.map((e) => (
             <button key={e.id} role="menuitemradio" aria-checked={e.id === emisor.id} onClick={() => { setEmisorId(e.id); setAbierto(false); }}
-              className={cx("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm", e.id === emisor.id ? "bg-primario text-sobre-primario" : "hover:bg-tinta/5")}>
+              className={cx("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors", e.id === emisor.id ? "bg-primario text-sobre-primario" : "hover:bg-tinta/5")}>
               <b className="w-11 shrink-0 text-[13px]">{letras(e.rfc)}</b>
               <span className="min-w-0"><span className="block truncate font-medium">{e.nombre}</span><span className="block text-[11px] tabular-nums opacity-70">{e.rfc}</span></span>
             </button>
@@ -229,10 +229,10 @@ function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; 
   );
   const fila = (it: Item, cerrar?: () => void) => (
     <Link key={it.href} href={it.href} onClick={() => { cerrar?.(); onIr?.(); }}
-      className={cx("relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-        it.cta ? "bg-acento font-medium text-white shadow-sm hover:brightness-110" :
-        activo(path, it.href) ? "bg-primario font-medium text-sobre-primario" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
-      <it.icon className="size-[18px] shrink-0" />
+      className={cx("group/fila relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-[color,background-color,filter,transform] duration-150",
+        it.cta ? "bg-acento bg-linear-to-b from-white/12 to-transparent font-medium text-white shadow-boton hover:-translate-y-px hover:brightness-110" :
+        activo(path, it.href) ? "bg-acento-suave font-medium text-acento before:absolute before:left-0 before:top-1/2 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-acento" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
+      <it.icon className="size-[18px] shrink-0 transition-transform duration-150 group-hover/fila:scale-110" />
       <span className="min-w-0 truncate">{it.label}</span>
       {it.href === "/pendientes" && !!pend?.total ? globo(pend.total, pend.errores, false) : it.k && <kbd className="ml-auto pl-3 font-sans text-[10px] opacity-50">{it.k}</kbd>}
     </Link>
@@ -241,32 +241,33 @@ function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; 
   if (riel) {
     const g = flota ? NAV.find((x) => x.id === flota.id) : undefined;
     const item = flota ? NAV[0].items.find((x) => x.href === flota.id) : undefined;
-    const boton = "relative grid size-12 place-items-center rounded-xl transition-colors";
+    const boton = "group/riel relative grid size-12 place-items-center rounded-xl transition-[color,background-color,filter,transform] duration-150 active:scale-95";
+    const marca = "before:absolute before:-left-3.5 before:top-1/2 before:h-6 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-acento";
     return (
       <nav className="flex flex-1 flex-col items-center gap-1.5">
         {NAV[0].items.map((it) => (
           <Link key={it.href} href={it.href} aria-label={it.label}
             onMouseEnter={(e) => abrir(it.href, e.currentTarget)} onMouseLeave={cerrarLuego} onFocus={(e) => abrir(it.href, e.currentTarget)} onBlur={cerrarLuego}
-            className={cx(boton, it.cta ? "bg-acento text-white shadow-md shadow-acento/30 hover:brightness-110" :
-              activo(path, it.href) ? "bg-primario text-sobre-primario" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
-            <it.icon className="size-6" strokeWidth={1.75} />
+            className={cx(boton, it.cta ? "bg-acento bg-linear-to-b from-white/12 to-transparent text-white shadow-boton hover:-translate-y-px hover:brightness-110" :
+              activo(path, it.href) ? cx("bg-acento-suave text-acento", marca) : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
+            <it.icon className="size-[22px] transition-transform duration-150 group-hover/riel:scale-110" strokeWidth={1.75} />
             {it.href === "/pendientes" && !!pend?.total && globo(pend.total, pend.errores, true)}
           </Link>
         ))}
-        <span className="my-1 h-px w-8 bg-linea" />
+        <span className="my-1.5 h-px w-7 bg-linea" />
         {NAV.slice(1).map((gr) => {
           const GIcon = gr.icon!;
           const aqui = gr.items.some((i) => activo(path, i.href));
           return (
             <button key={gr.id} aria-label={gr.grupo} aria-haspopup="menu" aria-expanded={flota?.id === gr.id}
               onMouseEnter={(e) => abrir(gr.id, e.currentTarget)} onMouseLeave={cerrarLuego} onClick={(e) => abrir(gr.id, e.currentTarget)}
-              className={cx(boton, aqui ? "bg-tinta/10 text-tinta ring-1 ring-linea" : flota?.id === gr.id ? "bg-tinta/5 text-tinta" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
-              <GIcon className="size-6" strokeWidth={1.75} />
+              className={cx(boton, aqui ? cx("bg-acento-suave text-acento", marca) : flota?.id === gr.id ? "bg-tinta/5 text-tinta" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
+              <GIcon className="size-[22px] transition-transform duration-150 group-hover/riel:scale-110" strokeWidth={1.75} />
             </button>
           );
         })}
         {item && flota && (
-          <div role="tooltip" style={{ top: flota.y + 24 }} className="pointer-events-none fixed left-[84px] z-[60] flex -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-lg border border-linea bg-hoja px-3 py-2 text-sm font-medium shadow-xl">
+          <div role="tooltip" style={{ top: flota.y + 24 }} className="pointer-events-none fixed left-[84px] z-[60] flex -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-lg border border-linea bg-hoja px-3 py-2 text-sm font-medium shadow-flotante">
             {item.label}{item.k && <kbd className="rounded bg-tinta/10 px-1.5 py-0.5 font-sans text-[11px] font-normal text-grafito">{item.k}</kbd>}
           </div>
         )}
@@ -274,7 +275,7 @@ function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; 
           <div role="menu" onMouseEnter={quedarse} onMouseLeave={cerrarLuego}
             style={{ top: Math.max(8, Math.min(flota.y - 8, (typeof window === "undefined" ? 800 : window.innerHeight) - (g.items.length * 40 + 56))) }}
             className="fixed left-[76px] z-[60] w-60 pl-2">
-            <div className="flex flex-col gap-0.5 rounded-xl border border-linea bg-hoja p-1.5 shadow-2xl">
+            <div key={g.id} className="flex origin-left flex-col gap-0.5 rounded-xl border border-linea bg-hoja p-1.5 shadow-flotante animate-aparecer">
               <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-[.08em] text-grafito/70">{g.grupo}</p>
               {g.items.map((it) => fila(it, () => setFlota(null)))}
             </div>
@@ -308,7 +309,7 @@ function Marca({ riel }: { riel?: boolean }) {
   return (
     <Link href="/" className={cx("flex min-w-0 items-center gap-2.5", riel && "justify-center")}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.png" alt="Timbra" className={cx("shrink-0 rounded-xl bg-black ring-1 ring-linea", riel ? "size-12" : "size-9")} />
+      <img src="/logo.png" alt="Timbra" className={cx("shrink-0 rounded-xl bg-black shadow-[0_1px_2px_rgb(12_22_41/.2),0_8px_16px_-8px_rgb(12_22_41/.5)] ring-1 ring-black/10 transition-transform duration-200 hover:scale-105", riel ? "size-11" : "size-9")} />
       {!riel && (
         <span className="min-w-0 leading-tight">
           <b className="block text-[15px] tracking-tight">Timbra</b>
@@ -329,19 +330,19 @@ function Avisos() {
   const enPendientes = usePathname().startsWith("/pendientes");  // ahí el aviso sobra
   if (!malos.length && !pend.length && (!pg?.total || enPendientes)) return null;
   return (
-    <div className="mb-5 flex flex-wrap gap-2 animate-entrar">
+    <div className="escalonar mb-6 flex flex-wrap gap-2">
       {!!pg?.total && !enPendientes && (
-        <Link href="/pendientes" className={cx("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm hover:underline", pg.errores ? "bg-rojo-suave text-rojo" : "bg-alerta-suave text-alerta")}>
+        <Link href="/pendientes" className={cx("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 ring-current/15 transition-transform duration-150 hover:-translate-y-px", pg.errores ? "bg-rojo-suave text-rojo" : "bg-alerta-suave text-alerta")}>
           <ListChecks className="size-4" /> {pg.total} {pg.total === 1 ? "pendiente" : "pendientes"}{pg.errores ? ` · ${pg.errores} urgentes` : ""} · Revisar
         </Link>
       )}
       {pend.length > 0 && (
-        <Link href="/recurrentes" className="inline-flex items-center gap-2 rounded-full bg-cobalto-suave px-3 py-1.5 text-sm text-cobalto hover:underline">
+        <Link href="/recurrentes" className="inline-flex items-center gap-2 rounded-full bg-cobalto-suave px-3 py-1.5 text-[13px] font-medium text-cobalto ring-1 ring-current/15 transition-transform duration-150 hover:-translate-y-px">
           <CalendarClock className="size-4" /> {pend.length} {pend.length === 1 ? "factura recurrente toca" : "facturas recurrentes tocan"} hoy · Timbrar
         </Link>
       )}
       {malos.map((t) => (
-        <Link key={t.pac_id} href="/timbres" className={cx("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm hover:underline",
+        <Link key={t.pac_id} href="/timbres" className={cx("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 ring-current/15 transition-transform duration-150 hover:-translate-y-px",
           t.nivel === "error" ? "bg-rojo-suave text-rojo" : "bg-alerta-suave text-alerta")}>
           <AlertTriangle className="size-4" /> {t.texto}
         </Link>
@@ -378,12 +379,12 @@ function Marco({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh">
       {/* Barra lateral: abierta o riel de iconos (Ctrl+B) */}
-      <aside className={cx("sticky top-0 z-40 hidden h-dvh shrink-0 flex-col gap-3 border-r border-linea bg-hoja py-3 transition-[width] duration-150 md:flex", riel ? "w-[76px] px-2" : "w-64 px-3")}>
+      <aside className={cx("sticky top-0 z-40 hidden h-dvh shrink-0 flex-col gap-3 border-r border-linea bg-hoja py-3 shadow-[8px_0_24px_-16px_rgb(12_22_41/.16)] transition-[width,padding] duration-200 md:flex", riel ? "w-[76px] px-2" : "w-64 px-3")}>
         <div className={cx("flex", riel ? "justify-center" : "pl-1")}><Marca riel={riel} /></div>
         {riel ? <EmisorRiel /> : <SelectorEmisor />}
         {/* Pestaña en el borde, a media altura: pliega o abre el menú (Ctrl+B) */}
         <button onClick={alternarBarra} title={riel ? "Abrir menú (Ctrl+B)" : "Plegar menú (Ctrl+B)"} aria-label={riel ? "Abrir menú" : "Plegar menú"} aria-expanded={!riel}
-          className="absolute left-full top-1/2 grid h-16 w-4 -translate-y-1/2 place-items-center rounded-r-full border border-l-0 border-linea bg-hoja text-grafito shadow-sm transition-[width,color] hover:w-5 hover:text-tinta">
+          className="absolute left-full top-1/2 grid h-16 w-4 -translate-y-1/2 place-items-center rounded-r-full border border-l-0 border-linea bg-hoja text-grafito shadow-[4px_0_10px_-4px_rgb(12_22_41/.14)] transition-[width,color] duration-150 hover:w-5 hover:text-acento">
           {riel ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
         </button>
         <Navegacion path={path} riel={riel} pend={pend} />
@@ -395,7 +396,7 @@ function Marco({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barra superior (móvil) */}
-        <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-linea bg-hoja/90 px-3 py-2 backdrop-blur md:hidden">
+        <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-linea bg-hoja/80 px-3 py-2 shadow-[0_8px_24px_-18px_rgb(12_22_41/.3)] backdrop-blur-md md:hidden">
           <button onClick={() => setCajon(true)} aria-label="Abrir menú" className="rounded-md p-2 hover:bg-tinta/5">
             <MenuIcon className="size-5" />
           </button>
@@ -405,7 +406,7 @@ function Marco({ children }: { children: React.ReactNode }) {
             {erroresNuevos > 0 && <span className="absolute right-1 top-1 size-2 rounded-full bg-rojo" />}
           </button>
         </header>
-        <main key={path} className="mx-auto w-full min-w-0 max-w-[1320px] flex-1 px-4 py-6 animate-entrar sm:px-6 lg:px-10 lg:py-8">
+        <main key={path} className="mx-auto w-full min-w-0 max-w-[1280px] flex-1 px-4 py-6 animate-entrar sm:px-6 lg:px-10 lg:py-8">
           <Avisos />
           {children}
         </main>
@@ -413,8 +414,8 @@ function Marco({ children }: { children: React.ReactNode }) {
 
       {/* Cajón móvil */}
       {cajon && (
-        <div className="fixed inset-0 z-50 bg-tinta/40 md:hidden" onClick={() => setCajon(false)}>
-          <aside className="flex h-full w-[82vw] max-w-72 flex-col gap-3 bg-hoja px-3 py-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-tinta/40 backdrop-blur-[3px] animate-velo md:hidden" onClick={() => setCajon(false)}>
+          <aside className="flex h-full w-[82vw] max-w-72 flex-col gap-3 bg-hoja px-3 py-4 shadow-flotante animate-deslizar" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between pl-2">
               <Marca />
               <button onClick={() => setCajon(false)} aria-label="Cerrar menú" className="rounded-md p-1 hover:bg-tinta/5"><X className="size-5" /></button>

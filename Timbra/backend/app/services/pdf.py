@@ -413,7 +413,14 @@ def _navegador() -> str | None:
     for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"), os.environ.get("LOCALAPPDATA")):
         if base:
             rutas += [Path(base) / "Microsoft/Edge/Application/msedge.exe", Path(base) / "Google/Chrome/Application/chrome.exe"]
-    return next((str(p) for p in rutas if p.exists()), None)
+    hallado = next((str(p) for p in rutas if p.exists()), None)
+    if hallado:
+        return hallado
+    for nombre in ("chromium", "chromium-browser", "google-chrome", "microsoft-edge"):  # servidor Linux
+        ruta = shutil.which(nombre)
+        if ruta:
+            return ruta
+    return None
 
 
 def _pdf_navegador(h: str) -> bytes:
@@ -424,7 +431,8 @@ def _pdf_navegador(h: str) -> bytes:
     try:
         src, out = Path(d) / "cfdi.html", Path(d) / "cfdi.pdf"
         src.write_text(h, encoding="utf-8")
-        subprocess.run([exe, "--headless=new", "--disable-gpu", "--no-first-run", f"--user-data-dir={Path(d) / 'perfil'}",
+        extra = [] if os.name == "nt" else ["--no-sandbox", "--disable-dev-shm-usage"]  # contenedor Linux
+        subprocess.run([exe, "--headless=new", "--disable-gpu", "--no-first-run", *extra, f"--user-data-dir={Path(d) / 'perfil'}",
                         "--no-pdf-header-footer", f"--print-to-pdf={out}", src.as_uri()],
                        capture_output=True, timeout=45, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         # Edge regresa antes de terminar de escribir: se espera a que el archivo exista y deje de crecer

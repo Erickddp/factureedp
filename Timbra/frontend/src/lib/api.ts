@@ -16,6 +16,10 @@ export function setToken(t: string | null) {
   else localStorage.removeItem("timbra_token");
 }
 
+// En tu PC el servidor y las pantallas viven juntos ("/api"). En web separada (Vercel + Railway) se pone
+// NEXT_PUBLIC_API_URL con la dirección del servidor, p. ej. https://timbra.up.railway.app
+export const API = `${(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "")}/api`;
+
 const SILENCIO = ["/debug/logs", "/facturas/preview"];
 
 export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
@@ -31,7 +35,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   const t0 = performance.now();
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, { ...init, headers, body });
+    res = await fetch(`${API}${path}`, { ...init, headers, body });
   } catch (e) {
     const msg = "Sin conexión con Timbra. Revisa que esté abierto (ícono junto al reloj o la ventana de INICIAR.bat).";
     consola.red({ metodo, ruta: path, estado: 0, ms: Math.round(performance.now() - t0), error: String(e) });
@@ -66,7 +70,7 @@ export const fetcher = (path: string): Promise<any> => api(path);
 /** Descarga un archivo autenticado (XML/PDF/ZIP). Si llega HTML (sin PDF en el servidor) lo abre para imprimir. */
 export async function descargar(path: string, nombre: string) {
   const t0 = performance.now();
-  const res = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
   const req = res.headers.get("x-request-id") ?? undefined;
   consola.red({ metodo: "GET", ruta: path, estado: res.status, ms: Math.round(performance.now() - t0), req });
   if (!res.ok) {

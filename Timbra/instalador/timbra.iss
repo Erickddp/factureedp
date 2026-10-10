@@ -1,7 +1,7 @@
 ; Inno Setup: instalador de Timbra para Windows. Lo compila CONSTRUIR_INSTALADOR.bat.
 ; Sin permisos de administrador: se instala para el usuario. Los datos viven aparte, en %LOCALAPPDATA%\Timbra,
 ; así que actualizar o desinstalar NO borra facturas, XML ni llaves.
-#define Version "2.5.1"
+#define Version "2.6.0"
 
 [Setup]
 AppId={{6E0D3B5C-4A2F-4C6B-9C1E-EDDP00TIMBRA}

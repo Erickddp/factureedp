@@ -32,6 +32,13 @@ def _out(f: Factura) -> FacturaOut:
         o.receptor_nombre, o.receptor_rfc = f.cliente.nombre, f.cliente.rfc
     elif f.payload.get("publico_general"):
         o.receptor_nombre, o.receptor_rfc = "PUBLICO EN GENERAL", "XAXX010101000"
+    elif f.empleado_id:  # recibo de nómina: el receptor es el trabajador
+        from sqlalchemy.orm import object_session
+
+        from ..models import Empleado
+        emp = object_session(f).get(Empleado, f.empleado_id) if object_session(f) else None
+        if emp:
+            o.receptor_nombre, o.receptor_rfc = emp.nombre, emp.rfc
     return o
 
 

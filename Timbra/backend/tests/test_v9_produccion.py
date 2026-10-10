@@ -61,7 +61,7 @@ def test_correo_de_envio_se_configura_desde_la_app(monkeypatch):
         def __init__(self, host, port, timeout=None): self.host = host
         def starttls(self): pass
         def login(self, u, p): self.cred = (u, p)
-        def send_message(self, m): enviados.append((self.cred, m["From"], m["To"]))
+        def send_message(self, m, to_addrs=None): enviados.append((self.cred, m["From"], m["To"]))
         def __enter__(self): return self
         def __exit__(self, *a): return False
 
@@ -81,3 +81,16 @@ def test_correo_de_envio_se_configura_desde_la_app(monkeypatch):
         c.put("/api/correo", headers=h, json={"host": "smtp.gmail.com", "user": "facturas@ejemplo.mx", "nombre": "Otro"})
         assert mailer.config()["password"] == "abcdefghijklmnop"
         assert c.delete("/api/correo", headers=h).json()["configurado"] is False
+
+
+def test_login_se_frena_tras_varios_fallos():
+    from app.routers import auth
+    with TestClient(app) as c:
+        auth._FALLOS.clear()
+        correo = "nadie@ejemplo.mx"
+        for _ in range(auth._MAXIMO):
+            assert c.post("/api/auth/login", json={"email": correo, "password": "x"}).status_code == 401
+        assert c.post("/api/auth/login", json={"email": correo, "password": "x"}).status_code == 429
+        h, _ = _preparar(c)  # otro correo no se ve afectado
+        assert h["Authorization"]
+        auth._FALLOS.clear()

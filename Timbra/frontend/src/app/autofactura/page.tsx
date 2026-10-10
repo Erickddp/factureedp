@@ -1,4 +1,5 @@
 "use client";
+import { API } from "@/lib/api";
 /** Página pública: el cliente factura su ticket. Sin login, sin menú; con la marca del negocio. */
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -19,7 +20,7 @@ type Info = { nombre: string; rfc: string; logo_b64: string | null; color: strin
 type Hecho = { uuid: string; folio: string; total: string; firma: string };
 
 async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`/api${url}`, init);
+  const r = await fetch(`${API}${url}`, init);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(typeof j.detail === "string" ? j.detail : "No se pudo. Intenta de nuevo.");
   return j as T;
@@ -56,7 +57,7 @@ function Autofactura() {
       }));
     } catch (e) { setError((e as Error).message); } finally { setCargando(false); }
   };
-  const liga = (formato: string) => hecho ? `/api/portal/${encodeURIComponent(clave)}/descarga/${hecho.uuid}?firma=${hecho.firma}&formato=${formato}` : "#";
+  const liga = (formato: string) => hecho ? `${API}/portal/${encodeURIComponent(clave)}/descarga/${hecho.uuid}?firma=${hecho.firma}&formato=${formato}` : "#";
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-10">

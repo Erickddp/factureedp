@@ -3,6 +3,7 @@ datos/correo.json con la contraseña cifrada; si no existe, se usan los SMTP_* d
 import base64
 import json
 import os
+import re
 import smtplib
 from email.message import EmailMessage
 from email.utils import formataddr
@@ -49,13 +50,17 @@ def publica() -> dict:
 
 def guardar(host: str, port: int, user: str, password: str | None, remitente: str | None, nombre: str | None) -> dict:
     previo = config()
-    pw = password or (previo["password"] if previo.get("user") == user else None)
+    pw = (password or "").replace(" ", "") or (previo["password"] if previo.get("user") == user else None)
     if not pw:
         raise CorreoError("Escribe la contraseña de aplicación del correo.")
+    if "gmail" in host and password and not (len(pw) == 16 and pw.isalpha()):
+        raise CorreoError("Esa no es una contraseña de aplicación de Gmail: son 16 letras que genera Google en "
+                          "myaccount.google.com/apppasswords (necesitas tener activada la verificación en 2 pasos). "
+                          "La contraseña normal de tu cuenta no funciona aquí.")
     os.makedirs(settings.data_dir, exist_ok=True)
     with open(_ruta(), "w", encoding="utf-8") as fh:
         json.dump({"host": host.strip(), "port": int(port), "user": user.strip(), "remitente": (remitente or user).strip(),
-                   "nombre": (nombre or "").strip(), "password_enc": base64.b64encode(encrypt(pw.replace(" ", ""))).decode()}, fh)
+                   "nombre": (nombre or "").strip(), "password_enc": base64.b64encode(encrypt(pw)).decode()}, fh)
     return publica()
 
 
@@ -67,12 +72,21 @@ def quitar() -> dict:
     return publica()
 
 
-def _explica(e: Exception, c: dict) -> str:
+GMAIL_APP = ("Gmail no aceptó la contraseña. No sirve la de tu cuenta: necesitas una «contraseña de aplicación» de 16 letras "
+             "(myaccount.google.com/apppasswords, con la verificación en 2 pasos activada). Cámbiala en «Cambiar cuenta».")
+
+
+def _explica(e: Exception, c: dict, paso: str = "") -> str:
     t = str(e)
+    gmail = "gmail" in (c["host"] or "")
+    # Gmail a veces corta la conexión en lugar de contestar "contraseña incorrecta"
+    if paso == "entrar" and isinstance(e, smtplib.SMTPServerDisconnected):
+        return GMAIL_APP if gmail else "El servidor cortó la conexión al iniciar sesión: revisa usuario y contraseña."
+    if isinstance(e, smtplib.SMTPRecipientsRefused):
+        return "El servidor rechazó la dirección del destinatario. Revisa que el correo esté bien escrito."
     if isinstance(e, smtplib.SMTPAuthenticationError):
-        if "gmail" in (c["host"] or ""):
-            return ("Gmail no aceptó la contraseña. No sirve la de tu cuenta: necesitas una «contraseña de aplicación» "
-                    "(Cuenta de Google → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones).")
+        if gmail:
+            return GMAIL_APP
         return "El servidor de correo no aceptó el usuario o la contraseña."
     if isinstance(e, (TimeoutError, OSError)) and not isinstance(e, smtplib.SMTPException):
         return f"No pude conectar con {c['host']}:{c['port']}. Revisa tu internet y el servidor de correo."
@@ -83,6 +97,10 @@ def enviar(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, 
     c = config()
     if not (c["host"] and c["user"] and c["password"]):
         raise CorreoError("Falta configurar el correo de envío: Configuración → PAC y usuarios → Correo de envío.")
+    # Limpia destinatarios: sin comas, espacios ni vacíos (una coma de más hacía que el servidor cortara la conexión)
+    para = [x for x in (re.sub(r"[\s,;<>]+", "", p or "") for p in para) if "@" in x]
+    if not para:
+        raise CorreoError("No hay un correo de destino válido.")
     msg = EmailMessage()
     msg["From"] = formataddr((c["nombre"], c["remitente"])) if c["nombre"] else c["remitente"]
     msg["To"] = ", ".join(para)
@@ -91,6 +109,7 @@ def enviar(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, 
     for nombre, data, mime in adjuntos:
         main, sub = mime.split("/")
         msg.add_attachment(data, maintype=main, subtype=sub, filename=nombre)
+    paso = "conectar"
     try:
         if c["port"] == 465:
             s = smtplib.SMTP_SSL(c["host"], c["port"], timeout=25)
@@ -98,7 +117,9 @@ def enviar(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, 
             s = smtplib.SMTP(c["host"], c["port"], timeout=25)
             s.starttls()
         with s:
+            paso = "entrar"
             s.login(c["user"], c["password"])
-            s.send_message(msg)
+            paso = "enviar"
+            s.send_message(msg, to_addrs=para)
     except Exception as e:
-        raise CorreoError(_explica(e, c)) from e
+        raise CorreoError(_explica(e, c, paso)) from e

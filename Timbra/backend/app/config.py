@@ -23,8 +23,31 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from: str | None = None
 
+    # Inicio de sesión con Google, Drive y Sheets (cliente de OAuth del proyecto de Google Cloud "Timbra").
+    # Se llenan con: python google_env.py  (lee el JSON descargado de Google; el secreto nunca va al repositorio)
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
+
 
 settings = Settings()
+
+# ---- Candados para cuando Timbra corre en internet (Railway u otro servidor) ----
+# En tu PC no aplican. En web, arrancar con las llaves o la contraseña de ejemplo dejaría los CSD al alcance de cualquiera.
+import os as _os0  # noqa: E402
+
+EN_WEB = bool(_os0.environ.get("RAILWAY_ENVIRONMENT") or _os0.environ.get("ENTORNO", "").lower() == "web")
+if EN_WEB:
+    _faltas = []
+    if settings.secret_key.startswith("CAMBIA-ESTO") or len(settings.secret_key) < 32:
+        _faltas.append("SECRET_KEY (llave que cifra los CSD): pon una larga y aleatoria, y guárdala; sin ella no se descifran")
+    if settings.jwt_secret == "cambia-este-secreto-jwt" or len(settings.jwt_secret) < 32:
+        _faltas.append("JWT_SECRET: pon otra cadena larga y aleatoria")
+    if settings.admin_password == "cambiame" or len(settings.admin_password) < 10:
+        _faltas.append("ADMIN_PASSWORD: la contraseña inicial no puede ser la de ejemplo (mínimo 10 caracteres)")
+    if _faltas:
+        raise SystemExit("Timbra NO arranca en web con valores de ejemplo. Define estas variables en el servidor:\n  - " + "\n  - ".join(_faltas))
+    settings.debug = _os0.environ.get("DEBUG", "false").lower() == "true"  # en web, sin trazas a menos que se pidan
 
 import os as _os  # noqa: E402
 

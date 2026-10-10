@@ -153,6 +153,17 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - `ClaveSearch` (catalogo.tsx): el blur corre 150 ms tarde; usa refs y la bandera `elegido` para no pisar la clave recién elegida.
   En la descripción del concepto, Enter sólo elige una sugerencia si la marcaste con flechas (`act` empieza en -1).
 
+## Web y correo (2.6, no los rompas)
+- Despliegue: `DESPLEGAR.md`. `backend/Dockerfile` (Chromium para PDF, datos en el volumen `/data`), `backend/railway.toml`,
+  `frontend/vercel.json`. El front llama a `API` de `lib/api.ts` (usa `NEXT_PUBLIC_API_URL` si las pantallas viven aparte).
+  NO probado en un despliegue real todavía.
+- Candados en `config.py` (`EN_WEB`): en servidor no arranca con SECRET_KEY/JWT_SECRET/ADMIN_PASSWORD de ejemplo. Login con freno
+  de 6 intentos por correo en 10 min (`routers/auth.py`). Pendiente antes de dar acceso a terceros: separar emisores por cuenta.
+- Correo: `services/mailer.py` + `routers/correo.py`; cuenta en `datos/correo.json` con contraseña cifrada (Gmail = contraseña de
+  aplicación de 16 letras). Google OAuth: `GOOGLE_*` en `.env` vía `google_env.py`; el inicio de sesión aún no está construido.
+- Diseño: tokens en `globals.css` (marino + `acento`), tipografía Geist, `select` y barras con estilo global. El único botón
+  sólido del menú es Nueva factura; la pantalla actual va con tinte suave. `Menu` (⋯) usa posición fija para no recortarse.
+
 ## Estabilidad (no la rompas)
 - `satcfdi.catalogs.conn` es UNA conexión SQLite compartida: con peticiones simultáneas fallaba (~16% de consultas, «API misuse», 500).
   `app/__init__.py` la reemplaza por una conexión de sólo lectura por hilo. tests/test_v6_catalogo_hilos.py lo vigila. Nunca uses

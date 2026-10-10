@@ -148,7 +148,7 @@ function Facturas() {
           <div className="hidden overflow-hidden rounded-2xl bg-hoja ring-1 ring-linea @min-[860px]:block">
             <table className="w-full table-fixed text-sm">
               <colgroup>
-                <col className="w-24" /><col /><col className="w-36" /><col className="w-28" /><col className="w-40" /><col className="w-32" /><col className="w-28" /><col className="w-32" />
+                <col className="w-20" /><col /><col className="w-32" /><col className="w-28" /><col className="w-40" /><col className="w-28" /><col className="w-28" /><col className="w-28" />
               </colgroup>
               <thead className="border-b border-linea text-left text-grafito">
                 <tr>
@@ -167,7 +167,7 @@ function Facturas() {
                   <tr key={f.id} className="border-b border-linea last:border-0 hover:bg-papel">
                     <td className="px-4 py-3 font-medium tabular-nums">{f.serie}{f.folio}</td>
                     <td className="px-4 py-3">
-                      <p className="truncate" title={f.receptor_nombre ?? ""}>{f.receptor_nombre}</p>
+                      <p className="line-clamp-2 leading-snug" title={f.receptor_nombre ?? ""}>{f.receptor_nombre}</p>
                       <p className="truncate text-xs text-grafito tabular-nums">{f.receptor_rfc}</p>
                     </td>
                     <td className="px-4 py-3"><span className="block truncate">{TIPOS[f.tipo]}{f.metodo_pago && <span className="text-grafito"> · {f.metodo_pago}</span>}</span></td>

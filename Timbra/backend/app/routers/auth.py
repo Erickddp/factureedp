@@ -35,11 +35,25 @@ def asegurar_admin(db: Session):
         db.commit()
 
 
+# Freno a quien prueba contraseñas: 6 intentos fallidos por correo en 10 minutos y se bloquea ese correo un rato.
+_FALLOS: dict[str, list[float]] = {}
+_VENTANA, _MAXIMO = 600, 6
+
+
 @router.post("/login")
 def login(data: LoginIn, db: Session = Depends(get_db)):
-    u = db.query(Usuario).filter_by(email=data.email.strip().lower(), activo=True).first()
+    import time
+    correo = data.email.strip().lower()
+    ahora = time.time()
+    recientes = [t for t in _FALLOS.get(correo, []) if ahora - t < _VENTANA]
+    if len(recientes) >= _MAXIMO:
+        espera = int((_VENTANA - (ahora - recientes[0])) // 60) + 1
+        raise HTTPException(429, f"Demasiados intentos fallidos. Espera {espera} min y vuelve a intentar.")
+    u = db.query(Usuario).filter_by(email=correo, activo=True).first()
     if not u or not verify_password(data.password, u.password_hash):
+        _FALLOS[correo] = recientes + [ahora]
         raise HTTPException(401, "Correo o contraseña incorrectos")
+    _FALLOS.pop(correo, None)
     return {"token": create_token(u.email), "nombre": u.nombre, "admin": u.admin}
 
 

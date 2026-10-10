@@ -3,7 +3,7 @@
 /* EDDP · azul marino sobre papel frío, con un acento azul vivo para lo que importa (Nueva factura, enlaces, foco).
    El modo oscuro sólo cambia los tokens: marino profundo, no negro. */
 @theme {
-  --color-papel: #f3f5f9;
+  --color-papel: #f4f6fa;
   --color-hoja: #ffffff;
   --color-tinta: #0c1629;
   --color-grafito: #5b667b;
@@ -21,7 +21,14 @@
   --color-alerta-suave: #fbf0dc;
   --color-rojo: #c0392b;
   --color-rojo-suave: #fbe7e4;
-  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-codigo), ui-monospace, Consolas, monospace;
+  /* Profundidad: tres alturas. Reposo (tarjetas), elevada (al pasar el mouse) y flotante (menús, diálogos). */
+  --shadow-tarjeta: 0 1px 1px rgb(12 22 41 / .03), 0 2px 4px rgb(12 22 41 / .03), 0 14px 28px -14px rgb(12 22 41 / .12);
+  --shadow-elevada: 0 1px 1px rgb(12 22 41 / .04), 0 6px 12px -2px rgb(12 22 41 / .06), 0 24px 44px -18px rgb(12 22 41 / .2);
+  --shadow-flotante: 0 0 0 1px rgb(12 22 41 / .04), 0 8px 16px -4px rgb(12 22 41 / .1), 0 32px 64px -16px rgb(12 22 41 / .26);
+  --shadow-boton: inset 0 1px 0 rgb(255 255 255 / .22), 0 1px 2px rgb(12 22 41 / .2), 0 8px 18px -8px color-mix(in srgb, var(--color-acento) 75%, transparent);
+  --ease-suave: cubic-bezier(.2, .7, .2, 1);
 }
 
 @layer base {
@@ -31,6 +38,9 @@
     --color-acento: #4f7cff; --color-acento-suave: #14224a;
     --color-cobalto: #86a4ff; --color-cobalto-suave: #16224a; --color-sello: #3fcf92; --color-sello-suave: #0c2a22;
     --color-alerta: #e9b25a; --color-alerta-suave: #2c2414; --color-rojo: #ff7466; --color-rojo-suave: #311716;
+    --shadow-tarjeta: inset 0 1px 0 rgb(255 255 255 / .04), 0 14px 28px -14px rgb(0 0 0 / .6);
+    --shadow-elevada: inset 0 1px 0 rgb(255 255 255 / .06), 0 24px 44px -18px rgb(0 0 0 / .75);
+    --shadow-flotante: inset 0 1px 0 rgb(255 255 255 / .06), 0 0 0 1px rgb(255 255 255 / .04), 0 32px 64px -16px rgb(0 0 0 / .8);
     color-scheme: dark;
   }
   @media (prefers-color-scheme: dark) {
@@ -40,12 +50,31 @@
       --color-acento: #4f7cff; --color-acento-suave: #14224a;
       --color-cobalto: #86a4ff; --color-cobalto-suave: #16224a; --color-sello: #3fcf92; --color-sello-suave: #0c2a22;
       --color-alerta: #e9b25a; --color-alerta-suave: #2c2414; --color-rojo: #ff7466; --color-rojo-suave: #311716;
+      --shadow-tarjeta: inset 0 1px 0 rgb(255 255 255 / .04), 0 14px 28px -14px rgb(0 0 0 / .6);
+      --shadow-elevada: inset 0 1px 0 rgb(255 255 255 / .06), 0 24px 44px -18px rgb(0 0 0 / .75);
+      --shadow-flotante: inset 0 1px 0 rgb(255 255 255 / .06), 0 0 0 1px rgb(255 255 255 / .04), 0 32px 64px -16px rgb(0 0 0 / .8);
       color-scheme: dark;
     }
   }
   html { background: var(--color-papel); color: var(--color-tinta); transition: background-color .2s, color .2s; }
   ::selection { background: var(--color-tinta); color: var(--color-hoja); }
-  body { font-feature-settings: "tnum" 1, "ss01" 1; -webkit-font-smoothing: antialiased; }
+  body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; letter-spacing: -.005em; }
+  /* Luz de fondo: un resplandor frío arriba a la derecha para que la página no sea un plano gris */
+  body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(60rem 26rem at 88% -6rem, color-mix(in srgb, var(--color-acento) 10%, transparent), transparent 70%),
+      radial-gradient(44rem 22rem at -4rem -4rem, color-mix(in srgb, var(--color-acento) 5%, transparent), transparent 70%); }
+  h1, h2 { letter-spacing: -.02em; }
+  /* Barras de desplazamiento delgadas y del color de la interfaz */
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--color-grafito) 35%, transparent) transparent; }
+  /* Listas desplegables con el mismo aspecto en toda la app (sin la flecha gris del sistema) */
+  select { appearance: none; -webkit-appearance: none; padding-right: 2rem !important; text-overflow: ellipsis;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a869c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right .6rem center; }
+  input, select, textarea { transition: border-color .15s, box-shadow .15s; }
+  tbody tr { transition: background-color .12s; }
+  input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-acento) 18%, transparent); }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--color-acento); box-shadow: none !important; }
   :focus-visible { outline: 2px solid var(--color-cobalto); outline-offset: 2px; border-radius: 4px; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 }
@@ -58,9 +87,46 @@
   :root:not([data-theme="light"]) .bg-tinta\/40 { background-color: rgb(0 0 0 / .6); }
 }
 
-/* Entrada suave de cada pantalla */
-@keyframes entrar { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-.animate-entrar { animation: entrar 180ms ease-out both; }
+/* Tarjetas: toda hoja redonda con filo gana altura, sin tocar cada pantalla. Si es un enlace o botón, se levanta al pasar. */
+.rounded-2xl.bg-hoja.ring-1:not([class*="shadow-"]) { --tw-shadow: var(--shadow-tarjeta); }
+:is(a, button).rounded-2xl.bg-hoja.ring-1 { transition: transform .22s var(--ease-suave), box-shadow .22s var(--ease-suave); }
+:is(a, button).rounded-2xl.bg-hoja.ring-1:hover { transform: translateY(-2px); --tw-shadow: var(--shadow-elevada); }
+:is(a, button).rounded-2xl.bg-hoja.ring-1:active { transform: translateY(0); --tw-shadow: var(--shadow-tarjeta); }
+
+/* Movimiento: corto y con un solo sentido (lo nuevo sube a su lugar). Sin `to`: al terminar no queda ningún transform puesto. */
+@keyframes entrar { from { opacity: 0; transform: translateY(8px); } }
+@keyframes aparecer { from { opacity: 0; transform: translateY(-4px) scale(.97); } }
+@keyframes subir { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+@keyframes velo { from { opacity: 0; } }
+@keyframes deslizar { from { transform: translateX(-100%); } }
+@keyframes crecer { from { transform: scaleX(0); } }
+@keyframes brillo { to { background-position: -200% 0; } }
+.animate-entrar { animation: entrar 320ms var(--ease-suave) backwards; }
+.animate-aparecer { animation: aparecer 150ms var(--ease-suave) backwards; }
+.animate-subir { animation: subir 260ms var(--ease-suave) backwards; }
+.animate-velo { animation: velo 180ms ease-out backwards; }
+.animate-deslizar { animation: deslizar 240ms var(--ease-suave) backwards; }
+.animate-crecer { transform-origin: left; animation: crecer 900ms var(--ease-suave) 250ms backwards; }
+/* Entrada en cascada: cada hijo llega 45 ms después del anterior */
+.escalonar > * { animation: entrar 380ms var(--ease-suave) backwards; }
+.escalonar > :nth-child(2) { animation-delay: 45ms; } .escalonar > :nth-child(3) { animation-delay: 90ms; }
+.escalonar > :nth-child(4) { animation-delay: 135ms; } .escalonar > :nth-child(5) { animation-delay: 180ms; }
+.escalonar > :nth-child(6) { animation-delay: 225ms; } .escalonar > :nth-child(7) { animation-delay: 270ms; }
+.escalonar > :nth-child(n+8) { animation-delay: 315ms; }
+/* Mientras llegan los datos: bloque que respira en vez de un hueco */
+.esqueleto { border-radius: 8px; color: transparent !important; user-select: none;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-grafito) 12%, transparent) 25%, color-mix(in srgb, var(--color-grafito) 22%, transparent) 37%, color-mix(in srgb, var(--color-grafito) 12%, transparent) 63%) 0 0 / 200% 100%;
+  animation: brillo 1.4s linear infinite; }
+
+/* Panel protagonista (cifra del mes, portada del acceso): marino con luz propia, igual en claro y en oscuro */
+.panel-heroe { position: relative; isolation: isolate; overflow: hidden; color: #fff;
+  background: radial-gradient(120% 130% at 0% 0%, #1d3f86 0%, #10244a 46%, #0a1630 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .1), inset 0 0 0 1px rgb(255 255 255 / .05), 0 2px 4px rgb(12 22 41 / .08), 0 28px 48px -22px rgb(16 36 74 / .6); }
+.panel-heroe::before { content: ""; position: absolute; z-index: -1; inset: -45% -15% auto 35%; height: 115%; pointer-events: none;
+  background: radial-gradient(closest-side, rgb(79 124 255 / .5), transparent 72%); animation: respirar 9s ease-in-out infinite; }
+.panel-heroe::after { content: ""; position: absolute; z-index: -1; inset: 0; pointer-events: none;
+  background-image: linear-gradient(rgb(255 255 255 / .06) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .06) 1px, transparent 1px);
+  background-size: 32px 32px; mask-image: radial-gradient(90% 100% at 100% 0%, #000, transparent 72%); }
 
 /* El sello: el único momento con movimiento de la app */
 @keyframes sellar {

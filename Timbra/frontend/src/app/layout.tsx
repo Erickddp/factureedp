@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Schibsted_Grotesk } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const schibsted = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-schibsted", display: "swap" });
+const sans = Geist({ subsets: ["latin"], variable: "--font-ui", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-codigo", display: "swap" });
 
 export const metadata: Metadata = { title: "Timbra · EDDP", description: "Facturación CFDI 4.0" };
 
@@ -12,7 +13,7 @@ const TEMA = `try{var t=localStorage.getItem("timbra_tema");if(t==="oscuro")docu
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-MX" className={schibsted.variable} suppressHydrationWarning>
+    <html lang="es-MX" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: TEMA }} /></head>
       <body className="font-sans min-h-screen">
         {children}

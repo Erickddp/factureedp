@@ -442,8 +442,8 @@ function Facturar() {
         <div className="flex min-w-0 flex-col gap-5">
           {emisor.modo_demo && (
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-alerta-suave px-4 py-2.5 text-sm text-alerta">
-              <FlaskConical className="size-4 shrink-0" /> <b>Modo demo:</b> {emisor.rfc} no tiene PAC asignado. Lo que timbres aquí es de práctica, no llega al SAT ni tiene validez fiscal.
-              <a href="/ajustes/" className="font-medium underline">Dar de alta mi PAC</a>
+              <FlaskConical className="size-4 shrink-0" /> <span className="min-w-0 flex-1"><b>Modo demo.</b> Lo que timbres con {emisor.rfc} es de práctica: no llega al SAT ni tiene validez fiscal.</span>
+              <a href="/ajustes/" className="font-medium underline">Asignar un PAC real</a>
             </p>
           )}
           {resultado && <div className="@min-[940px]:hidden"><Resultado f={resultado} reiniciar={reiniciar} /></div>}
