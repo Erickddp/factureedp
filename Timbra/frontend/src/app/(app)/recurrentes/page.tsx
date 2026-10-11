@@ -171,7 +171,7 @@ function Configurar({ p, cerrar, ok }: { p: Plantilla | null; cerrar: () => void
               <Input type="number" min={1} max={31} value={f.dia} onChange={(e) => setF({ ...f, dia: e.target.value })} />
             </Field>
             <Interruptor checked={f.auto_timbrar} onChange={(v) => setF({ ...f, auto_timbrar: v })} label="Timbrar sola"
-              hint="Con Timbra abierta, se timbra ese día sin preguntar. Si algo falla, se apaga y te avisa." />
+              hint="Se timbra ese día sin preguntar (en tu PC, con Timbra abierta; en la web, siempre). Si falla se apaga y te avisa. Si se atrasa más de 5 días, espera tu revisión." />
             <Interruptor checked={f.enviar_email} onChange={(v) => setF({ ...f, enviar_email: v })} label="Enviar por correo al cliente" />
           </div>
         )}

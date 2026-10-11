@@ -37,9 +37,9 @@ const FILAS = [
 // Precios de lanzamiento. Cámbialos aquí: `porTimbre` se calcula solo.
 const PLANES = [
   { nombre: "Prueba", precio: 0, timbres: 3, nota: "Para conocer Timbra", puntos: ["3 facturas gratis", "Todas las funciones", "Sin tarjeta"], destacado: false },
-  { nombre: "Recarga 30", precio: 50, timbres: 30, nota: "Para empezar", puntos: ["30 timbres", "Sin renta mensual", "Un solo pago"], destacado: false },
-  { nombre: "Recarga 65", precio: 100, timbres: 65, nota: "Para despachos y negocios con movimiento", puntos: ["65 timbres", "Sin renta mensual", "Un solo pago"], destacado: true },
-  { nombre: "Recarga 140", precio: 200, timbres: 140, nota: "Mejor precio por factura", puntos: ["140 timbres", "Sin renta mensual", "Un solo pago"], destacado: false },
+  { nombre: "Recarga 30", precio: 50, timbres: 30, nota: "Para empezar", puntos: ["30 timbres", "Vigencia de 12 meses", "Sin renta mensual"], destacado: false },
+  { nombre: "Recarga 65", precio: 100, timbres: 65, nota: "Para despachos y negocios con movimiento", puntos: ["65 timbres", "Vigencia de 12 meses", "Sin renta mensual"], destacado: true },
+  { nombre: "Recarga 140", precio: 200, timbres: 140, nota: "Mejor precio por factura", puntos: ["140 timbres", "Vigencia de 12 meses", "Sin renta mensual"], destacado: false },
 ];
 
 /** Sección fija: la tabla pasa de «…» a «Lista» y a «Timbrada» conforme bajas. Sólo se repinta cuando cambia un número. */
@@ -202,7 +202,7 @@ export default function Inicio() {
             </article>
           ))}
         </div>
-        <p className="lp-aviso aparece">Precios en pesos mexicanos, IVA incluido. El acceso es por invitación mientras terminamos el lanzamiento; las recargas en línea se activan en breve.</p>
+        <p className="lp-aviso aparece">Precios en pesos mexicanos, IVA incluido. Los timbres vencen a los 12 meses de la recarga. El acceso es por invitación mientras terminamos el lanzamiento; las recargas en línea se activan en breve.</p>
       </section>
 
       {/* ---------------- Cierre ---------------- */}

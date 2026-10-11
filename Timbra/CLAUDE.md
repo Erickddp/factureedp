@@ -246,3 +246,10 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - Probado de verdad en pruebas: ingreso PUE y PPD, descuento, factura global, nota de crédito relacionada, complemento de pago
   parcial, cancelación motivo 02 y estatus SAT ("Cancelado"). Sin probar contra PAC: nómina, traslado, IEPS, impuestos locales.
 - Antes de dar algo por bueno, pruébalo con el emisor EKU9003173C9 y el PAC de Finkok en pruebas (no gasta timbres reales).
+- Segunda ronda en Finkok pruebas (11-oct-2026), todo aceptado: retenciones ISR/IVA, IEPS + IVA, impuesto local ISH, IVA exento
+  y 0%, traslado, dólares con tipo de cambio, sustitución (relación 04 + cancelación motivo 01, queda «pendiente» hasta que el SAT
+  confirma), cancelación motivos 02 y 03, y recurrentes automáticas (al día, tarde, atrasada, sin duplicar).
+  PENDIENTE: nómina la rechaza Finkok con «NOM111 - Error no clasificado» en cinco variantes (con/sin subsidio, ObjetoImp 01/03,
+  asimilados). Falta que su asesor diga qué valida ese código; no usar nómina en producción hasta resolverlo.
+- Recurrentes: el periodo es el programado (`p.proxima`), nunca se salta un mes; `MAX_ATRASO_AUTO` días de margen para timbrar
+  sola; candado contra doble timbrado. tests/test_w3_recurrentes.py.
