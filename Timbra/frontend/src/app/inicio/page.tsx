@@ -1,13 +1,15 @@
 "use client";
 /**
- * Página de inicio pública (antes de entrar). Todo el movimiento es CSS + un solo escucha de scroll:
- * barra de avance, parallax del héroe, aparición al hacer scroll y la sección fija «pega → revisa → timbra».
- * Video opcional: si existe /inicio.mp4 (carpeta public) se usa difuminado como fondo del héroe; si no, no pasa nada.
+ * Página de inicio pública (antes de entrar).
+ * Rendimiento: nada de desenfoques animados; el scroll sólo toca transform/opacity, las variables CSS se ponen en el
+ * elemento que las usa (no en la raíz) y cada sección animada es su propio componente para no repintar toda la página.
+ * Video opcional: si existe /inicio.mp4 (carpeta public) se usa como fondo del héroe; si no, no pasa nada.
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, BadgeDollarSign, Check, FileText, HandCoins, Repeat, ScanSearch, ShieldCheck, Table2, Zap } from "lucide-react";
 import { getToken } from "@/lib/api";
+import { Aurora, FacturaViva } from "@/components/inicio-piezas";
 import "./inicio.css";
 
 const FUNCIONES = [
@@ -32,50 +34,93 @@ const FILAS = [
   ["C-104", "Desarrollo de software", "$11,600.00"], ["C-105", "Capacitación", "$2,320.00"], ["C-106", "Honorarios", "$4,640.00"],
 ];
 
+// Precios de lanzamiento. Cámbialos aquí: `porTimbre` se calcula solo.
+const PLANES = [
+  { nombre: "Prueba", precio: 0, timbres: 3, nota: "Para conocer Timbra", puntos: ["3 facturas gratis", "Todas las funciones", "Sin tarjeta"], destacado: false },
+  { nombre: "Recarga 30", precio: 50, timbres: 30, nota: "Para empezar", puntos: ["30 timbres", "Sin renta mensual", "Un solo pago"], destacado: false },
+  { nombre: "Recarga 65", precio: 100, timbres: 65, nota: "Para despachos y negocios con movimiento", puntos: ["65 timbres", "Sin renta mensual", "Un solo pago"], destacado: true },
+  { nombre: "Recarga 140", precio: 200, timbres: 140, nota: "Mejor precio por factura", puntos: ["140 timbres", "Sin renta mensual", "Un solo pago"], destacado: false },
+];
+
+/** Sección fija: la tabla pasa de «…» a «Lista» y a «Timbrada» conforme bajas. Sólo se repinta cuando cambia un número. */
+function Demostracion() {
+  const ref = useRef<HTMLElement>(null);
+  const barra = useRef<HTMLSpanElement>(null);
+  const [e, setE] = useState({ paso: 0, revisadas: 0, timbradas: 0 });
+  useEffect(() => {
+    let pendiente = 0;
+    const medir = () => {
+      pendiente = 0;
+      const r = ref.current!.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight) return;
+      const a = Math.min(1, Math.max(0, -r.top / Math.max(1, r.height - window.innerHeight)));
+      if (barra.current) barra.current.style.transform = `scaleX(${a})`;
+      const n = FILAS.length;
+      const sig = { paso: a < 0.34 ? 0 : a < 0.67 ? 1 : 2, revisadas: Math.min(n, Math.round(Math.min(1, a / 0.5) * n)), timbradas: Math.min(n, Math.round(Math.max(0, (a - 0.55) / 0.4) * n)) };
+      setE((p) => (p.paso === sig.paso && p.revisadas === sig.revisadas && p.timbradas === sig.timbradas ? p : sig));
+    };
+    const pedir = () => { if (!pendiente) pendiente = requestAnimationFrame(medir); };
+    medir();
+    window.addEventListener("scroll", pedir, { passive: true });
+    window.addEventListener("resize", pedir);
+    return () => { window.removeEventListener("scroll", pedir); window.removeEventListener("resize", pedir); cancelAnimationFrame(pendiente); };
+  }, []);
+  return (
+    <section id="como" ref={ref} className="lp-fija">
+      <div className="lp-fija-dentro">
+        <div className="lp-fija-texto">
+          <p className="lp-ceja"><span /> De tu hoja al SAT</p>
+          <h2>Una tabla entra.<br />Facturas timbradas salen.</h2>
+          <ol>
+            {PASOS.map((p, i) => (
+              <li key={p.t} className={i === e.paso ? "activo" : i < e.paso ? "hecho" : ""}>
+                <span>{i < e.paso ? <Check className="size-4" /> : i + 1}</span>
+                <div><b>{p.t}</b><p>{p.d}</p></div>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="lp-hoja" aria-hidden>
+          <div className="lp-hoja-barra"><i /><i /><i /><span>lote de octubre</span><b>{e.timbradas}/{FILAS.length} timbradas</b></div>
+          {FILAS.map((f, i) => (
+            <div key={f[0]} className={`lp-fila ${i < e.timbradas ? "timbrada" : i < e.revisadas ? "revisada" : ""}`}>
+              <span className="mono">{f[0]}</span><span>{f[1]}</span><b>{f[2]}</b>
+              <em>{i < e.timbradas ? "Timbrada" : i < e.revisadas ? "Lista" : "…"}</em>
+            </div>
+          ))}
+          <div className="lp-hoja-pie"><span ref={barra} /></div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Inicio() {
   const raiz = useRef<HTMLDivElement>(null);
-  const fija = useRef<HTMLElement>(null);
-  const [avance, setAvance] = useState(0); // 0..1 de la sección fija
+  const avance = useRef<HTMLDivElement>(null);
   const [dentro, setDentro] = useState(false);
 
   useEffect(() => {
     setDentro(!!getToken());
-    const el = raiz.current!;
     let pendiente = 0;
     const medir = () => {
       pendiente = 0;
       const total = document.documentElement.scrollHeight - window.innerHeight;
-      el.style.setProperty("--y", String(window.scrollY));
-      el.style.setProperty("--total", total > 0 ? String(window.scrollY / total) : "0");
-      const s = fija.current;
-      if (s) {
-        const r = s.getBoundingClientRect();
-        setAvance(Math.min(1, Math.max(0, -r.top / Math.max(1, r.height - window.innerHeight))));
-      }
+      if (avance.current) avance.current.style.transform = `scaleX(${total > 0 ? window.scrollY / total : 0})`;
     };
-    const alScroll = () => { if (!pendiente) pendiente = requestAnimationFrame(medir); };
-    const alMouse = (e: MouseEvent) => {
-      el.style.setProperty("--mx", String(e.clientX / window.innerWidth - 0.5));
-      el.style.setProperty("--my", String(e.clientY / window.innerHeight - 0.5));
-    };
-    // Aparición al entrar en pantalla
-    const io = new IntersectionObserver((entradas) => entradas.forEach((x) => x.isIntersecting && x.target.classList.add("visto")), { threshold: 0.18 });
-    el.querySelectorAll(".aparece").forEach((x) => io.observe(x));
-    medir();
-    window.addEventListener("scroll", alScroll, { passive: true });
-    window.addEventListener("resize", alScroll);
-    window.addEventListener("mousemove", alMouse, { passive: true });
-    return () => { window.removeEventListener("scroll", alScroll); window.removeEventListener("resize", alScroll); window.removeEventListener("mousemove", alMouse); io.disconnect(); cancelAnimationFrame(pendiente); };
+    const pedir = () => { if (!pendiente) pendiente = requestAnimationFrame(medir); };
+    // Aparición al entrar en pantalla (una sola vez por elemento)
+    const io = new IntersectionObserver((xs) => xs.forEach((x) => { if (x.isIntersecting) { x.target.classList.add("visto"); io.unobserve(x.target); } }), { threshold: 0.15 });
+    raiz.current!.querySelectorAll(".aparece").forEach((x) => io.observe(x));
+    window.addEventListener("scroll", pedir, { passive: true });
+    return () => { window.removeEventListener("scroll", pedir); io.disconnect(); cancelAnimationFrame(pendiente); };
   }, []);
 
-  const paso = avance < 0.34 ? 0 : avance < 0.67 ? 1 : 2;
-  const revisadas = Math.min(FILAS.length, Math.round(Math.min(1, avance / 0.5) * FILAS.length));
-  const timbradas = Math.min(FILAS.length, Math.round(Math.max(0, (avance - 0.55) / 0.4) * FILAS.length));
   const entrar = dentro ? "/" : "/login";
 
   return (
     <div ref={raiz} className="lp">
-      <div className="lp-avance" aria-hidden />
+      <div ref={avance} className="lp-avance" aria-hidden />
 
       <header className="lp-nav">
         <Link href="/inicio" className="lp-marca">
@@ -85,14 +130,15 @@ export default function Inicio() {
         <nav>
           <a href="#funciones">Funciones</a>
           <a href="#como">Cómo funciona</a>
+          <a href="#precios">Precios</a>
           <Link href={entrar} className="lp-boton chico">{dentro ? "Abrir Timbra" : "Entrar"}</Link>
         </nav>
       </header>
 
       {/* ---------------- Héroe ---------------- */}
       <section className="lp-heroe">
-        <video className="lp-video" src="/inicio.mp4" autoPlay muted loop playsInline aria-hidden onError={(e) => { e.currentTarget.style.display = "none"; }} />
-        <div className="lp-aurora" aria-hidden><i /><i /><i /></div>
+        <video className="lp-video" src="/inicio.mp4" autoPlay muted loop playsInline preload="metadata" aria-hidden onError={(e) => { e.currentTarget.remove(); }} />
+        <Aurora />
         <div className="lp-rejilla" aria-hidden />
 
         <div className="lp-heroe-texto">
@@ -103,29 +149,10 @@ export default function Inicio() {
           </p>
           <div className="lp-acciones entra" style={{ animationDelay: "340ms" }}>
             <Link href={entrar} className="lp-boton">{dentro ? "Abrir Timbra" : "Entrar a Timbra"} <ArrowRight className="size-5" /></Link>
-            <a href="#como" className="lp-enlace">Ver cómo funciona</a>
+            <a href="#precios" className="lp-enlace">3 facturas gratis para probar</a>
           </div>
         </div>
-
-        <div className="lp-escena entra" style={{ animationDelay: "420ms" }} aria-hidden>
-          <div className="lp-factura">
-            <div className="lp-f-cab">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="" />
-              <span><b>Factura</b><small>A 128</small></span>
-            </div>
-            <div className="lp-f-lineas"><i style={{ width: "72%" }} /><i style={{ width: "54%" }} /><i style={{ width: "63%" }} /></div>
-            <div className="lp-f-tabla">
-              <span>Servicios profesionales</span><b>$10,000.00</b>
-              <span>IVA 16%</span><b>$1,600.00</b>
-            </div>
-            <div className="lp-f-total"><span>Total</span><b>$11,600.00</b></div>
-            <div className="lp-sello">TIMBRADA</div>
-          </div>
-          <div className="lp-ficha f1"><Check className="size-4" /> Cumple CFDI 4.0</div>
-          <div className="lp-ficha f2"><FileText className="size-4" /> PDF + XML</div>
-          <div className="lp-ficha f3"><Table2 className="size-4" /> Folio de tu hoja</div>
-        </div>
+        <div className="entra" style={{ animationDelay: "420ms" }}><FacturaViva /></div>
       </section>
 
       {/* ---------------- Cinta ---------------- */}
@@ -146,7 +173,7 @@ export default function Inicio() {
         <h2 className="aparece">Lo que haces cada mes,<br />sin las vueltas de siempre.</h2>
         <div className="lp-tarjetas">
           {FUNCIONES.map(({ icono: Icono, t, d }, i) => (
-            <article key={t} className="lp-tarjeta aparece" style={{ transitionDelay: `${(i % 4) * 70}ms` }}
+            <article key={t} className="lp-tarjeta aparece" style={{ transitionDelay: `${(i % 4) * 60}ms` }}
               onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--lx", `${e.clientX - r.left}px`); e.currentTarget.style.setProperty("--ly", `${e.clientY - r.top}px`); }}>
               <span className="lp-icono"><Icono className="size-5" /></span>
               <h3>{t}</h3>
@@ -156,37 +183,31 @@ export default function Inicio() {
         </div>
       </section>
 
-      {/* ---------------- Sección fija: pega → revisa → timbra ---------------- */}
-      <section id="como" ref={fija} className="lp-fija">
-        <div className="lp-fija-dentro">
-          <div className="lp-fija-texto">
-            <p className="lp-ceja"><span /> De tu hoja al SAT</p>
-            <h2>Una tabla entra.<br />Facturas timbradas salen.</h2>
-            <ol>
-              {PASOS.map((p, i) => (
-                <li key={p.t} className={i === paso ? "activo" : i < paso ? "hecho" : ""}>
-                  <span>{i < paso ? <Check className="size-4" /> : i + 1}</span>
-                  <div><b>{p.t}</b><p>{p.d}</p></div>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <div className="lp-hoja" aria-hidden>
-            <div className="lp-hoja-barra"><i /><i /><i /><span>lote de octubre</span><b>{timbradas}/{FILAS.length} timbradas</b></div>
-            {FILAS.map((f, i) => (
-              <div key={f[0]} className={`lp-fila ${i < timbradas ? "timbrada" : i < revisadas ? "revisada" : ""}`} style={{ transitionDelay: `${i * 30}ms` }}>
-                <span className="mono">{f[0]}</span><span>{f[1]}</span><b>{f[2]}</b>
-                <em>{i < timbradas ? "Timbrada" : i < revisadas ? "Lista" : "…"}</em>
-              </div>
-            ))}
-            <div className="lp-hoja-pie"><span style={{ width: `${Math.round(avance * 100)}%` }} /></div>
-          </div>
+      <Demostracion />
+
+      {/* ---------------- Precios ---------------- */}
+      <section id="precios" className="lp-seccion">
+        <p className="lp-ceja aparece"><span /> Precios</p>
+        <h2 className="aparece">Paga sólo lo que timbras.<br />Sin rentas ni anualidades.</h2>
+        <div className="lp-planes">
+          {PLANES.map((p, i) => (
+            <article key={p.nombre} className={`lp-plan aparece${p.destacado ? " destacado" : ""}`} style={{ transitionDelay: `${i * 70}ms` }}>
+              {p.destacado && <span className="lp-plan-cinta">Recomendada</span>}
+              <h3>{p.nombre}</h3>
+              <p className="lp-plan-nota">{p.nota}</p>
+              <p className="lp-plan-precio">{p.precio ? <><small>$</small>{p.precio}<small> MXN</small></> : "Gratis"}</p>
+              <p className="lp-plan-unidad">{p.precio ? `$${(p.precio / p.timbres).toFixed(2)} por factura` : "3 facturas, una sola vez"}</p>
+              <ul>{p.puntos.map((x) => <li key={x}><Check className="size-4" /> {x}</li>)}</ul>
+              <Link href={entrar} className={p.destacado ? "lp-boton mediano" : "lp-boton mediano hueco"}>{p.precio ? "Elegir" : "Probar gratis"}</Link>
+            </article>
+          ))}
         </div>
+        <p className="lp-aviso aparece">Precios en pesos mexicanos, IVA incluido. El acceso es por invitación mientras terminamos el lanzamiento; las recargas en línea se activan en breve.</p>
       </section>
 
       {/* ---------------- Cierre ---------------- */}
       <section className="lp-cierre">
-        <div className="lp-aurora tenue" aria-hidden><i /><i /></div>
+        <Aurora tenue />
         <h2 className="aparece">Tu siguiente factura,<br />a un atajo de distancia.</h2>
         <Link href={entrar} className="lp-boton aparece">{dentro ? "Abrir Timbra" : "Entrar a Timbra"} <ArrowRight className="size-5" /></Link>
       </section>

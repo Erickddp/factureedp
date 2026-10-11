@@ -22,7 +22,23 @@ def buscar() -> str | None:
     return max(candidatos, key=os.path.getmtime) if candidatos else None
 
 
+def copiar(cual: str) -> int:
+    """python google_env.py copiar id|secreto  →  deja el valor del .env en el portapapeles, sin mostrarlo en pantalla."""
+    import subprocess
+    clave = {"id": "GOOGLE_CLIENT_ID", "secreto": "GOOGLE_CLIENT_SECRET"}.get(cual)
+    env = os.path.join(AQUI, ".env")
+    m = re.search(rf"^{clave}=(.+)$", open(env, encoding="utf-8").read(), flags=re.M) if clave and os.path.exists(env) else None
+    if not m:
+        print("Uso: python google_env.py copiar id|secreto   (y que el .env ya tenga las credenciales de Google)")
+        return 1
+    subprocess.run("clip", input=m.group(1).strip().encode("utf-16-le"), shell=True, check=True)
+    print(f"{clave} copiado al portapapeles ({len(m.group(1).strip())} caracteres). Pégalo donde va y copia otra cosa después.")
+    return 0
+
+
 def main() -> int:
+    if len(sys.argv) > 2 and sys.argv[1] == "copiar":
+        return copiar(sys.argv[2])
     ruta = buscar()
     if not ruta or not os.path.exists(ruta):
         print("No encontré el archivo client_secret_....json. Descárgalo de Google Cloud (Clientes → tu cliente → Descargar JSON).")

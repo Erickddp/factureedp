@@ -1,9 +1,13 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Check } from "lucide-react";
 import { api, setToken } from "@/lib/api";
+import { Aurora, FacturaViva } from "@/components/inicio-piezas";
 import { Button, Field, Input } from "@/components/ui";
+import "../inicio/inicio.css";
 
 export default function Login() {
   const router = useRouter();
@@ -58,43 +62,56 @@ export default function Login() {
   }
 
   return (
-    <main className="panel-heroe grid min-h-screen place-items-center px-4 py-10">
-      <form onSubmit={entrar} className="w-full max-w-sm rounded-3xl bg-hoja p-8 text-tinta shadow-[0_0_0_1px_rgb(255_255_255/.08),0_40px_80px_-24px_rgb(3_10_30/.7)] animate-subir sm:p-9">
-        <div className="mb-8 flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" className="size-11 rounded-xl bg-black shadow-[0_8px_16px_-8px_rgb(12_22_41/.6)]" />
-          <span className="leading-tight">
-            <b className="block text-xl font-semibold tracking-tight">Timbra</b>
-            <span className="block text-[13px] text-grafito">Facturación CFDI 4.0</span>
-          </span>
-        </div>
-        <div className="flex flex-col gap-4">
-          <Field label="Usuario o correo">
-            <Input type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
-          </Field>
-          <Field label="Contraseña">
-            <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </Field>
-          {error && <p className="rounded-lg bg-rojo-suave px-3 py-2 text-sm text-rojo animate-entrar">{error}</p>}
-          <Button variant="acento" size="lg" loading={cargando} type="submit" className="mt-2">
-            Entrar
-          </Button>
-          {google && (
-            <>
-              <div className="flex items-center gap-3 text-xs text-grafito"><span className="h-px flex-1 bg-linea" />o<span className="h-px flex-1 bg-linea" /></div>
-              <Button size="lg" onClick={conGoogle} loading={yendo}>
-                <svg viewBox="0 0 24 24" className="size-[18px]" aria-hidden>
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z" />
-                </svg>
-                Continuar con Google
-              </Button>
-            </>
-          )}
-        </div>
-      </form>
+    <main className="lp lp-login">
+      <Aurora />
+      <div className="lp-rejilla" aria-hidden />
+      <Link href="/inicio" className="lp-volver">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="" /> <b>Timbra</b>
+      </Link>
+
+      <section className="lp-login-lado">
+        <p className="lp-ceja entra"><span /> Facturación CFDI 4.0</p>
+        <h1 className="entra" style={{ animationDelay: "80ms" }}>Factura en segundos.<br /><em>Sin gastar timbres en errores.</em></h1>
+        <ul className="entra" style={{ animationDelay: "160ms" }}>
+          <li><Check className="size-4" /> Valida cada factura contra las reglas del SAT antes de timbrar.</li>
+          <li><Check className="size-4" /> Convierte tu tabla de Excel en un lote completo de CFDI.</li>
+          <li><Check className="size-4" /> PDF con tu marca, cobranza, pagos y nómina en un solo lugar.</li>
+        </ul>
+        <div className="entra" style={{ animationDelay: "260ms" }}><FacturaViva chica /></div>
+      </section>
+
+      <section className="lp-login-forma">
+        <form onSubmit={entrar} className="lp-tarjeta-login entra" style={{ animationDelay: "120ms" }}>
+          <h2>Entra a tu cuenta</h2>
+          <p>Tus emisores, clientes y facturas te esperan donde los dejaste.</p>
+          <div className="mt-7 flex flex-col gap-4">
+            <Field label="Usuario o correo">
+              <Input type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus className="h-12" />
+            </Field>
+            <Field label="Contraseña">
+              <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-12" />
+            </Field>
+            {error && <p className="rounded-lg bg-rojo-suave px-3 py-2 text-sm text-rojo animate-entrar">{error}</p>}
+            <button type="submit" disabled={cargando} className="lp-boton mediano mt-1 disabled:opacity-60">{cargando ? "Entrando…" : "Entrar"}</button>
+            {google && (
+              <>
+                <div className="flex items-center gap-3 text-xs text-grafito"><span className="h-px flex-1 bg-linea" />o<span className="h-px flex-1 bg-linea" /></div>
+                <Button size="lg" onClick={conGoogle} loading={yendo}>
+                  <svg viewBox="0 0 24 24" className="size-[18px]" aria-hidden>
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z" />
+                  </svg>
+                  Continuar con Google
+                </Button>
+              </>
+            )}
+          </div>
+          <p className="!mt-6 text-center text-[13px]">¿Aún no tienes cuenta? <Link href="/inicio#precios" className="text-[#86a4ff] underline-offset-4 hover:underline">Conoce Timbra</Link></p>
+        </form>
+      </section>
     </main>
   );
 }

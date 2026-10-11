@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import logs
-from .config import settings
+from .config import EN_WEB, settings
 from .db import SessionLocal, engine
 from .models import Addenda
 from .routers import (addendas, auth, catalogos, clientes, cobranza, correo, dashboard, debug, emisores, facturas, nomina,
@@ -100,6 +100,11 @@ async def registro(request: Request, call_next):
     elif ruta.startswith("/api/facturas/preview") and resp.status_code >= 400:
         log.warning("%s %s → %s (%s ms)", request.method, ruta, resp.status_code, ms)
     resp.headers["X-Request-ID"] = rid
+    if EN_WEB:  # el navegador sólo usará HTTPS con este sitio, no lo incrusta nadie y no adivina tipos de archivo
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     logs.request_id.reset(tok)
     return resp
 
