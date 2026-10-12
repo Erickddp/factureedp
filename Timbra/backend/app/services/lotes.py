@@ -122,6 +122,11 @@ def _num(s) -> Decimal | None:
         return None
 
 
+def _monto_txt(m: Decimal | None) -> str:
+    """El monto como texto comparable: 750, 750.00 y $750.00 son el mismo cobro."""
+    return str(m.quantize(CENT)) if m is not None else ""
+
+
 def _fecha(s) -> date | None:
     t = str(s or "").strip()
     for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y"):
@@ -410,7 +415,7 @@ def resolver(db: Session, emisor: Emisor, cfg: dict, datos: dict, fila_id: int |
             resumen["cliente"], cliente_id = "existe", cli.id
     if cp and emisor.lugar_expedicion and cp[:2] != emisor.lugar_expedicion[:2]:
         aviso(f"El CP {cp} es de otra zona que el emisor ({emisor.lugar_expedicion}). Confírmalo con su constancia.")
-    clave_dup = (rfc, str(monto), d.get("fecha"))
+    clave_dup = (rfc, _monto_txt(monto), fecha.isoformat() if fecha else d.get("fecha"))
     if rfc and clave_dup in ctx.get("duplicados", {}):
         aviso(f"Mismo cliente, monto y fecha que la fila {ctx['duplicados'][clave_dup]}: ¿cobro repetido?")
 
@@ -543,7 +548,8 @@ def _contexto(db: Session, lote: Lote, excepto: LoteFila) -> dict:
         if o.n < excepto.n and o.resumen.get("fecha"):
             ctx["fecha_anterior"] = date.fromisoformat(o.resumen["fecha"])
         if o.n < excepto.n:
-            ctx["duplicados"].setdefault((o.resumen.get("rfc"), str(o.resumen.get("monto")), o.datos.get("fecha")), o.n)
+            ctx["duplicados"].setdefault((o.resumen.get("rfc"), _monto_txt(_num(o.resumen.get("monto"))),
+                                          o.resumen.get("fecha") or o.datos.get("fecha")), o.n)
     return ctx
 
 

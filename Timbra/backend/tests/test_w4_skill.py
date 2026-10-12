@@ -116,7 +116,7 @@ def test_la_hoja_tal_como_sale_de_excel():
                                            for i, (ref, monto, serv, forma, _, cp, fecha) in enumerate(casos)])
         assert all(f["estado"] == "listo" for f in lote["filas"]), [(f["referencia"], f["error"]) for f in lote["filas"]]
         d = _timbrar(c, h, lote)
-        assert d["cuentas"]["timbrada"] == len(casos)
+        assert d["cuentas"]["timbrada"] == len(casos), [(f["referencia"], f["estado"], f["error"]) for f in d["filas"]]
         for ref, monto, _, _, forma_sat, cp, fecha in casos:
             x = _xml(c, h, _por_ref(d, ref)["factura_id"])
             cons = x.findall("c:Conceptos/c:Concepto", NS)
@@ -404,3 +404,106 @@ def test_no_se_elimina_un_emisor_con_facturas_timbradas_en_produccion():
         r = c.delete(f"/api/emisores/{x['id']}?confirmar={x['rfc']}", headers=h)
         assert r.status_code == 409 and "validez fiscal" in r.text
         assert x["rfc"] in {y["rfc"] for y in c.get("/api/emisores", headers=h).json()}
+
+
+def test_cobro_repetido_se_avisa_aunque_el_monto_venga_escrito_distinto():
+    """Uso real: la hoja traía «$750.00» en un renglón y «750» en otro. Es el mismo cobro."""
+    with TestClient(app) as c:
+        h, e = _preparar(c)
+        pid = _perfil(c, h, e, serie="K")
+        rfc = rfc_de_prueba(130)
+        lote = _nuevo_lote(c, h, e, pid, [
+            fila("K-570", "PACIENTE DOBLE", rfc, "42501", "05/10/2026", "$750.00", "562.50"),
+            fila("K-571", "PACIENTE DOBLE", rfc, "42501", "5/10/2026", "750", "562.5"),
+            fila("K-572", "PACIENTE DOBLE", rfc, "42501", "06/10/2026", "750", "562.5"),
+        ])
+        avisos = {f["referencia"]: " ".join(a["texto"] for a in f["avisos"]) for f in lote["filas"]}
+        assert "cobro repetido" in avisos["K-571"] and "fila 1" in avisos["K-571"]
+        assert "cobro repetido" not in avisos["K-570"] and "cobro repetido" not in avisos["K-572"]
+        # al corregir otra fila el aviso sigue ahí (se recalcula contra las filas de arriba)
+        f571 = _por_ref(lote, "K-571")
+        r = c.put(f"/api/lotes/{lote['id']}/filas/{f571['id']}", headers=h, json={"datos": {"correo": "x@example.com", "uso": ""}}).json()
+        assert r["estado"] == "listo" and any("cobro repetido" in a["texto"] for a in r["avisos"])
+        for f in lote["filas"]:
+            c.post(f"/api/lotes/{lote['id']}/filas/{f['id']}/omitir", headers=h)
+
+
+def test_respaldo_completo_se_descarga_y_trae_base_y_xml():
+    import io
+    import sqlite3
+    import zipfile
+    with TestClient(app) as c:
+        h, e = _preparar(c)
+        r = c.get("/api/debug/respaldo", headers=h)
+        assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
+        z = zipfile.ZipFile(io.BytesIO(r.content))
+        nombres = z.namelist()
+        assert "datos/timbra.db" in nombres and any(n.endswith(".xml") for n in nombres)
+        assert not any("/logs/" in n or "Respaldos" in n for n in nombres)
+        # la base del respaldo se abre y trae lo mismo que la viva
+        tmp = os.path.join("_test_datos", "restaurada.db")
+        open(tmp, "wb").write(z.read("datos/timbra.db"))
+        con = sqlite3.connect(tmp)
+        try:
+            n_fact = con.execute("select count(*) from facturas where uuid is not null").fetchone()[0]
+            assert con.execute("pragma integrity_check").fetchone()[0] == "ok"
+        finally:
+            con.close()
+            os.remove(tmp)
+        vivas = sum(len(c.get(f"/api/facturas?emisor_id={x['id']}&limit=5000", headers=h).json()) for x in c.get("/api/emisores", headers=h).json())
+        assert n_fact >= vivas > 0
+        # sólo el administrador
+        ajeno = _usuario(c, h, "sin-respaldo@prueba.mx", "sinrespaldo")
+        assert c.get("/api/debug/respaldo", headers=ajeno).status_code == 403
+        assert c.get("/api/debug/respaldo").status_code == 401
+
+
+def test_respaldo_diario_en_web_queda_dentro_del_volumen(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from app.config import settings
+    from app.services import programador
+    with TestClient(app):
+        monkeypatch.setattr(programador, "EN_WEB", True)
+        z = programador.respaldo_diario()
+        try:
+            datos = Path(settings.data_dir).resolve()
+            assert z is not None and z.parent == datos / "Respaldos"
+            assert programador.respaldo_diario() is None  # uno por día
+            import zipfile
+            assert not any("Respaldos" in n for n in zipfile.ZipFile(z).namelist())
+        finally:
+            if z:
+                z.unlink(missing_ok=True)
+
+
+def test_cancelacion_pendiente_no_se_da_por_rechazada_si_el_sat_aun_no_la_refleja(monkeypatch):
+    """Uso real (Finkok pruebas): tras pedir la cancelación el SAT siguió diciendo «Vigente» sin estatus, y Timbra la
+    regresaba a «timbrada» como si nunca se hubiera pedido."""
+    from app.services import pac as pac_svc
+    with TestClient(app) as c:
+        h, e = _preparar(c)
+        f = c.post("/api/facturas", headers=h, json={
+            "emisor_id": e["id"], "metodo_pago": "PUE", "forma_pago": "03",
+            "receptor": {"rfc": rfc_de_prueba(140), "nombre": "CLIENTE QUE DEBE ACEPTAR", "regimen_fiscal": "612",
+                         "codigo_postal": "42501", "uso_cfdi": "G03", "guardar": False},
+            "conceptos": [{"clave_prod_serv": "84111506", "clave_unidad": "E48", "descripcion": "x", "valor_unitario": "5000",
+                           "objeto_imp": "01", "impuestos": []}]}).json()
+        respuesta = {"Estado": "Vigente", "EstatusCancelacion": None}
+        monkeypatch.setattr(pac_svc, "estatus", lambda pac, xml: dict(respuesta))
+        r = c.post(f"/api/facturas/{f['id']}/cancelar", headers=h, json={"motivo": "02"}).json()
+        assert r["estado"] == "cancelacion_pendiente"
+        c.get(f"/api/facturas/{f['id']}/estatus", headers=h)
+        assert c.get(f"/api/facturas/{f['id']}", headers=h).json()["estado"] == "cancelacion_pendiente"  # sigue pedida
+        respuesta["EstatusCancelacion"] = "En proceso"
+        c.get(f"/api/facturas/{f['id']}/estatus", headers=h)
+        assert c.get(f"/api/facturas/{f['id']}", headers=h).json()["estado"] == "cancelacion_pendiente"
+        respuesta["EstatusCancelacion"] = "Solicitud rechazada"
+        c.get(f"/api/facturas/{f['id']}/estatus", headers=h)
+        assert c.get(f"/api/facturas/{f['id']}", headers=h).json()["estado"] == "timbrada"  # ahora sí: el SAT lo dijo
+        # se vuelve a pedir y el SAT la cancela
+        respuesta.update(Estado="Vigente", EstatusCancelacion=None)
+        assert c.post(f"/api/facturas/{f['id']}/cancelar", headers=h, json={"motivo": "02"}).json()["estado"] == "cancelacion_pendiente"
+        respuesta.update(Estado="Cancelado", EstatusCancelacion="Cancelado con aceptación")
+        c.get(f"/api/facturas/{f['id']}/estatus", headers=h)
+        assert c.get(f"/api/facturas/{f['id']}", headers=h).json()["estado"] == "cancelada"

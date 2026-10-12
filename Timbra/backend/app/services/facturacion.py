@@ -337,12 +337,17 @@ def actualizar_estatus(db: Session, f: Factura) -> dict:
     """Consulta al SAT y sincroniza el estado local (pendiente → cancelada, o de vuelta a timbrada si la rechazaron)."""
     st = pac_svc.estatus(f.emisor.pac, f.xml)
     nuevo = pac_svc.estado_sat(st)
-    if f.estado == "cancelacion_pendiente" and nuevo in ("cancelada", "timbrada"):
+    proceso = str(st.get("EstatusCancelacion") or "").strip()
+    # «Vigente» SIN estatus de cancelación no es un rechazo: el SAT tarda en reflejar la solicitud. Sólo se regresa a
+    # timbrada cuando el SAT lo dice expresamente (rechazada, plazo vencido…); si no, la solicitud sigue pendiente.
+    if f.estado == "cancelacion_pendiente" and (nuevo == "cancelada" or (nuevo == "timbrada" and proceso)):
         f.estado = nuevo
         if nuevo == "cancelada":
             f.saldo = Decimal(0)
-        elif "rechaz" in str(st.get("EstatusCancelacion", "")).lower():
+        elif "rechaz" in proceso.lower():
             f.error = "El receptor rechazó la cancelación."
+        else:
+            f.error = f"La cancelación no procedió: {proceso}."
         db.commit()
     elif f.estado == "timbrada" and nuevo == "cancelada":  # cancelada desde el portal del SAT u otro sistema
         f.estado, f.saldo = "cancelada", Decimal(0)

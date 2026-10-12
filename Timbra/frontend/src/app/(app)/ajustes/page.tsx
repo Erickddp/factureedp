@@ -2,9 +2,9 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { ExternalLink, Plus } from "lucide-react";
+import { Download, ExternalLink, Plus } from "lucide-react";
 import { mostrarError } from "@/lib/errores";
-import { api, fetcher } from "@/lib/api";
+import { api, descargar, fetcher } from "@/lib/api";
 import type { Addenda, Pac } from "@/lib/types";
 import { useEmisor } from "@/components/emisor-context";
 import { consola } from "@/lib/debug";
@@ -281,6 +281,16 @@ type Salud = { version: string; almacen?: { desde: string | null; arranques: num
 /** ¿Lo que guardo se queda? Desde cuándo hay datos y cuántas veces ha arrancado Timbra sin perderlos. */
 function DatosGuardados() {
   const { data } = useSWR<Salud>("/health", fetcher, { revalidateOnFocus: false });
+  const { data: yo } = useSWR<{ admin: boolean }>("/auth/yo", fetcher);
+  const [bajando, setBajando] = useState(false);
+  const respaldo = async () => {
+    setBajando(true);
+    try {
+      const d = new Date();
+      await descargar("/debug/respaldo", `timbra_respaldo_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}.zip`);
+      toast.success("Respaldo descargado. Guárdalo en tu Drive.");
+    } catch (e) { mostrarError(e); } finally { setBajando(false); }
+  };
   const a = data?.almacen;
   if (!a) return null;
   const enWeb = typeof window !== "undefined" && !["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -295,8 +305,14 @@ function DatosGuardados() {
             <p className="font-medium">{enWeb ? "Se guardan en el disco permanente del servidor." : "Se guardan en este equipo, en la carpeta «datos» de Timbra."}</p>
             <p className="mt-1 text-sm text-grafito">
               En uso desde el {fecha(a.desde)} · Timbra {data?.version} ha arrancado {a.arranques} {a.arranques === 1 ? "vez" : "veces"} y todo sigue aquí:
-              cuentas, emisores y sellos, clientes, facturas con su XML, lotes y perfiles. {enWeb ? "Las actualizaciones no borran nada." : "Usa RESPALDAR.bat para llevar una copia a tu Drive."}
+              cuentas, emisores y sellos, clientes, facturas con su XML, lotes y perfiles. {enWeb ? "Las actualizaciones no borran nada." : "Timbra hace un respaldo diario en la carpeta Respaldos."}
             </p>
+            {yo?.admin && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <Button onClick={respaldo} loading={bajando}><Download className="size-4" /> Descargar respaldo completo</Button>
+                <span className="text-xs text-grafito">Base de datos y XML en un ZIP. Bájalo cada semana y guárdalo fuera {enWeb ? "del servidor" : "de esta computadora"}.</span>
+              </div>
+            )}
           </>
         )}
       </div>

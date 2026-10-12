@@ -7,7 +7,7 @@ import { useEmisor } from "@/components/emisor-context";
 import { Badge, Button, Field, Input, Interruptor, Modal, PageHeader, Select, Vacio, cx, tabla } from "@/components/ui";
 import { api, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
-import { dinero, fecha } from "@/lib/format";
+import { dinero, fecha, isoLocal } from "@/lib/format";
 import type { Ticket } from "@/lib/types";
 
 const FORMAS: [string, string][] = [["01", "Efectivo"], ["04", "Tarjeta de crédito"], ["28", "Tarjeta de débito"], ["03", "Transferencia"], ["02", "Cheque"]];
@@ -16,7 +16,7 @@ export default function Portal() {
   const { emisor, recargar } = useEmisor();
   const { data: tickets = [], mutate } = useSWR<Ticket[]>(emisor ? `/tickets?emisor_id=${emisor.id}` : null, fetcher);
   const [cfg, setCfg] = useState({ activo: false, clave_prod_serv: "01010101", clave_unidad: "ACT", descripcion: "Venta", tasa: "0.16" });
-  const [nuevo, setNuevo] = useState({ folio: "", total: "", fecha: new Date().toISOString().slice(0, 10), forma_pago: "01" });
+  const [nuevo, setNuevo] = useState({ folio: "", total: "", fecha: isoLocal(), forma_pago: "01" });
   const [pegar, setPegar] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function Portal() {
   const importar = () => {
     // Folio, total y (opcional) fecha dd/mm/aaaa y forma de pago, separados por tabulador (pegado de Excel), coma o punto y coma
     const filas = (pegar ?? "").split(/\r?\n/).map((l) => l.split(/\t|;|,(?=\s*\d)/).map((x) => x.trim())).filter((c) => c[0] && c[1] && !isNaN(Number(c[1].replace(/[$,]/g, ""))));
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = isoLocal();
     const lista = filas.map(([folio, total, f, forma]) => {
       const m = f?.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       return { folio, total: total.replace(/[$,]/g, ""), fecha: m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : hoy, forma_pago: forma || "01" };

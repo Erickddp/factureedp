@@ -8,7 +8,7 @@ import { useEmisor } from "@/components/emisor-context";
 import { Badge, Button, Field, Input, Kbd, Modal, PageHeader, Select, Tabs, Vacio, cx, tabla } from "@/components/ui";
 import { api, descargar, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
-import { dinero, fecha } from "@/lib/format";
+import { dinero, fecha, isoLocal } from "@/lib/format";
 import type { Empleado, Factura, LineaNomina, Recibo } from "@/lib/types";
 
 const ESTADOS: [string, string][] = [["AGU", "Aguascalientes"], ["BCN", "Baja California"], ["BCS", "Baja California Sur"], ["CAM", "Campeche"],
@@ -28,7 +28,7 @@ const RECETAS_UI: [string, string][] = [["sueldo", "Sueldos y salarios (sueldo, 
 const n = (v?: string | null) => Number(v || 0);
 const neto = (r: Recibo) => r.percepciones.reduce((s, p) => s + n(p.gravado) + n(p.exento), 0)
   + r.otros_pagos.reduce((s, o) => s + n(o.importe), 0) - r.deducciones.reduce((s, d) => s + n(d.importe), 0);
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = (d: Date) => isoLocal(d);
 
 function periodos() {
   const h = new Date();

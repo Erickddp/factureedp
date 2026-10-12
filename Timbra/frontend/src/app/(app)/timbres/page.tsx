@@ -6,7 +6,7 @@ import { Coins, RefreshCw } from "lucide-react";
 import { Badge, Button, Field, Input, Modal, PageHeader, Vacio, cx } from "@/components/ui";
 import { api, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
-import { fecha } from "@/lib/format";
+import { fecha, isoLocal } from "@/lib/format";
 import type { Pac, TimbresPac } from "@/lib/types";
 
 export default function Timbres() {
@@ -77,7 +77,7 @@ function Dato({ titulo, valor, tono }: { titulo: string; valor: React.ReactNode;
 }
 
 function Compra({ pac, cerrar, ok }: { pac: Pac | null; cerrar: () => void; ok: () => void }) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = isoLocal();
   const [f, setF] = useState({ cantidad: "", desde: hoy, alerta: "50" });
   const [cargando, setCargando] = useState(false);
   const guardar = async () => {

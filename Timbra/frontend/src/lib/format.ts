@@ -6,6 +6,12 @@ export function dinero(v: string | number | null | undefined, moneda = "MXN") {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: moneda }).format(n);
 }
 
+/** Fecha AAAA-MM-DD en la hora de ESTA computadora. `toISOString()` da la de Londres: de noche en México ya es «mañana». */
+export function isoLocal(d: Date = new Date()) {
+  const l = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return l.toISOString().slice(0, 10);
+}
+
 export function fecha(v: string | null | undefined) {
   if (!v) return "—";
   const d = new Date(v);

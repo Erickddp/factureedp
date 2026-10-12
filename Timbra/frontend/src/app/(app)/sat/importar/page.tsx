@@ -8,14 +8,14 @@ import { useEmisor } from "@/components/emisor-context";
 import { Badge, Button, Cifra, Input, PageHeader, Tabs, Vacio, cx, tabla } from "@/components/ui";
 import { api, descargar, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
-import { dinero, fecha } from "@/lib/format";
+import { dinero, fecha, isoLocal } from "@/lib/format";
 import type { CfdiSat, SolicitudSat } from "@/lib/types";
 
 type Vista = "recibido" | "emitido" | "solicitudes" | "conciliacion";
 type Conc = { solo_sat: { uuid: string; total: string; fecha: string; nombre: string }[]; solo_timbra: { uuid: string; total: string; folio: string }[];
   estatus_distinto: { uuid: string; sat: string; timbra: string }[]; coinciden: number };
 
-const mesActual = () => new Date().toISOString().slice(0, 7);
+const mesActual = () => isoLocal().slice(0, 7);
 const rango = (mes: string) => {
   const [y, m] = mes.split("-").map(Number);
   const fin = new Date(y, m, 0).getDate();

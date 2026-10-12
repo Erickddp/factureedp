@@ -18,6 +18,7 @@ type Filtro = "todas" | "listas" | "pendientes" | "timbradas";
 const ETIQUETAS: Record<string, string> = {
   folio: "Folio de la hoja", nombre: "Nombre", rfc: "RFC", cp: "CP fiscal", fecha: "Fecha de pago", monto: "Monto cobrado",
   forma: "Forma de pago", regimen: "Régimen fiscal", correo: "Correo o contacto", direccion: "Dirección", servicio: "Servicio (con IVA)",
+  uso: "Uso del CFDI sólo para esta fila (vacío = el del perfil)",
 };
 
 function Estado({ f }: { f: FilaLote }) {
@@ -233,7 +234,7 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
         {corriendo ? (
           <>
             <span className="flex items-center gap-2 text-sm text-cobalto"><span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> {l.guardando ? "Ya timbradas. Guardando PDF y XML en tu carpeta…" : <>Timbrando… {l.cuentas.timbrada} de {l.cuentas.timbrada + l.cuentas.listo + l.cuentas.timbrando}</>}</span>
-            <Button variant="peligro" size="sm" className={l.guardando ? "hidden" : undefined} onClick={() => api(`/lotes/${loteId}/detener`, { method: "POST" }).then(() => toast.message("Se detiene al terminar la factura en curso")).catch(mostrarError)}><Square className="size-3.5" /> Detener</Button>
+            {!l.guardando && <Button variant="peligro" size="sm" onClick={() => api(`/lotes/${loteId}/detener`, { method: "POST" }).then(() => toast.message("Se detiene al terminar la factura en curso")).catch(mostrarError)}><Square className="size-3.5" /> Detener</Button>}
           </>
         ) : (
           <>
@@ -333,7 +334,7 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
       </Modal>
 
       {/* Corregir los datos de una fila */}
-      <CorregirFila loteId={loteId} fila={corregir} cerrar={() => setCorregir(null)} ok={(listo) => { setCorregir(null); mutate(); if (listo) toast.success("Fila lista para timbrar"); else toast.warning("Sigue con detalles"); }}
+      <CorregirFila ocupado={corriendo} loteId={loteId} fila={corregir} cerrar={() => setCorregir(null)} ok={(listo) => { setCorregir(null); mutate(); if (listo) toast.success("Fila lista para timbrar"); else toast.warning("Sigue con detalles"); }}
         timbrar={(id) => { setCorregir(null); mutate().then(() => ejecutar({ ids: [id] })); }} />
 
       {/* Confirmación antes de timbrar de verdad */}
@@ -350,10 +351,10 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
   );
 }
 
-function CorregirFila({ loteId, fila, cerrar, ok, timbrar }: { loteId: number; fila: FilaLote | null; cerrar: () => void; ok: (listo: boolean) => void; timbrar: (id: number) => void }) {
+function CorregirFila({ loteId, fila, cerrar, ok, timbrar, ocupado }: { loteId: number; fila: FilaLote | null; cerrar: () => void; ok: (listo: boolean) => void; timbrar: (id: number) => void; ocupado: boolean }) {
   const [datos, setDatos] = useState<Record<string, string>>({});
   const [guardando, setGuardando] = useState(false);
-  useEffect(() => { if (fila) setDatos(fila.datos); }, [fila]);
+  useEffect(() => { if (fila) setDatos({ ...fila.datos, uso: fila.datos.uso ?? "" }); }, [fila]);
   if (!fila) return null;
   const guardar = async (despues: "nada" | "timbrar") => {
     setGuardando(true);
@@ -364,7 +365,7 @@ function CorregirFila({ loteId, fila, cerrar, ok, timbrar }: { loteId: number; f
   };
   return (
     <Modal open={!!fila} onClose={cerrar} title={`Corregir ${fila.referencia ?? `fila ${fila.n}`}`} wide
-      footer={<><Button onClick={cerrar}>Cancelar</Button><Button onClick={() => guardar("nada")} loading={guardando}>Guardar y revisar</Button><Button variant="primario" onClick={() => guardar("timbrar")} loading={guardando}>Guardar y timbrar</Button></>}>
+      footer={<><Button onClick={cerrar}>Cancelar</Button><Button onClick={() => guardar("nada")} loading={guardando}>Guardar y revisar</Button><Button variant="primario" onClick={() => guardar("timbrar")} loading={guardando} disabled={ocupado} title={ocupado ? "El lote se está timbrando: guarda y timbra esta fila al terminar" : undefined}>Guardar y timbrar</Button></>}>
       {fila.error && <div className="mb-4 rounded-xl bg-rojo-suave p-3"><Explicacion texto={fila.error} /></div>}
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); guardar("nada"); }}>
         {Object.keys(datos).map((k) => (

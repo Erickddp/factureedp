@@ -6,7 +6,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from ..config import settings
+from ..config import EN_WEB, settings
 from ..db import SessionLocal
 from ..logs import log
 
@@ -17,17 +17,28 @@ _ultimo: dict[str, str] = {}
 def respaldo_diario(destino: Path | None = None, conservar: int = 14) -> Path | None:
     """ZIP de datos (BD + XML) y .env. Sin .env no se descifran los CSD: van juntos."""
     hoy = datetime.now().strftime("%Y%m%d")
-    destino = destino or Path(settings.data_dir).resolve().parent / "Respaldos"
+    datos = Path(settings.data_dir).resolve()
+    # En web sólo el volumen de datos sobrevive a una actualización: los respaldos van DENTRO de él
+    destino = destino or (datos / "Respaldos" if EN_WEB else datos.parent / "Respaldos")
     destino.mkdir(parents=True, exist_ok=True)
     zip_path = destino / f"timbra_{hoy}.zip"
     if zip_path.exists():
         return None
+    armar_respaldo(zip_path)
+    viejos = sorted(destino.glob("timbra_*.zip"))[:-(7 if EN_WEB else conservar)]
+    for v in viejos:
+        v.unlink(missing_ok=True)
+    log.info("Respaldo diario: %s", zip_path)
+    return zip_path
+
+
+def armar_respaldo(zip_path: Path) -> Path:
+    """Escribe en `zip_path` todo lo que hace falta para levantar Timbra en otra máquina: base, XML, correo y .env."""
     datos = Path(settings.data_dir).resolve()
     copia = _copia_bd()  # copia consistente aunque la app esté escribiendo (modo WAL)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, _, files in os.walk(datos):
-            if Path(root).name == "logs":
-                continue
+        for root, dirs, files in os.walk(datos):
+            dirs[:] = [d for d in dirs if d not in ("logs", "Respaldos")]  # ni registros ni respaldos dentro de respaldos
             for f in files:
                 p = Path(root) / f
                 if copia and p.name.startswith(copia[1].name):  # .db, -wal, -shm: va la copia
@@ -39,10 +50,6 @@ def respaldo_diario(destino: Path | None = None, conservar: int = 14) -> Path | 
         env = Path(".env")
         if env.exists():
             z.write(env, ".env")
-    viejos = sorted(destino.glob("timbra_*.zip"))[:-conservar]
-    for v in viejos:
-        v.unlink(missing_ok=True)
-    log.info("Respaldo diario: %s", zip_path)
     return zip_path
 
 

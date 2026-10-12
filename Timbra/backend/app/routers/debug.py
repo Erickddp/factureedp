@@ -60,6 +60,25 @@ def descargar_log():
     return FileResponse(logs.ARCHIVO, filename=f"timbra_{datetime.now():%Y%m%d_%H%M}.log", media_type="text/plain")
 
 
+@router.get("/respaldo", dependencies=[Depends(solo_admin)])
+def descargar_respaldo():
+    """Respaldo completo al momento (base, XML timbrados, cuenta de correo) para guardarlo fuera del servidor.
+    Los sellos van cifrados: para leerlos hace falta la SECRET_KEY (en tu PC viene dentro, en el .env; en web está en
+    las variables del servidor)."""
+    import tempfile
+    from pathlib import Path
+
+    from starlette.background import BackgroundTask
+
+    from ..services.programador import armar_respaldo
+    fd, nombre = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    armar_respaldo(Path(nombre))
+    logs.log.warning("Respaldo completo descargado (%s KB)", os.path.getsize(nombre) // 1024)
+    return FileResponse(nombre, filename=f"timbra_respaldo_{datetime.now():%Y%m%d_%H%M}.zip", media_type="application/zip",
+                        background=BackgroundTask(lambda: os.path.exists(nombre) and os.remove(nombre)))
+
+
 def _chk(nombre, estado, detalle, ms=None, grupo="sistema"):
     return {"nombre": nombre, "estado": estado, "detalle": detalle, "ms": ms, "grupo": grupo}
 
