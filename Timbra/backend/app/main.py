@@ -15,6 +15,7 @@ from .db import SessionLocal, engine
 from .models import Addenda
 from .routers import (addendas, auth, catalogos, clientes, cobranza, correo, dashboard, debug, emisores, facturas, nomina,
                       claves, lotes, pacs, pendientes, plantillas, portal, productos, sat, terceros)
+from .services import almacen
 from .services.addenda import SEMILLAS
 
 BASE = Path(__file__).resolve().parent.parent
@@ -41,6 +42,10 @@ async def lifespan(app: FastAPI):
     log.info("Arrancando Timbra %s · datos en %s", app.version, Path(settings.data_dir).resolve())
     migrar()
     with SessionLocal() as db:
+        from sqlalchemy import func
+
+        from .models import Usuario
+        almacen.registrar_arranque(app.version, db.query(func.min(Usuario.creado)).scalar())
         from .services import lotes as lotes_svc
         if lotes_svc.recuperar_interrumpidas(db):
             log.warning("Había filas de lote a medio timbrar: quedaron marcadas para revisión")
@@ -63,7 +68,7 @@ async def lifespan(app: FastAPI):
     log.info("Timbra apagado")
 
 
-app = FastAPI(title="Timbra API", version="2.7.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan)
+app = FastAPI(title="Timbra API", version="2.8.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
                    allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
@@ -133,7 +138,7 @@ async def validacion_error(request: Request, exc: RequestValidationError):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "version": app.version}
+    return {"ok": True, "version": app.version, "web": EN_WEB, "almacen": almacen.estado()}
 
 
 if STATIC.exists():
@@ -142,6 +147,8 @@ if STATIC.exists():
     @app.get("/{ruta:path}", include_in_schema=False)
     def spa(ruta: str):
         # /facturar -> static/facturar/index.html ; archivos sueltos tal cual
+        if ruta == "api" or ruta.startswith("api/"):  # una ruta de la API que no existe no es una pantalla
+            return JSONResponse({"detail": "Esa ruta de la API no existe."}, status_code=404)
         p = (STATIC / ruta).resolve()
         if STATIC.resolve() not in p.parents and p != STATIC.resolve():
             return FileResponse(STATIC / "index.html")

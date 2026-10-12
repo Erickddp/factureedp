@@ -224,6 +224,7 @@ class FacturaIn(BaseModel):
     emisor_id: int
     cliente_id: int | None = None
     receptor: ReceptorIn | None = None
+    uso_cfdi: str | None = None  # uso para ESTA factura; si no viene, el que tiene guardado el cliente
     publico_general: bool = False
     tipo: Literal["I", "E", "T"] = "I"
     serie: str | None = None

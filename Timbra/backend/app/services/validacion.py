@@ -271,7 +271,7 @@ def validar(db, emisor: Emisor, data: FacturaIn, cliente: Cliente | None) -> dic
             rfc_receptor = rec.rfc.upper()
             validar_receptor_datos(r, rec.rfc, rec.nombre, rec.regimen_fiscal,
                                    emisor.lugar_expedicion if rfc_receptor == "XEXX010101000" else rec.codigo_postal,
-                                   rec.uso_cfdi, tipo_cfdi=tipo)
+                                   data.uso_cfdi or rec.uso_cfdi, tipo_cfdi=tipo)
 
     # --- Pago y moneda ----------------------------------------------------
     if tipo in ("I", "E"):

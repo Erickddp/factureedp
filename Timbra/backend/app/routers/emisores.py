@@ -119,6 +119,56 @@ def _de_practica(db: Session, emisor_id: int):
     return [f for f in db.query(Factura).filter(Factura.emisor_id == emisor_id) if es_demo(f.xml)]
 
 
+@router.delete("/{emisor_id}")
+def eliminar(emisor_id: int, confirmar: str = "", db: Session = Depends(get_db)):
+    """Elimina el emisor con TODO lo suyo (clientes, productos, facturas de prueba, lotes, plantillas…).
+    No se permite si timbró con un PAC de producción: esos CFDI tienen validez fiscal y hay que conservarlos.
+    Los XML no se destruyen: su carpeta se mueve a datos/eliminados."""
+    import os
+    import shutil
+    from datetime import datetime
+
+    from sqlalchemy import delete
+
+    from ..config import settings
+    from ..db import Base
+    from ..logs import log
+    from ..models import Factura
+    from ..services import lotes as lotes_svc
+    from ..services.pdf import es_demo
+
+    e = _get(db, emisor_id)
+    if confirmar.strip().upper() != e.rfc.upper():
+        raise HTTPException(422, f"Para eliminarlo escribe su RFC ({e.rfc}) como confirmación.")
+    if any(lotes_svc.en_ejecucion(lid) for (lid,) in db.query(lotes_svc.Lote.id).filter_by(emisor_id=e.id)):
+        raise HTTPException(409, "Este emisor tiene un lote timbrándose. Espera a que termine.")
+    timbradas = [f for f in db.query(Factura).filter(Factura.emisor_id == e.id, Factura.uuid.isnot(None))]
+    produccion = e.pac is not None and e.pac.proveedor != "demo" and not e.pac.pruebas
+    reales = [f for f in timbradas if not es_demo(f.xml)] if produccion else []
+    if reales:
+        raise HTTPException(409, f"{e.rfc} tiene {len(reales)} factura(s) timbradas ante el SAT. Tienen validez fiscal y debes "
+                                 "conservarlas (5 años): este emisor no se puede eliminar.")
+    rfc, nombre = e.rfc, e.nombre
+    cuenta = {}
+    for tabla in reversed(Base.metadata.sorted_tables):  # primero lo que depende de lo demás (filas, lotes, facturas…)
+        if tabla.name != "emisores" and "emisor_id" in tabla.c:
+            n = db.execute(delete(tabla).where(tabla.c.emisor_id == emisor_id)).rowcount
+            if n:
+                cuenta[tabla.name] = n
+    db.delete(e)
+    db.commit()
+    origen = os.path.join(settings.data_dir, "respaldo_xml", rfc.upper())
+    if os.path.isdir(origen):
+        destino = os.path.join(settings.data_dir, "eliminados", f"{rfc.upper()}_{datetime.now():%Y%m%d_%H%M%S}")
+        try:
+            os.makedirs(os.path.dirname(destino), exist_ok=True)
+            shutil.move(origen, destino)
+        except OSError as x:
+            log.warning("No se pudo mover el respaldo XML de %s: %s", rfc, x)
+    log.warning("Emisor %s (%s) eliminado con: %s", rfc, nombre, cuenta or "nada más")
+    return {"ok": True, "rfc": rfc, "borrado": cuenta}
+
+
 @router.get("/{emisor_id}/practica")
 def practica(emisor_id: int, db: Session = Depends(get_db)):
     """Cuántas facturas de práctica (timbradas con el PAC demo, sin validez fiscal) tiene el emisor."""

@@ -135,7 +135,7 @@ def receptor_de(emisor: Emisor, data: FacturaIn, cliente: Cliente | None) -> cfd
     cp = r.codigo_postal
     if r.rfc == EXTRANJERO_RFC:
         cp = emisor.lugar_expedicion  # regla SAT para extranjeros
-    uso = r.uso_cfdi
+    uso = data.uso_cfdi or r.uso_cfdi
     if data.tipo == "T":
         uso = "S01"
     return cfdi40.Receptor(

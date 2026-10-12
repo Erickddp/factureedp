@@ -35,7 +35,7 @@ class Pac(Base):
     timbres_contratados: Mapped[int | None] = mapped_column(Integer)
     timbres_desde: Mapped[datetime | None] = mapped_column(DateTime)
     timbres_alerta: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Emisor(Base):
@@ -79,7 +79,7 @@ class Emisor(Base):
     # Barra de Facturar: nivel (simple/estándar/completo), campos visibles, valores por defecto y perfiles rápidos
     config_facturar: Mapped[dict] = mapped_column(JSON, default=dict)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
     series: Mapped[list["Serie"]] = relationship(back_populates="emisor", cascade="all, delete-orphan")
 
@@ -119,7 +119,7 @@ class Cliente(Base):
     notas: Mapped[str | None] = mapped_column(Text)
     dias_credito: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     ultimo_recordatorio: Mapped[datetime | None] = mapped_column(DateTime)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Producto(Base):
@@ -135,7 +135,7 @@ class Producto(Base):
     objeto_imp: Mapped[str] = mapped_column(String(2), default="02")
     # Lista de impuestos: [{"tipo":"traslado","impuesto":"002","factor":"Tasa","tasa":"0.16"}, ...]
     impuestos: Mapped[list] = mapped_column(JSON, default=list)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Addenda(Base):
@@ -182,7 +182,7 @@ class Factura(Base):
     acuse_cancelacion: Mapped[bytes | None] = mapped_column(LargeBinary)
     motivo_cancelacion: Mapped[str | None] = mapped_column(String(2))
     error: Mapped[str | None] = mapped_column(Text)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Plantilla(Base):
@@ -203,7 +203,7 @@ class Plantilla(Base):
     enviar_email: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     ultima_factura_id: Mapped[int | None] = mapped_column(Integer)
     ultimo_error: Mapped[str | None] = mapped_column(Text)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Usuario(Base):
@@ -217,7 +217,7 @@ class Usuario(Base):
     google_email: Mapped[str | None] = mapped_column(String(200))
     admin: Mapped[bool] = mapped_column(Boolean, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Empleado(Base):
@@ -248,7 +248,7 @@ class Empleado(Base):
     emails: Mapped[list] = mapped_column(JSON, default=list)
     receta: Mapped[dict] = mapped_column(JSON, default=dict)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class CfdiSat(Base):
@@ -277,7 +277,7 @@ class CfdiSat(Base):
     uso_cfdi: Mapped[str | None] = mapped_column(String(4))
     estado: Mapped[str] = mapped_column(String(12), default="Vigente")
     xml: Mapped[bytes | None] = mapped_column(LargeBinary)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class SolicitudSat(Base):
@@ -295,7 +295,7 @@ class SolicitudSat(Base):
     mensaje: Mapped[str | None] = mapped_column(Text)
     paquetes: Mapped[list] = mapped_column(JSON, default=list)
     descargados: Mapped[int] = mapped_column(Integer, default=0)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
     actualizado: Mapped[datetime | None] = mapped_column(DateTime)
 
 
@@ -311,7 +311,7 @@ class Ticket(Base):
     forma_pago: Mapped[str] = mapped_column(String(2), default="01")
     conceptos: Mapped[list] = mapped_column(JSON, default=list)  # vacío = concepto del portal_config
     factura_id: Mapped[int | None] = mapped_column(ForeignKey("facturas.id"))
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Tercero(Base):
@@ -329,7 +329,7 @@ class Tercero(Base):
     # Valores que suele llevar el concepto de este tercero (clave SAT, unidad, descripción, impuestos)
     concepto: Mapped[dict] = mapped_column(JSON, default=dict)
     usos: Mapped[int] = mapped_column(Integer, default=0)
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class PerfilLote(Base):
@@ -340,7 +340,7 @@ class PerfilLote(Base):
     nombre: Mapped[str] = mapped_column(String(120))
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     usos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Lote(Base):
@@ -351,7 +351,7 @@ class Lote(Base):
     nombre: Mapped[str] = mapped_column(String(150))
     config: Mapped[dict] = mapped_column(JSON, default=dict)  # copia del perfil al crear: el lote no cambia si editas el perfil
     estado: Mapped[str] = mapped_column(String(15), default="borrador")  # borrador | en_proceso | detenido | terminado
-    creado: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class LoteFila(Base):

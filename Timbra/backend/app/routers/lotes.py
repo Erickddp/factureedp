@@ -211,6 +211,23 @@ def zip_(lid: int, db: Session = Depends(get_db)):
                     headers={"Content-Disposition": f'attachment; filename="cfdi_lote_{lid}.zip"'})
 
 
+@router.post("/{lid}/carpeta")
+def a_carpeta(lid: int, db: Session = Depends(get_db)):
+    """Deja el PDF y el XML de lo timbrado en la carpeta de entrega del perfil (sólo Timbra instalado en tu PC)."""
+    lote = _lote(db, lid)
+    if svc.en_ejecucion(lid):
+        raise HTTPException(409, "El lote se está timbrando; al terminar se guarda solo.")
+    perfil = db.get(PerfilLote, lote.perfil_id) if lote.perfil_id else None
+    actual = str((perfil.config if perfil else {}).get("carpeta") or "").strip()
+    if actual and actual != lote.config.get("carpeta"):  # el lote se creó antes de ponerle (o cambiarle) la carpeta al perfil
+        lote.config = {**lote.config, "carpeta": actual}
+        db.commit()
+    try:
+        return svc.guardar_en_carpeta(db, lote)
+    except svc.ErrorFila as e:
+        raise HTTPException(409, str(e))
+
+
 @router.delete("/{lid}")
 def borrar(lid: int, db: Session = Depends(get_db)):
     lote = _lote(db, lid)

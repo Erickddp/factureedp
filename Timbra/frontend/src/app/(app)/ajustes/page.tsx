@@ -8,6 +8,7 @@ import { api, fetcher } from "@/lib/api";
 import type { Addenda, Pac } from "@/lib/types";
 import { useEmisor } from "@/components/emisor-context";
 import { consola } from "@/lib/debug";
+import { fecha } from "@/lib/format";
 import { Badge, Button, Field, Input, Modal, PageHeader, Select, cx } from "@/components/ui";
 
 const PROVEEDORES: Record<string, { label: string; campos: ("usuario" | "password" | "token" | "rfc" | "contrato" | "requestor")[] }> = {
@@ -95,6 +96,7 @@ export default function Ajustes() {
 
       <CorreoEnvio />
       <Usuarios />
+      <DatosGuardados />
 
       <Modal open={!!pac} onClose={() => setPac(null)} title={pac?.id ? "Editar PAC" : "Nuevo PAC"}>
         {pac && (
@@ -270,6 +272,34 @@ function CorreoEnvio() {
           </div>
         )}
       </Modal>
+    </section>
+  );
+}
+
+type Salud = { version: string; almacen?: { desde: string | null; arranques: number | null; permanente: boolean | null } };
+
+/** ¿Lo que guardo se queda? Desde cuándo hay datos y cuántas veces ha arrancado Timbra sin perderlos. */
+function DatosGuardados() {
+  const { data } = useSWR<Salud>("/health", fetcher, { revalidateOnFocus: false });
+  const a = data?.almacen;
+  if (!a) return null;
+  const enWeb = typeof window !== "undefined" && !["localhost", "127.0.0.1"].includes(window.location.hostname);
+  return (
+    <section className="mt-10">
+      <h2 className="mb-3 text-lg font-semibold">Tus datos</h2>
+      <div className={cx("rounded-2xl p-5 ring-1", a.permanente === false ? "bg-rojo-suave text-rojo ring-rojo/30" : "bg-hoja ring-linea")}>
+        {a.permanente === false ? (
+          <p className="font-medium">Este servidor no tiene disco permanente: cuentas, clientes, facturas y sellos se perderían en la siguiente actualización. Monta un volumen en la carpeta de datos antes de usarlo en serio.</p>
+        ) : (
+          <>
+            <p className="font-medium">{enWeb ? "Se guardan en el disco permanente del servidor." : "Se guardan en este equipo, en la carpeta «datos» de Timbra."}</p>
+            <p className="mt-1 text-sm text-grafito">
+              En uso desde el {fecha(a.desde)} · Timbra {data?.version} ha arrancado {a.arranques} {a.arranques === 1 ? "vez" : "veces"} y todo sigue aquí:
+              cuentas, emisores y sellos, clientes, facturas con su XML, lotes y perfiles. {enWeb ? "Las actualizaciones no borran nada." : "Usa RESPALDAR.bat para llevar una copia a tu Drive."}
+            </p>
+          </>
+        )}
+      </div>
     </section>
   );
 }

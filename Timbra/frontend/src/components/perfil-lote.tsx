@@ -1,9 +1,10 @@
 "use client";
 /** Editor del perfil de importación: cómo se lee tu tabla y qué conceptos se arman por fila. */
 import { useEffect, useState } from "react";
+import useSWR from "swr";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
 import { PRESETS_IMPUESTOS } from "@/lib/format";
 import type { ConceptoPerfil, Impuesto, PerfilLote, PerfilLoteCfg } from "@/lib/types";
@@ -32,6 +33,8 @@ export function PerfilModal({ emisorId, perfil, abierto, cerrar, ok }: {
   const [cfg, setCfg] = useState<PerfilLoteCfg | null>(null);
   const [vista, setVista] = useState<"general" | "columnas" | "conceptos" | "reglas">("general");
   const [guardando, setGuardando] = useState(false);
+  const { data: salud } = useSWR<{ web?: boolean }>("/health", fetcher, { revalidateOnFocus: false });
+  const enWeb = salud?.web !== false; // la carpeta de entrega sólo se ofrece con Timbra instalado en la PC
 
   useEffect(() => {
     if (!abierto || !perfil) return;
@@ -87,6 +90,13 @@ export function PerfilModal({ emisorId, perfil, abierto, cerrar, ok }: {
               <option value={0}>0 · no mover</option><option value={1}>1 centavo</option><option value={2}>2 centavos</option>
             </Select>
           </Field>
+          {!enWeb && (
+            <Field label="Carpeta de entrega (opcional)" className="sm:col-span-3"
+              hint="Al terminar el lote, Timbra deja ahí el PDF y el XML de cada factura con el nombre FOLIO_UUID. Puede ser una carpeta de tu Google Drive. Usa {MM} {Mes} {AAAA} para que cada mes caiga en su carpeta.">
+              <Input value={cfg.carpeta ?? ""} placeholder={"G:\\Mi unidad\\Facturas\\{MM} {Mes}\\Clientes Emitidas"} spellCheck={false}
+                onChange={(e) => set({ carpeta: e.target.value })} />
+            </Field>
+          )}
           <Field label="Formas de pago de tu tabla" className="sm:col-span-3" hint="Lo que escribes en la columna → clave del SAT">
             <div className="grid gap-2 sm:grid-cols-2">
               {Object.entries(cfg.forma_map).map(([k, v], i) => (

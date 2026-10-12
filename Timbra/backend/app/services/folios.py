@@ -33,7 +33,7 @@ def usado_por(db: Session, emisor_id: int, serie: str | None, folio: str, except
     f = db.query(Factura).filter(Factura.emisor_id == emisor_id, Factura.serie == serie, Factura.folio == folio,
                                  Factura.uuid.isnot(None)).first()
     if f:
-        return f"la factura {serie or ''}{folio} ya emitida"
+        return f"la factura {serie or ''}{folio} ya emitida" + (" (está cancelada, pero su folio ya se usó)" if f.estado == "cancelada" else "")
     r = db.query(LoteFila).filter(LoteFila.emisor_id == emisor_id, LoteFila.serie == serie, LoteFila.folio == folio,
                                   LoteFila.estado.in_(APARTAN), LoteFila.id != (excepto_fila or 0)).first()
     if r:

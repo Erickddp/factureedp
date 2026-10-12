@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR, { SWRConfig } from "swr";
 import { toast } from "sonner";
 import {
-  AlertTriangle, BadgeDollarSign, Building2, Calculator, CalendarClock, ChevronDown, CloudDownload, FilePlus2, Files, HandCoins, Handshake, Keyboard,
+  AlertTriangle, BadgeDollarSign, Building2, Calculator, CalendarClock, Check, ChevronDown, CloudDownload, FilePlus2, Files, HandCoins, Handshake, Keyboard,
   LayoutDashboard, LayoutTemplate, ListChecks, LogOut, Menu as MenuIcon, Monitor, Moon, Package, Palette, ChevronLeft, ChevronRight, Plug, QrCode,
   ReceiptText, Repeat, ScanSearch, Settings, Stamp, Sun, Table2, Terminal, Users, X, Zap, FolderOpen, Send, Wallet,
 } from "lucide-react";
@@ -64,19 +64,42 @@ type Yo = { email: string; usuario?: string | null; nombre: string | null; admin
 
 function SelectorEmisor() {
   const { emisores, emisor, setEmisorId } = useEmisor();
-  if (!emisores.length)
+  const [abierto, setAbierto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setAbierto(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAbierto(false);
+    document.addEventListener("mousedown", fuera);
+    window.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", fuera); window.removeEventListener("keydown", esc); };
+  }, [abierto]);
+  if (!emisores.length || !emisor)
     return <Link href="/emisores" className="block truncate rounded-lg bg-cobalto-suave px-3 py-2 text-sm text-cobalto">Da de alta tu primer RFC</Link>;
   return (
-    <select
-      aria-label="Emisor activo"
-      value={emisor?.id ?? ""}
-      onChange={(e) => setEmisorId(Number(e.target.value))}
-      className="h-9 w-full min-w-0 truncate rounded-lg border border-linea bg-hoja px-2.5 text-sm focus:border-tinta focus:outline-none"
-    >
-      {emisores.map((e) => (
-        <option key={e.id} value={e.id}>{e.rfc} · {e.nombre}</option>
-      ))}
-    </select>
+    <div ref={ref} className="relative">
+      <button onClick={() => setAbierto((a) => !a)} aria-label="Emisor activo" aria-haspopup="menu" aria-expanded={abierto} title={`${emisor.rfc} · ${emisor.nombre}`}
+        className={cx("flex h-11 w-full min-w-0 items-center gap-2 rounded-lg border bg-hoja px-2.5 text-left transition-[border-color,box-shadow] duration-150 hover:border-acento/50", abierto ? "border-acento/50 shadow-[0_0_0_3px_var(--color-acento-suave)]" : "border-linea")}>
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className="block truncate text-[13px] font-medium">{emisor.nombre}</span>
+          <span className="block text-[11px] tabular-nums text-grafito">{emisor.rfc}</span>
+        </span>
+        <ChevronDown className={cx("size-4 shrink-0 text-grafito transition-transform duration-150", abierto && "rotate-180")} />
+      </button>
+      {abierto && (
+        <div role="menu" className="absolute left-0 top-full z-[60] mt-1.5 max-h-[60vh] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-linea bg-hoja p-1.5 shadow-flotante animate-aparecer">
+          <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-[.08em] text-grafito/70">Emisor con el que trabajas</p>
+          {emisores.map((e) => (
+            <button key={e.id} role="menuitemradio" aria-checked={e.id === emisor.id} onClick={() => { setEmisorId(e.id); setAbierto(false); }}
+              className={cx("flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors", e.id === emisor.id ? "bg-primario text-sobre-primario" : "hover:bg-tinta/5")}>
+              <span className="min-w-0 flex-1"><span className="block truncate font-medium">{e.nombre}</span><span className="block text-[11px] tabular-nums opacity-70">{e.rfc}</span></span>
+              {e.id === emisor.id && <Check className="size-4 shrink-0" />}
+            </button>
+          ))}
+          <Link href="/emisores" onClick={() => setAbierto(false)} className="mt-1 block rounded-lg px-3 py-2 text-sm text-grafito hover:bg-tinta/5 hover:text-tinta">Administrar emisores…</Link>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -339,9 +362,16 @@ function Avisos() {
   const malos = timbres.filter((t) => t.nivel !== "ok" && t.texto);
   const { data: pg } = useSWR<{ total: number; errores: number }>(emisor ? `/pendientes/resumen?emisor_id=${emisor.id}` : null, fetcher, { refreshInterval: 300_000 });
   const enPendientes = usePathname().startsWith("/pendientes");  // ahí el aviso sobra
-  if (!malos.length && !pend.length && (!pg?.total || enPendientes)) return null;
+  const { data: salud } = useSWR<{ almacen?: { permanente: boolean | null } }>("/health", fetcher, { revalidateOnFocus: false });
+  const sinDisco = salud?.almacen?.permanente === false;
+  if (!sinDisco && !malos.length && !pend.length && (!pg?.total || enPendientes)) return null;
   return (
     <div className="escalonar mb-6 flex flex-wrap gap-2">
+      {sinDisco && (
+        <Link href="/ajustes" className="inline-flex items-center gap-2 rounded-full bg-rojo-suave px-3 py-1.5 text-[13px] font-medium text-rojo ring-1 ring-current/15">
+          <AlertTriangle className="size-4" /> Este servidor no guarda de forma permanente: lo que captures se perdería al actualizar
+        </Link>
+      )}
       {!!pg?.total && !enPendientes && (
         <Link href="/pendientes" className={cx("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 ring-current/15 transition-transform duration-150 hover:-translate-y-px", pg.errores ? "bg-rojo-suave text-rojo" : "bg-alerta-suave text-alerta")}>
           <ListChecks className="size-4" /> {pg.total} {pg.total === 1 ? "pendiente" : "pendientes"}{pg.errores ? ` · ${pg.errores} urgentes` : ""} · Revisar

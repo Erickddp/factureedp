@@ -28,8 +28,14 @@ def resumen(emisor_id: int | None = None, db: Session = Depends(get_db)):
     por_cobrar = base.filter(Factura.saldo > 0).with_entities(func.coalesce(func.sum(Factura.saldo), 0)).scalar()
     num = mes.count()
 
+    # Las advertencias son del emisor que estás viendo: lo de otro RFC no tiene nada que hacer aquí
     alertas = []
-    for e in db.query(Emisor).filter(Emisor.activo.is_(True)).all():
+    emisores = db.query(Emisor).filter(Emisor.activo.is_(True))
+    if emisor_id:
+        emisores = emisores.filter(Emisor.id == emisor_id)
+    emisores = emisores.all()
+    pacs_vistos = {e.pac_id for e in emisores}
+    for e in emisores:
         if not e.cer:
             alertas.append({"nivel": "error", "texto": f"{e.rfc} no tiene CSD cargado"})
         elif e.csd_vence and (e.csd_vence - hoy).days < 30:
@@ -39,12 +45,15 @@ def resumen(emisor_id: int | None = None, db: Session = Depends(get_db)):
         if e.pac is None or e.pac.proveedor == "demo":
             alertas.append({"nivel": "aviso", "texto": f"{e.rfc} está en modo demo (no timbra ante el SAT)"})
     for t in timbres.resumen(db):
-        if t["texto"]:
+        if t["texto"] and (not emisor_id or t["pac_id"] in pacs_vistos):
             alertas.append({"nivel": t["nivel"] if t["nivel"] != "ok" else "info", "texto": t["texto"]})
-    for e in db.query(Emisor).filter(Emisor.activo.is_(True), Emisor.fiel_vence.isnot(None)).all():
-        if (e.fiel_vence - hoy).days < 30:
+    for e in emisores:
+        if e.fiel_vence and (e.fiel_vence - hoy).days < 30:
             alertas.append({"nivel": "aviso", "texto": f"e.firma de {e.rfc} vence el {e.fiel_vence:%d/%m/%Y}"})
-    pend = db.query(Factura).filter(Factura.estado == "cancelacion_pendiente").count()
+    pend = db.query(Factura).filter(Factura.estado == "cancelacion_pendiente")
+    if emisor_id:
+        pend = pend.filter(Factura.emisor_id == emisor_id)
+    pend = pend.count()
     if pend:
         alertas.append({"nivel": "aviso", "texto": f"{pend} cancelaciones esperando respuesta del receptor"})
 

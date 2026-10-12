@@ -80,6 +80,7 @@ function Facturar() {
   const [modo, setModo] = useState<Modo>("I");
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [nuevo, setNuevo] = useState<NuevoReceptor | null>(null);
+  const [uso, setUso] = useState<string | null>(null); // uso de ESTA factura si difiere del guardado en el cliente
   const [metodo, setMetodo] = useState("PUE");
   const [forma, setForma] = useState("03");
   const [moneda, setMoneda] = useState("MXN");
@@ -164,9 +165,11 @@ function Facturar() {
     if (p.cliente_id) {
       const lista = await api<Cliente[]>(`/clientes?emisor_id=${p.emisor_id}&limit=500`);
       setCliente(lista.find((c) => c.id === p.cliente_id) ?? null);
+      setUso(p.uso_cfdi ?? null);
       setNuevo(null);
     } else if (p.receptor) {
       setCliente(null);
+      setUso(null);
       setNuevo(p.receptor);
     }
   }, []);
@@ -271,11 +274,14 @@ function Facturar() {
       informacion_global: modo === "G" ? { periodicidad: global.periodicidad, meses: global.meses, ano: Number(global.ano) } : null,
     };
     if (modo !== "G") {
-      if (cliente) p.cliente_id = cliente.id;
+      if (cliente) {
+        p.cliente_id = cliente.id;
+        if (uso && uso !== cliente.uso_cfdi) p.uso_cfdi = uso;
+      }
       else if (nuevo && RFC_RE.test(nuevo.rfc)) p.receptor = { ...nuevo, guardar: true };
     }
     return p;
-  }, [emisor, modo, metodo, forma, moneda, tc, condiciones, enviar, conceptos, relTipo, relUuids, locales, addendaId, addendaDatos, cliente, nuevo, global]);
+  }, [emisor, modo, metodo, forma, moneda, tc, condiciones, enviar, conceptos, relTipo, relUuids, locales, addendaId, addendaDatos, cliente, nuevo, uso, global]);
 
   const nConceptos = (payload?.conceptos as unknown[] | undefined)?.length ?? 0;
 
@@ -340,6 +346,7 @@ function Facturar() {
     setResultado(null);
     setUltima(null);
     setCliente(null);
+    setUso(null);
     setNuevo(null);
     setConceptos([nuevoConcepto()]);
     setRelUuids("");
@@ -414,6 +421,7 @@ function Facturar() {
     const patch = v.campo.endsWith("uso_cfdi") ? { uso_cfdi: primero } : v.campo.endsWith("nombre") ? { nombre: v.sugerencia } : null;
     if (!patch) return;
     if (nuevo) return setNuevo({ ...nuevo, ...patch });
+    if (cliente && patch.uso_cfdi && uso) return setUso(patch.uso_cfdi); // ya elegiste un uso para esta factura: se corrige ése
     if (cliente) {
       try {
         const c = await api<Cliente>(`/clientes/${cliente.id}`, { method: "PUT", json: { ...cliente, ...patch } });
@@ -496,8 +504,10 @@ function Facturar() {
                 ref={clienteRef}
                 emisorId={emisor.id}
                 cliente={cliente}
-                onCliente={(c) => { setCliente(c); setNuevo(null); if (c) setFoco([0, 0]); }}
-                onNuevo={(rfc, nombre) => { setCliente(null); setNuevo({ ...receptorVacio, rfc, nombre }); }}
+                uso={uso}
+                onUso={setUso}
+                onCliente={(c) => { setCliente(c); setUso(null); setNuevo(null); if (c) setFoco([0, 0]); }}
+                onNuevo={(rfc, nombre) => { setCliente(null); setUso(null); setNuevo({ ...receptorVacio, rfc, nombre }); }}
               />
               {nuevo && !cliente && <FormNuevoReceptor nuevo={nuevo} setNuevo={setNuevo} />}
               {ultima && conceptos.every(vacio) && (
@@ -721,7 +731,7 @@ function Facturar() {
         </div>
 
         <ListaClientes emisorId={emisor.id} abierto={verClientes} cerrar={() => setVerClientes(false)}
-          onElegir={(c) => { if (modo === "G") setModo("I"); setCliente(c); setNuevo(null); setFoco([0, 0]); }} />
+          onElegir={(c) => { if (modo === "G") setModo("I"); setCliente(c); setUso(null); setNuevo(null); setFoco([0, 0]); }} />
         <ListaConceptos emisorId={emisor.id} abierto={verConceptos} cerrar={() => setVerConceptos(false)}
           onElegir={(c) => setConceptos((cs) => {
             const i = cs.findIndex(vacio);
@@ -742,8 +752,8 @@ function Facturar() {
 // ======================= Receptor =======================
 
 
-const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: Cliente | null; onCliente: (c: Cliente | null) => void; onNuevo: (rfc: string, nombre: string) => void }>(
-  function BuscarCliente({ emisorId, cliente, onCliente, onNuevo }, ref) {
+const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: Cliente | null; uso: string | null; onUso: (u: string | null) => void; onCliente: (c: Cliente | null) => void; onNuevo: (rfc: string, nombre: string) => void }>(
+  function BuscarCliente({ emisorId, cliente, uso, onUso, onCliente, onNuevo }, ref) {
     const [q, setQ] = useState("");
     const [open, setOpen] = useState(false);
     const [act, setAct] = useState(0);
@@ -765,8 +775,16 @@ const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: 
           <div className="min-w-0">
             <p className="break-words font-medium">{cliente.nombre}</p>
             <p className="text-sm text-grafito tabular-nums">
-              {cliente.rfc} · CP {cliente.codigo_postal} · Régimen {cliente.regimen_fiscal} · Uso {cliente.uso_cfdi}
+              {cliente.rfc} · CP {cliente.codigo_postal} · Régimen {cliente.regimen_fiscal}
             </p>
+            <label className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-grafito">
+              Uso en esta factura
+              <CatSelect catalogo="uso_cfdi" value={uso ?? cliente.uso_cfdi} aria-label="Uso del CFDI en esta factura"
+                className="h-8! w-auto! max-w-72!"
+                onChange={(v) => onUso(v && v !== cliente.uso_cfdi ? v : null)}
+                filtro={(c) => usoPermitido(c.clave, cliente.regimen_fiscal) && c.clave !== "CN01" && c.clave !== "CP01"} />
+              {uso && uso !== cliente.uso_cfdi && <span className="text-xs">(guardado: {cliente.uso_cfdi})</span>}
+            </label>
           </div>
           <Button size="sm" variant="fantasma" onClick={() => onCliente(null)}>Cambiar</Button>
         </div>

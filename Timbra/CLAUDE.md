@@ -253,3 +253,20 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   asimilados). Falta que su asesor diga qué valida ese código; no usar nómina en producción hasta resolverlo.
 - Recurrentes: el periodo es el programado (`p.proxima`), nunca se salta un mes; `MAX_ATRASO_AUTO` días de margen para timbrar
   sola; candado contra doble timbrado. tests/test_w3_recurrentes.py.
+- Tercera ronda (11-oct-2026, 2.8.0): lote real con el formato de la skill /facturacion (15 columnas) contra Finkok pruebas:
+  11 CFDI, total = MONTO al centavo, folio de la hoja, pendientes rescatados, ZIP `C-#_UUID`, re-pegar no duplica.
+  Bug que destapó: el lote usaba el uso guardado en el cliente (G03) en vez del del perfil (D01). Ahora `FacturaIn.uso_cfdi`
+  manda sobre el del cliente (lote y pantalla de Facturar). Una fila cuya factura se canceló ya no se «omite»: pide folio nuevo
+  (modo hoja) o se reemite (consecutivo). tests/test_w4_skill.py.
+
+## Lo de 2.8 (no lo rompas)
+- **Carpeta de entrega** (`carpeta` en el perfil de lote, sólo fuera de `EN_WEB`): al terminar el lote deja XML+PDF
+  `{folio hoja}_{UUID}` en la ruta (tokens {AAAA} {MM} {Mes} {MES} {RFC}, por fecha de emisión). Nunca pisa archivos, nunca
+  afecta lo timbrado, y el estado se lee del disco (`lotes.entrega`). En web está prohibida: sería escribir rutas arbitrarias.
+- **Persistencia a la vista**: `services/almacen.py` cuenta arranques en `datos/almacen.json`; `/api/health` dice
+  `almacen.{desde,arranques,permanente}`. En web, `permanente` exige volumen montado y la base dentro de DATA_DIR.
+- El resumen sólo muestra advertencias del emisor activo. `DELETE /emisores/{id}?confirmar=RFC` borra un emisor con lo suyo
+  (XML a `datos/eliminados`); se niega si timbró con PAC de producción.
+- `/api/<ruta inexistente>` responde 404 JSON (antes devolvía la pantalla de inicio con 200).
+- Las columnas `creado` llevan `default=datetime.now` (hora local; el contenedor fija TZ México). El valor por omisión de SQLite
+  es UTC y de noche las pantallas mostraban la fecha de mañana.

@@ -14,6 +14,7 @@ import ast
 import csv
 import io
 import operator
+import os
 import re
 import threading
 import zipfile
@@ -23,6 +24,7 @@ from itertools import product
 
 from sqlalchemy.orm import Session
 
+from ..config import EN_WEB
 from ..db import SessionLocal
 from ..logs import log
 from ..models import Cliente, Emisor, Factura, Lote, LoteFila
@@ -33,6 +35,9 @@ CENT, SEIS = Decimal("0.01"), Decimal("0.000001")
 MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE",
          "NOVIEMBRE", "DICIEMBRE"]
 IVA16 = [{"tipo": "traslado", "impuesto": "002", "factor": "Tasa", "tasa": "0.16"}]
+
+
+TOKENS_CARPETA = ("AAAA", "MM", "Mes", "MES", "RFC")
 
 
 class ErrorFila(Exception):
@@ -67,6 +72,9 @@ PERFIL_EJEMPLO = {
     "iva_permitido": ["0.16"],  # tasas de IVA que este perfil puede usar ("exento" y "0" bloqueados)
     "claves_bloqueadas": ["51191903", "51191908", "51191910"],  # medicamentos: nunca como suplemento
     "ajuste_centavos": 1,
+    # Sólo con Timbra instalado en tu PC: al terminar el lote deja ahí el PDF y el XML de cada factura ({folio}_{UUID}).
+    # Acepta {AAAA} {MM} {Mes} {MES} {RFC}; ej. G:\\Mi unidad\\Facturas\\{MM} {Mes}\\Clientes Emitidas
+    "carpeta": "",
 }
 
 
@@ -185,6 +193,15 @@ def validar_perfil(cfg: dict) -> list[str]:
         e.append("Con folio de la hoja necesitas la columna FOLIO.")
     if not cfg.get("conceptos"):
         e.append("Agrega al menos un concepto.")
+    carpeta = str(cfg.get("carpeta") or "").strip()
+    if carpeta:
+        if EN_WEB:
+            e.append("La carpeta de entrega sólo existe con Timbra instalado en tu PC. En la web descarga el ZIP.")
+        elif not os.path.isabs(carpeta.split("{")[0] or carpeta):
+            e.append("La carpeta de entrega debe ser una ruta completa (ej. G:\\Mi unidad\\Facturas\\{MM} {Mes}).")
+        for tok in re.findall(r"\{(\w+)\}", carpeta):
+            if tok not in TOKENS_CARPETA:
+                e.append(f"La carpeta usa {{{tok}}} y sólo se aceptan {', '.join('{' + t + '}' for t in TOKENS_CARPETA)}.")
     ficticios = {k: Decimal(1) for k in cols}
     for i, c in enumerate(cfg.get("conceptos") or [], start=1):
         try:
@@ -265,6 +282,14 @@ def cuadrar(emisor: Emisor, conceptos: list[dict], monto: Decimal, metodo: str, 
 
 
 # ---------------------------------------------------------------- una fila
+def _vigente(db: Session, emisor_id: int, referencia: str | None) -> Factura | None:
+    """La factura timbrada y NO cancelada que ya existe para ese renglón de la hoja (es la que impide duplicar)."""
+    if not referencia:
+        return None
+    return (db.query(Factura).filter(Factura.emisor_id == emisor_id, Factura.referencia == referencia,
+                                     Factura.uuid.isnot(None), Factura.estado != "cancelada").order_by(Factura.id.desc()).first())
+
+
 def _tokens(texto: str, datos: dict, fecha: date | None) -> str:
     def rep(m):
         t = m.group(1)
@@ -319,13 +344,21 @@ def resolver(db: Session, emisor: Emisor, cfg: dict, datos: dict, fila_id: int |
     referencia = d.get("folio", "").strip() or None
     out["referencia"] = referencia
     if referencia:
-        ya = (db.query(Factura).filter(Factura.emisor_id == emisor.id, Factura.referencia == referencia,
-                                       Factura.uuid.isnot(None)).first())
+        ya = _vigente(db, emisor.id, referencia)
         if ya:
             resumen["ya_timbrada"] = ya.id
             return {**out, "estado": "omitida", "etapa": None, "resumen": resumen, "errores": [],
                     "avisos": [{"nivel": "info", "texto": f"Ya estaba timbrada: factura {ya.serie or ''}{ya.folio}"}],
                     "error": None}
+        cancelada = (db.query(Factura).filter(Factura.emisor_id == emisor.id, Factura.referencia == referencia,
+                                              Factura.estado == "cancelada").order_by(Factura.id.desc()).first())
+        if cancelada:  # se timbró y se canceló: no se omite en silencio, se vuelve a emitir
+            resumen["reexpide"] = cancelada.id
+            if cfg.get("folio_modo", "hoja") == "hoja":
+                aviso(f"{referencia} ya se timbró y está cancelada ({cancelada.serie or ''}{cancelada.folio}). "
+                      "Para emitirla de nuevo ponle un folio nuevo.")
+            else:
+                aviso(f"{referencia} ya se timbró y está cancelada ({cancelada.serie or ''}{cancelada.folio}): se emite de nuevo.")
 
     # ---- folio
     if cfg.get("folio_modo", "hoja") == "hoja":
@@ -354,7 +387,8 @@ def resolver(db: Session, emisor: Emisor, cfg: dict, datos: dict, fila_id: int |
     regimen = regimen or (cli.regimen_fiscal if cli else None) or cfg.get("regimen_default")
     if not regimen:
         errores.append("Falta el régimen fiscal del cliente.")
-    uso = _mayus(d.get("uso")) or cfg.get("uso_cfdi") or "G03"
+    # El uso lo manda la hoja, luego el perfil; el guardado en el cliente sólo si ninguno lo dice
+    uso = _mayus(d.get("uso")) or cfg.get("uso_cfdi") or (cli.uso_cfdi if cli else None) or "G03"
     resumen["regimen"], resumen["uso"] = regimen, uso
     cliente_id = None
     if cli is None:
@@ -440,6 +474,7 @@ def resolver(db: Session, emisor: Emisor, cfg: dict, datos: dict, fila_id: int |
         data = FacturaIn(
             emisor_id=emisor.id, tipo="I", serie=out["serie"], folio=out["folio"], referencia=referencia,
             metodo_pago=metodo, forma_pago=forma, cliente_id=cliente_id, receptor=None if cliente_id else receptor,
+            uso_cfdi=uso,  # el cliente guardado puede traer otro uso: en el lote manda el del perfil
             conceptos=[ConceptoIn(clave_prod_serv=c["clave_prod_serv"], clave_unidad=c["clave_unidad"],
                                   descripcion=c["descripcion"], no_identificacion=c["no_identificacion"],
                                   cantidad=c["cantidad"], valor_unitario=c["vu"], impuestos=c["impuestos"])
@@ -533,6 +568,7 @@ def omitir_fila(db: Session, fila: LoteFila):
 # ---------------------------------------------------------------- ejecución
 _EJECUTANDO: set[int] = set()
 _DETENER: set[int] = set()
+_GUARDANDO: set[int] = set()  # lotes que ya timbraron y están dejando sus PDF/XML en la carpeta de entrega
 _LOCK = threading.Lock()
 
 
@@ -573,10 +609,7 @@ def _cliente_despues(db: Session, emisor: Emisor, fila: LoteFila, f: Factura):
 def _timbrar_fila(db: Session, lote: Lote, fila: LoteFila):
     emisor = db.get(Emisor, lote.emisor_id)
     # Idempotencia: si por referencia o folio ya hay una factura timbrada para esta fila, no se vuelve a timbrar
-    ya = None
-    if fila.referencia:
-        ya = db.query(Factura).filter(Factura.emisor_id == emisor.id, Factura.referencia == fila.referencia,
-                                      Factura.uuid.isnot(None)).first()
+    ya = _vigente(db, emisor.id, fila.referencia)
     if ya is None and fila.folio:
         ya = db.query(Factura).filter(Factura.emisor_id == emisor.id, Factura.serie == fila.serie,
                                       Factura.folio == fila.folio, Factura.uuid.isnot(None)).first()
@@ -651,12 +684,21 @@ def _correr(lote_id: int, ids: list[int], detener_en_error: bool):
             queda = db.query(LoteFila).filter(LoteFila.lote_id == lote_id, LoteFila.estado.in_(("listo", "error"))).count()
             lote.estado = "detenido" if lote_id in _DETENER else ("borrador" if queda else "terminado")
             db.commit()
+            if carpeta_activa(lote.config):  # lo timbrado ya está a salvo en la base; la copia a tu carpeta nunca lo afecta
+                _GUARDANDO.add(lote_id)
+                try:
+                    r = guardar_en_carpeta(db, lote)
+                    if r["errores"]:
+                        log.warning("Lote %s: no todo llegó a la carpeta: %s", lote_id, "; ".join(r["errores"][:3]))
+                except Exception:
+                    log.exception("Lote %s: no se pudo guardar en la carpeta de entrega", lote_id)
     except Exception:
         log.exception("El lote %s se interrumpió", lote_id)
     finally:
         with _LOCK:
             _EJECUTANDO.discard(lote_id)
             _DETENER.discard(lote_id)
+            _GUARDANDO.discard(lote_id)
 
 
 def iniciar(db: Session, lote: Lote, ids: list[int] | None = None, primeras: int | None = None,
@@ -681,10 +723,7 @@ def recuperar_interrumpidas(db: Session) -> int:
     si no, vuelven a 'error' para revisarlas a mano (nunca se reintentan solas: podrían estar timbradas en el PAC)."""
     n = 0
     for fila in db.query(LoteFila).filter(LoteFila.estado == "timbrando"):
-        ya = None
-        if fila.referencia:
-            ya = db.query(Factura).filter(Factura.emisor_id == fila.emisor_id, Factura.referencia == fila.referencia,
-                                          Factura.uuid.isnot(None)).first()
+        ya = _vigente(db, fila.emisor_id, fila.referencia)
         if ya:
             fila.estado, fila.factura_id = "timbrada", ya.id
         else:
@@ -734,7 +773,8 @@ def resumen_lote(db: Session, lote: Lote) -> dict:
             suma_listo += m
     return {"id": lote.id, "nombre": lote.nombre, "estado": "en_proceso" if en_ejecucion(lote.id) else lote.estado,
             "creado": lote.creado, "perfil_id": lote.perfil_id, "cuentas": cuentas,
-            "total_timbrado": str(suma_cobrado), "total_listo": str(suma_listo), "ejecutando": en_ejecucion(lote.id)}
+            "total_timbrado": str(suma_cobrado), "total_listo": str(suma_listo), "ejecutando": en_ejecucion(lote.id),
+            "guardando": lote.id in _GUARDANDO, "entrega": entrega(db, lote)}
 
 
 def registro_csv(db: Session, lote: Lote) -> bytes:
@@ -756,13 +796,89 @@ def _limpio(s: str) -> str:
     return re.sub(r"[^\w.\-]+", "_", s or "").strip("_")
 
 
-def zip_cfdi(db: Session, lote: Lote) -> bytes:
-    """PDF y XML de cada factura timbrada, nombrados {folio de la hoja}_{UUID}."""
+def _timbradas(db: Session, lote: Lote) -> list[tuple[str, Factura]]:
+    """(nombre de archivo sin extensión, factura) de cada fila timbrada: {folio de la hoja}_{UUID}."""
     facs = []
     for f in db.query(LoteFila).filter(LoteFila.lote_id == lote.id, LoteFila.estado == "timbrada").order_by(LoteFila.n):
         fac = db.get(Factura, f.factura_id)
         if fac and fac.xml:
             facs.append((f"{_limpio(f.referencia or (fac.serie or '') + (fac.folio or ''))}_{fac.uuid}", fac))
+    return facs
+
+
+# ---------------------------------------------------------------- carpeta de entrega (Timbra instalado en tu PC)
+def carpeta_activa(cfg: dict) -> bool:
+    return bool(str(cfg.get("carpeta") or "").strip()) and not EN_WEB
+
+
+def carpeta_de(cfg: dict, emisor: Emisor, cuando: datetime | None) -> str:
+    """La carpeta de esa factura: los {tokens} salen de su fecha de emisión (cada mes cae en su carpeta)."""
+    cuando = cuando or datetime.now()
+    rep = {"AAAA": f"{cuando:%Y}", "MM": f"{cuando:%m}", "Mes": MESES[cuando.month - 1].capitalize(),
+           "MES": MESES[cuando.month - 1], "RFC": emisor.rfc}
+    return os.path.normpath(re.sub(r"\{(\w+)\}", lambda m: rep.get(m.group(1), m.group(0)), str(cfg["carpeta"]).strip()))
+
+
+def entrega(db: Session, lote: Lote) -> dict | None:
+    """Cuántas facturas del lote ya tienen su PDF y XML en la carpeta. Se mira el disco: no se confía en una marca."""
+    if not carpeta_activa(lote.config):
+        return None
+    emisor = db.get(Emisor, lote.emisor_id)
+    facs = _timbradas(db, lote)
+    carpetas, completas = [], 0
+    for base, fac in facs:
+        d = carpeta_de(lote.config, emisor, fac.fecha)
+        if d not in carpetas:
+            carpetas.append(d)
+        completas += os.path.isfile(os.path.join(d, base + ".xml")) and os.path.isfile(os.path.join(d, base + ".pdf"))
+    return {"carpetas": carpetas or [carpeta_de(lote.config, emisor, None)], "guardadas": completas, "timbradas": len(facs)}
+
+
+def _escribir(ruta: str, datos: bytes):
+    tmp = ruta + ".parcial"  # Drive no debe sincronizar un archivo a medias
+    with open(tmp, "wb") as fh:
+        fh.write(datos if isinstance(datos, bytes) else str(datos).encode("utf-8"))
+    os.replace(tmp, ruta)
+
+
+def guardar_en_carpeta(db: Session, lote: Lote) -> dict:
+    """Deja en la carpeta de entrega el XML y el PDF de cada factura timbrada que aún no esté ahí. No pisa archivos."""
+    if EN_WEB:
+        raise ErrorFila("La carpeta de entrega sólo existe con Timbra instalado en tu PC. Aquí descarga el ZIP.")
+    if not carpeta_activa(lote.config):
+        raise ErrorFila("El perfil de este lote no tiene carpeta de entrega. Agrégala en el perfil.")
+    emisor = db.get(Emisor, lote.emisor_id)
+    nuevos, errores, sin_pdf, hechas = 0, [], [], set()
+    for base, fac in _timbradas(db, lote):
+        d = carpeta_de(lote.config, emisor, fac.fecha)
+        ruta = os.path.join(d, base)
+        try:
+            if d not in hechas:
+                os.makedirs(d, exist_ok=True)
+                hechas.add(d)
+            if not os.path.isfile(ruta + ".xml"):
+                _escribir(ruta + ".xml", fac.xml)
+                nuevos += 1
+            if not os.path.isfile(ruta + ".pdf"):
+                sin_pdf.append((ruta, fac))
+        except OSError as e:
+            errores.append(f"{base.split('_')[0]}: no se pudo escribir en {d} ({e.strerror or e})")
+    if sin_pdf:
+        pdfs = pdf_svc.pdf_varios([(fac.xml, fac.emisor) for _, fac in sin_pdf])  # en paralelo
+        for (ruta, fac), datos in zip(sin_pdf, pdfs):
+            try:
+                if not datos:
+                    raise OSError("no se pudo generar el PDF")
+                _escribir(ruta + ".pdf", datos)
+                nuevos += 1
+            except OSError as e:
+                errores.append(f"{os.path.basename(ruta).split('_')[0]}: PDF sin guardar ({e.strerror or e})")
+    return {**(entrega(db, lote) or {}), "archivos_nuevos": nuevos, "errores": errores}
+
+
+def zip_cfdi(db: Session, lote: Lote) -> bytes:
+    """PDF y XML de cada factura timbrada, nombrados {folio de la hoja}_{UUID}."""
+    facs = _timbradas(db, lote)
     pdfs = pdf_svc.pdf_varios([(fac.xml, fac.emisor) for _, fac in facs])  # en paralelo: cada PDF tarda unos segundos
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:

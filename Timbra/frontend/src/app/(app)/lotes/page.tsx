@@ -3,7 +3,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, FileArchive, FileSpreadsheet, FileUp, Info, Pencil, Play, RotateCcw, Square, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, FileArchive, FileSpreadsheet, FileUp, FolderCheck, FolderDown, Info, Pencil, Play, RotateCcw, Square, Trash2, XCircle } from "lucide-react";
 import { useEmisor } from "@/components/emisor-context";
 import { PerfilModal } from "@/components/perfil-lote";
 import { Badge, Button, Cifra, Input, Kbd, Modal, PageHeader, Tabs, Vacio, cx, tabla } from "@/components/ui";
@@ -184,6 +184,16 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
     if (listos.length) ejecutar({ ids: listos });
     else toast.warning("Siguen con problemas. Abre la fila para ver qué falta.");
   };
+  const [copiando, setCopiando] = useState(false);
+  const aCarpeta = async () => {
+    setCopiando(true);
+    try {
+      const r = await api<{ guardadas: number; timbradas: number; archivos_nuevos: number; errores: string[]; carpetas: string[] }>(`/lotes/${loteId}/carpeta`, { method: "POST" });
+      if (r.errores.length) toast.error(r.errores[0], { description: r.errores.length > 1 ? `y ${r.errores.length - 1} más` : undefined });
+      else toast.success(`${r.guardadas} de ${r.timbradas} facturas en tu carpeta`, { description: r.carpetas[0] });
+      mutate();
+    } catch (e) { mostrarError(e); } finally { setCopiando(false); }
+  };
   const omitir = async (f: FilaLote) => {
     try { await api(`/lotes/${loteId}/filas/${f.id}/omitir`, { method: "POST" }); toast.success("Fila omitida; su folio quedó libre"); setVer(null); mutate(); } catch (e) { mostrarError(e); }
   };
@@ -222,8 +232,8 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
       <div className="sticky top-0 z-20 -mx-1 mb-4 flex flex-wrap items-center gap-2 rounded-2xl bg-hoja/95 p-3 ring-1 ring-linea backdrop-blur">
         {corriendo ? (
           <>
-            <span className="flex items-center gap-2 text-sm text-cobalto"><span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> Timbrando… {l.cuentas.timbrada} de {l.cuentas.timbrada + l.cuentas.listo + l.cuentas.timbrando}</span>
-            <Button variant="peligro" size="sm" onClick={() => api(`/lotes/${loteId}/detener`, { method: "POST" }).then(() => toast.message("Se detiene al terminar la factura en curso")).catch(mostrarError)}><Square className="size-3.5" /> Detener</Button>
+            <span className="flex items-center gap-2 text-sm text-cobalto"><span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> {l.guardando ? "Ya timbradas. Guardando PDF y XML en tu carpeta…" : <>Timbrando… {l.cuentas.timbrada} de {l.cuentas.timbrada + l.cuentas.listo + l.cuentas.timbrando}</>}</span>
+            <Button variant="peligro" size="sm" className={l.guardando ? "hidden" : undefined} onClick={() => api(`/lotes/${loteId}/detener`, { method: "POST" }).then(() => toast.message("Se detiene al terminar la factura en curso")).catch(mostrarError)}><Square className="size-3.5" /> Detener</Button>
           </>
         ) : (
           <>
@@ -235,7 +245,12 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
             <label className="ml-1 flex items-center gap-2 text-sm text-grafito"><input type="checkbox" checked={detenerEnError} onChange={(e) => setDetenerEnError(e.target.checked)} /> Detener al primer error</label>
           </>
         )}
-        <span className="ml-auto flex gap-2">
+        <span className="ml-auto flex flex-wrap items-center gap-2">
+          {l.entrega && l.entrega.timbradas > 0 && !corriendo && (
+            l.entrega.guardadas >= l.entrega.timbradas
+              ? <span className="flex items-center gap-1.5 text-sm text-sello" title={l.entrega.carpetas.join("\n")}><FolderCheck className="size-4" /> {l.entrega.guardadas} en tu carpeta</span>
+              : <Button size="sm" disabled={copiando} onClick={aCarpeta} title={l.entrega.carpetas.join("\n")}><FolderDown className="size-4" /> {copiando ? "Guardando…" : `Guardar en carpeta (${l.entrega.timbradas - l.entrega.guardadas})`}</Button>
+          )}
           <Button size="sm" variant="fantasma" onClick={() => descargar(`/lotes/${loteId}/registro.csv`, `registro_lote_${loteId}.csv`).catch(mostrarError)}><FileSpreadsheet className="size-4" /> Registro</Button>
           <Button size="sm" variant="fantasma" disabled={!timbradas.length} onClick={() => descargar(`/lotes/${loteId}/cfdi.zip`, `cfdi_lote_${loteId}.zip`).catch(mostrarError)}><FileArchive className="size-4" /> PDF + XML</Button>
         </span>

@@ -190,6 +190,7 @@ export type PerfilLoteCfg = {
   serie: string; folio_modo: "hoja" | "consecutivo"; uso_cfdi: string; metodo_pago: string; regimen_default: string;
   columnas: Record<string, number>; nombres_columnas: Record<string, string>; forma_map: Record<string, string>;
   conceptos: ConceptoPerfil[]; iva_permitido: string[]; claves_bloqueadas: string[]; ajuste_centavos: number;
+  carpeta?: string; // sólo Timbra instalado: dónde dejar PDF y XML al terminar el lote
 };
 export type PerfilLote = { id: number; emisor_id: number; nombre: string; config: PerfilLoteCfg; usos: number };
 export type AvisoFila = { nivel: "aviso" | "info"; texto: string };
@@ -207,6 +208,7 @@ export type FilaLote = {
 export type LoteResumen = {
   id: number; nombre: string; estado: string; creado: string; perfil_id: number | null; ejecutando: boolean;
   cuentas: Record<"listo" | "error" | "timbrando" | "timbrada" | "omitida", number>; total_timbrado: string; total_listo: string;
+  guardando?: boolean; entrega?: { carpetas: string[]; guardadas: number; timbradas: number } | null;
 };
 export type LoteDetalle = LoteResumen & { filas: FilaLote[]; config: PerfilLoteCfg; alertas: { nivel: "error" | "aviso" | "info"; texto: string }[] };
 

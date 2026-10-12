@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
 import Link from "next/link";
-import { KeyRound, Palette, Plus } from "lucide-react";
+import { AlertTriangle, KeyRound, Palette, Plus, Trash2 } from "lucide-react";
 import { mostrarError } from "@/lib/errores";
 import { api, fetcher } from "@/lib/api";
 import { fecha } from "@/lib/format";
@@ -19,6 +19,9 @@ export default function Emisores() {
   const { data: pacs = [] } = useSWR<Pac[]>("/pacs", fetcher);
   const [edit, setEdit] = useState<(typeof vacio & { id?: number }) | null>(null);
   const [csd, setCsd] = useState<Emisor | null>(null);
+  const [borrar, setBorrar] = useState<Emisor | null>(null);
+  const [rfcEscrito, setRfcEscrito] = useState("");
+  const [borrando, setBorrando] = useState(false);
 
   const guardar = async () => {
     if (!edit) return;
@@ -36,16 +39,16 @@ export default function Emisores() {
     }
   };
 
-  // Antes de pasar a producción: quita sólo lo timbrado con el PAC demo. Las facturas reales nunca se tocan.
-  const borrarPractica = async (e: Emisor) => {
+  // Sólo se puede con emisores sin facturas timbradas en producción: el servidor se niega si hay CFDI con validez fiscal.
+  const eliminar = async () => {
+    if (!borrar) return;
+    setBorrando(true);
     try {
-      const { facturas } = await api<{ facturas: number }>(`/emisores/${e.id}/practica`);
-      if (!facturas) return void toast.message(`${e.rfc} no tiene facturas de práctica.`);
-      if (!window.confirm(`Se van a borrar ${facturas} factura(s) de práctica de ${e.rfc} (timbradas en modo demo, sin validez fiscal) y los folios regresan a continuar después de la última factura real.\n\nLas facturas reales no se tocan. ¿Continuar?`)) return;
-      const r = await api<{ borradas: number; folios: Record<string, number> }>(`/emisores/${e.id}/practica/borrar`, { method: "POST" });
-      toast.success(`${r.borradas} facturas de práctica borradas. Siguiente folio: ${Object.entries(r.folios).map(([s, n]) => `${s}${n}`).join(" · ")}`);
+      await api(`/emisores/${borrar.id}?confirmar=${encodeURIComponent(rfcEscrito.trim())}`, { method: "DELETE" });
+      toast.success(`${borrar.rfc} eliminado`);
+      setBorrar(null);
       recargar();
-    } catch (err) { mostrarError(err); }
+    } catch (err) { mostrarError(err); } finally { setBorrando(false); }
   };
 
   return (
@@ -88,9 +91,12 @@ export default function Emisores() {
                     lugar_expedicion: e.lugar_expedicion, email: e.email ?? "", pac_id: e.pac_id ?? "", region_fronteriza: !!e.region_fronteriza, id: e.id })}>Editar</Button>
                   <Link href="/marca" onClick={() => setEmisorId(e.id)}><Button size="sm" variant="fantasma"><Palette className="size-4" /> Marca, nómina y e.firma</Button></Link>
                 </div>
-                <button className="mt-3 text-sm text-grafito underline-offset-2 hover:text-tinta hover:underline" onClick={() => borrarPractica(e)}>
-                  Borrar facturas de práctica (modo demo) y regresar folios…
-                </button>
+                <div className="mt-4 flex justify-end border-t border-linea pt-3">
+                  <button onClick={() => { setRfcEscrito(""); setBorrar(e); }}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-rojo ring-1 ring-rojo/40 transition-colors hover:bg-rojo hover:text-white">
+                    <Trash2 className="size-3.5" /> Eliminar emisor
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -120,6 +126,24 @@ export default function Emisores() {
         )}
       </Modal>
       <ModalCsd e={csd} onClose={() => setCsd(null)} onOk={() => { setCsd(null); recargar(); }} />
+      <Modal open={!!borrar} onClose={() => setBorrar(null)} title="Eliminar emisor"
+        footer={<><Button data-autofocus onClick={() => setBorrar(null)}>Cancelar</Button>
+          <Button variant="peligro" disabled={borrando || rfcEscrito.trim().toUpperCase() !== borrar?.rfc} onClick={eliminar}><Trash2 className="size-4" /> {borrando ? "Eliminando…" : "Eliminar para siempre"}</Button></>}>
+        {borrar && (
+          <div className="grid gap-4 text-sm">
+            <p className="flex gap-2.5 rounded-xl bg-rojo-suave px-4 py-3 text-rojo ring-1 ring-rojo/25">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>Vas a eliminar <b>{borrar.nombre}</b> ({borrar.rfc}) con todo lo suyo: sellos, clientes, productos, plantillas, lotes y facturas. <b>No se puede deshacer.</b></span>
+            </p>
+            <p className="text-grafito">Si este emisor ya timbró facturas con validez fiscal, Timbra no lo elimina: esas hay que conservarlas.</p>
+            <Field label={`Para confirmar, escribe su RFC: ${borrar.rfc}`}>
+              <Input value={rfcEscrito} autoComplete="off" spellCheck={false} placeholder={borrar.rfc}
+                onChange={(ev) => setRfcEscrito(ev.target.value.toUpperCase())}
+                onKeyDown={(ev) => { if (ev.key === "Enter" && rfcEscrito.trim() === borrar.rfc && !borrando) eliminar(); }} />
+            </Field>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
