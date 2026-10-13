@@ -283,3 +283,22 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   (2 horas, queda en `accesos_soporte` y el dueño lo ve en su perfil); las peticiones llevan `X-Soporte` y `db._identificar`
   exige un acceso vigente. Lo que soporte crea queda a nombre de la cuenta atendida. tests/test_w1_cuentas.py.
 - tests/test_w5_seguridad.py.
+
+## XML del SAT (2.11, no lo rompas)
+- Sustituye al módulo SAT anterior (`routers/sat.py`, `services/descarga_sat.py`: borrados). Pantalla `/sat` con dos pestañas:
+  Descargar (e.firma → periodo → avance → tabla) y Datos (gráficas). Rutas en `routers/xml.py`, prefijo `/api/xml`.
+- **La e.firma NO se guarda. Nunca.** `services/xml_firma.py` la valida y la deja abierta sólo en memoria (20 min sin usar,
+  3 h máximo); se pide cada vez. La migración 0009 borró lo que hubiera guardado. Las columnas `Emisor.fiel_*` quedan vacías.
+  No agregues «recordar e.firma», ni la escribas a disco, base, registro o respaldo. tests/test_w6_xml.py lo vigila.
+- `app/xmlsat/` es el núcleo de la app de escritorio DESCARGA XML EDDP (lector, flujo con el SAT, PDF de una hoja, Excel),
+  copiado sin cambiar su comportamiento. Lo de Timbra vive en `services/xml_{firma,indice,trabajos,tareas}.py`.
+- **Formato maestro: 65 columnas** (`lector.COLUMNAS_COPIADO`), en ese orden y con ese texto exacto (números con `.0`, fecha
+  sin T, fecha de timbrado con T). Es la hoja maestra del despacho: no se mueve, renombra ni «corrige» nada. Un pago da un
+  renglón por documento pagado. El Excel lleva las 73 de siempre y, AL FINAL, «Estatus SAT» y «Cancelado el».
+- Los XML viven en `datos/xml/{emisor}/{AAAAMM} {RFC4}/{emitidos|recibidos}/UUID.xml`; `xml_cfdi` es su índice. El historial
+  de solicitudes al SAT (`datos/xml_estado/`) evita repetir solicitudes: el SAT limita cuántas veces se pide el mismo periodo.
+- Cancelados: tramos `meta_*` piden la lista (Metadata) del SAT; se vuelve a pedir pasadas 24 h. Un fallo ahí es aviso, no
+  error. Lo que Timbra canceló se marca solo (`al_dia_con_timbra`). Por omisión la tabla y «Copiar» traen sólo vigentes.
+- Sin probar contra el SAT real desde Timbra (sólo SAT simulado): la descarga usa el mismo flujo que sí se probó en escritorio;
+  la lista de cancelados es nueva y no se ha probado en real. La nómina no se lee a detalle.
+- Capturas: si usas Chrome por CDP, NO uses el puerto 9333 (otra sesión de Claude lo usa en esta PC); usa 9477.

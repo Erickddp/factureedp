@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
-    JSON, Boolean, DateTime, ForeignKey, Integer, LargeBinary, Numeric, String, Text,
+    JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, LargeBinary, Numeric, String, Text,
     UniqueConstraint, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -64,7 +64,8 @@ class Emisor(Base):
         return self.pac is None or self.pac.proveedor == "demo"
     # Estímulo IVA 8% región fronteriza norte/sur (requiere estar en el padrón del SAT)
     region_fronteriza: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
-    # e.firma (FIEL) cifrada: SÓLO para la descarga masiva del SAT, nunca para sellar
+    # HEREDADO, SIEMPRE VACÍO: la e.firma ya no se guarda (migración 0009 la borró). Para bajar del SAT se pone cada vez
+    # y vive sólo en memoria mientras dura la descarga (services/xml_firma.py).
     fiel_cer: Mapped[bytes | None] = mapped_column(LargeBinary)
     fiel_key_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
     fiel_password_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
@@ -264,7 +265,7 @@ class Empleado(Base):
 
 
 class CfdiSat(Base):
-    """CFDI descargado del SAT (recibidos y emitidos) para conciliar contra COI."""
+    """HEREDADO (módulo SAT anterior a 2.11). Lo que tenía se pasa solo a `xml_cfdi` al arrancar; ya no se escribe aquí."""
     __tablename__ = "cfdi_sat"
     __table_args__ = (UniqueConstraint("emisor_id", "uuid"),)
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -290,6 +291,57 @@ class CfdiSat(Base):
     estado: Mapped[str] = mapped_column(String(12), default="Vigente")
     xml: Mapped[bytes | None] = mapped_column(LargeBinary)
     creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
+
+
+class XmlCfdi(Base):
+    """Índice de un CFDI bajado del SAT o leído de un XML. El XML vive en disco (datos/xml/{emisor}/…); aquí van sus
+    renglones ya leídos en el formato maestro (un pago trae un renglón por documento pagado)."""
+    __tablename__ = "xml_cfdi"
+    __table_args__ = (UniqueConstraint("emisor_id", "uuid", "tipo"), Index("ix_xml_cfdi_emisor_fecha", "emisor_id", "fecha"))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    emisor_id: Mapped[int] = mapped_column(ForeignKey("emisores.id"), index=True)
+    uuid: Mapped[str] = mapped_column(String(40))
+    tipo: Mapped[str] = mapped_column(String(10))  # Emitido | Recibido (quién es el contribuyente en este CFDI)
+    fecha: Mapped[str] = mapped_column(String(19), default="")  # AAAA-MM-DD HH:MM:SS, como en la tabla
+    clase: Mapped[str] = mapped_column(String(1), default="")  # I ingreso · G gasto · N nómina · P pago · E nota · T traslado
+    comprobante: Mapped[str] = mapped_column(String(12), default="")
+    serie: Mapped[str] = mapped_column(String(40), default="")
+    folio: Mapped[str] = mapped_column(String(60), default="")
+    rfc_emisor: Mapped[str] = mapped_column(String(13), default="")
+    nombre_emisor: Mapped[str] = mapped_column(String(300), default="")
+    rfc_receptor: Mapped[str] = mapped_column(String(13), default="")
+    nombre_receptor: Mapped[str] = mapped_column(String(300), default="")
+    subtotal: Mapped[float] = mapped_column(Float, default=0)
+    iva: Mapped[float] = mapped_column(Float, default=0)
+    total: Mapped[float] = mapped_column(Float, default=0)
+    moneda: Mapped[str] = mapped_column(String(3), default="")
+    metodo: Mapped[str] = mapped_column(String(3), default="")
+    estatus: Mapped[str] = mapped_column(String(10), default="Vigente")  # Vigente | Cancelado (lo dice el SAT)
+    cancelado_el: Mapped[str | None] = mapped_column(String(19))
+    origen: Mapped[str] = mapped_column(String(8), default="sat")  # sat | subido | aviso (sólo se sabe que existe, sin XML)
+    archivo: Mapped[str] = mapped_column(String(200), default="")  # ruta relativa del XML dentro de datos/xml/{emisor}
+    filas: Mapped[list] = mapped_column(JSON, default=list)
+    busca: Mapped[str] = mapped_column(Text, default="")
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class XmlTrabajo(Base):
+    """Lo que tarda (bajar del SAT, armar un ZIP) corre en segundo plano y deja aquí su avance."""
+    __tablename__ = "xml_trabajos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    emisor_id: Mapped[int] = mapped_column(ForeignKey("emisores.id"), index=True)
+    usuario_id: Mapped[int | None] = mapped_column(Integer)
+    clase: Mapped[str] = mapped_column(String(6))  # sat | zip
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    estado: Mapped[str] = mapped_column(String(14), default="curso")  # curso | listo | error | cancelado | interrumpido
+    avance: Mapped[int] = mapped_column(Integer, default=0)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    mensaje: Mapped[str] = mapped_column(String(300), default="")
+    resumen: Mapped[dict] = mapped_column(JSON, default=dict)
+    registro: Mapped[str] = mapped_column(Text, default="")
+    archivo: Mapped[str] = mapped_column(String(120), default="")
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    terminado: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class SolicitudSat(Base):

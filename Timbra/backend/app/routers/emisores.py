@@ -165,6 +165,9 @@ def eliminar(emisor_id: int, confirmar: str = "", db: Session = Depends(get_db))
             shutil.move(origen, destino)
         except OSError as x:
             log.warning("No se pudo mover el respaldo XML de %s: %s", rfc, x)
+    from ..services import xml_firma, xml_indice
+    xml_firma.olvidar(emisor_id)
+    xml_indice.borrar_emisor(emisor_id)  # sus XML bajados del SAT y su historial de solicitudes
     log.warning("Emisor %s (%s) eliminado con: %s", rfc, nombre, cuenta or "nada más")
     return {"ok": True, "rfc": rfc, "borrado": cuenta}
 

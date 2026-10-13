@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 title Timbra - construir instalador
-rem Genera instalador\salida\Timbra-Instalador-2.9.0.exe (un solo archivo para cualquier PC con Windows 10/11).
+rem Genera instalador\salida\Timbra-Instalador-2.11.0.exe (un solo archivo para cualquier PC con Windows 10/11).
 rem Requiere haber corrido INICIAR.bat una vez. Si cambiaste el front, corre antes COMPILAR_FRONT.bat.
 cd /d "%~dp0backend"
 if not exist ".venv\Scripts\python.exe" (echo Primero corre INICIAR.bat una vez. & pause & exit /b 1)

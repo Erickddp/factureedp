@@ -14,6 +14,13 @@ from ..services.cfdi import ahora_mx
 router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(current_user)])
 
 
+def solo_xml(db: Session, emisor_id: int) -> bool:
+    """Contribuyente que sólo se usa para bajar o leer XML (nunca ha facturado aquí): no hace falta pedirle CSD."""
+    from ..models import XmlCfdi
+    return (db.query(Factura.id).filter(Factura.emisor_id == emisor_id).first() is None
+            and db.query(XmlCfdi.id).filter(XmlCfdi.emisor_id == emisor_id).first() is not None)
+
+
 @router.get("")
 def resumen(emisor_id: int | None = None, db: Session = Depends(get_db)):
     hoy = ahora_mx()
@@ -37,7 +44,8 @@ def resumen(emisor_id: int | None = None, db: Session = Depends(get_db)):
     pacs_vistos = {e.pac_id for e in emisores}
     for e in emisores:
         if not e.cer:
-            alertas.append({"nivel": "error", "texto": f"{e.rfc} no tiene CSD cargado"})
+            if not solo_xml(db, e.id):
+                alertas.append({"nivel": "error", "texto": f"{e.rfc} no tiene CSD cargado"})
         elif e.csd_vence and (e.csd_vence - hoy).days < 30:
             dias = (e.csd_vence - hoy).days
             alertas.append({"nivel": "error" if dias < 0 else "aviso",
@@ -47,9 +55,6 @@ def resumen(emisor_id: int | None = None, db: Session = Depends(get_db)):
     for t in timbres.resumen(db):
         if t["texto"] and (not emisor_id or t["pac_id"] in pacs_vistos):
             alertas.append({"nivel": t["nivel"] if t["nivel"] != "ok" else "info", "texto": t["texto"]})
-    for e in emisores:
-        if e.fiel_vence and (e.fiel_vence - hoy).days < 30:
-            alertas.append({"nivel": "aviso", "texto": f"e.firma de {e.rfc} vence el {e.fiel_vence:%d/%m/%Y}"})
     pend = db.query(Factura).filter(Factura.estado == "cancelacion_pendiente")
     if emisor_id:
         pend = pend.filter(Factura.emisor_id == emisor_id)

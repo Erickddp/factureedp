@@ -215,29 +215,6 @@ def test_cobranza_y_estado_de_cuenta():
         assert r[0]["ok"] is False and "correo de envío" in r[0]["error"]
 
 
-def test_sat_importar_conciliar_y_fiel():
-    with TestClient(app) as c:
-        h, e = _preparar(c)
-        cli = _cliente(c, h, e)
-        f, _ = _factura(c, h, e, cli, total="300")
-        xml = c.get(f"/api/facturas/{f['id']}/xml", headers=h).content
-        r = c.post(f"/api/sat/importar-xml/{e['id']}", headers=h, files=[("archivos", ("a.xml", xml, "application/xml"))])
-        assert r.json()["nuevos"] == 1
-        filas = c.get(f"/api/sat/cfdi?emisor_id={e['id']}&direccion=emitido", headers=h).json()
-        mia = [x for x in filas if x["uuid"] == f["uuid"]][0]
-        assert mia["en_timbra"] and float(mia["iva"]) == 48.0
-        desde, hasta = (datetime.now() - timedelta(days=1)).isoformat(), (datetime.now() + timedelta(days=1)).isoformat()
-        con = c.get(f"/api/sat/conciliacion?emisor_id={e['id']}&desde={desde}&hasta={hasta}", headers=h).json()
-        assert con["coinciden"] >= 1 and f["uuid"] not in [x["uuid"] for x in con["solo_timbra"]]
-        csv = c.get(f"/api/sat/exportar/csv?emisor_id={e['id']}&direccion=emitido", headers=h)
-        assert f["uuid"].encode() in csv.content
-        # La descarga masiva exige e.firma: un CSD se rechaza
-        r = c.post(f"/api/sat/fiel/{e['id']}", headers=h,
-                   files={"cer": open(CSD / "EKU9003173C9.cer", "rb"), "key": open(CSD / "EKU9003173C9.key", "rb")},
-                   data={"password": "12345678a"})
-        assert r.status_code == 422 and "CSD" in r.text
-        assert c.post("/api/sat/solicitudes", headers=h, json={
-            "emisor_id": e["id"], "desde": desde, "hasta": hasta}).status_code == 422
 
 
 def test_respaldo_diario(tmp_path):

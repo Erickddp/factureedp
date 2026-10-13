@@ -97,7 +97,10 @@ def reunir(db: Session, emisor_id: int) -> dict:
 
     # --- sistema: CSD, e.firma, timbres
     items = []
-    if not e.cer:
+    from ..routers.dashboard import solo_xml
+    if not e.cer and solo_xml(db, e.id):
+        pass  # sólo se usa para XML del SAT: el CSD no le hace falta
+    elif not e.cer:
         items.append(_item("csd-falta", f"{e.rfc} no tiene CSD", "Sin CSD no se puede sellar ni timbrar.", "error", "Subir CSD", "/emisores"))
     elif e.csd_vence and e.csd_vence < hoy.replace(tzinfo=None):
         items.append(_item("csd-vencido", f"El CSD de {e.rfc} venció el {e.csd_vence:%d/%m/%Y}", "Renuévalo en el SAT y súbelo.", "error",
@@ -105,9 +108,6 @@ def reunir(db: Session, emisor_id: int) -> dict:
     elif e.csd_vence and e.csd_vence < hoy.replace(tzinfo=None) + timedelta(days=30):
         items.append(_item("csd-vence", f"El CSD de {e.rfc} vence el {e.csd_vence:%d/%m/%Y}", "Tramita el nuevo con tiempo (tarda hasta 72 h).",
                            "aviso", "Ver emisor", "/emisores"))
-    if e.fiel_vence and e.fiel_vence < hoy.replace(tzinfo=None) + timedelta(days=30):
-        items.append(_item("fiel-vence", f"La e.firma de {e.rfc} vence el {e.fiel_vence:%d/%m/%Y}", "La necesitas para la descarga del SAT.",
-                           "aviso", "Ver e.firma", "/marca"))
     for t in timbres.resumen(db):
         if t["texto"] and t["nivel"] in ("aviso", "error"):
             items.append(_item(f"timbres-{t['pac_id']}", t["texto"], "Registra tu compra de timbres para que el aviso se actualice.",

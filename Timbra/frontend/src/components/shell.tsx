@@ -19,7 +19,7 @@ import { Consola } from "./consola";
 import { EmisorProvider, useEmisor } from "./emisor-context";
 import { Badge, Button, Field, Input, Modal, cx } from "./ui";
 
-type Item = { href: string; label: string; icon: typeof Zap; k?: string; cta?: boolean };
+type Item = { href: string; label: string; icon: typeof Zap; k?: string; cta?: boolean; gratis?: boolean };
 // Pendientes ya no va en el menú: si hay algo por atender sale el aviso arriba de la pantalla (y Alt+J sigue abriéndola).
 // Orden por uso: primero el tablero y lo de todos los días; luego por tarea. En el riel, un grupo plegado se ve como un solo icono.
 const NAV: { id: string; grupo?: string; icon?: typeof Zap; plegado?: boolean; items: Item[] }[] = [
@@ -27,6 +27,7 @@ const NAV: { id: string; grupo?: string; icon?: typeof Zap; plegado?: boolean; i
     { href: "/", label: "Resumen", icon: LayoutDashboard },
     { href: "/facturar", label: "Nueva factura", icon: FilePlus2, k: "F2", cta: true },
     { href: "/facturas", label: "Facturas emitidas", icon: Files, k: "Alt F" },
+    { href: "/sat", label: "XML del SAT", icon: CloudDownload, gratis: true },
   ] },
   { id: "emitir", grupo: "Emitir", icon: Send, items: [
     { href: "/lotes", label: "Lotes desde tabla", icon: Table2, k: "Alt L" },
@@ -37,7 +38,6 @@ const NAV: { id: string; grupo?: string; icon?: typeof Zap; plegado?: boolean; i
   ] },
   { id: "control", grupo: "Cobrar y revisar", icon: Wallet, items: [
     { href: "/cobranza", label: "Cobranza", icon: HandCoins, k: "Alt B" },
-    { href: "/sat", label: "Descarga SAT", icon: CloudDownload },
     { href: "/calculadora", label: "Calculadora", icon: Calculator },
   ] },
   { id: "catalogos", grupo: "Catálogos", icon: FolderOpen, items: [
@@ -51,7 +51,7 @@ const NAV: { id: string; grupo?: string; icon?: typeof Zap; plegado?: boolean; i
     { href: "/emisores", label: "Emisores y CSD", icon: Building2 },
     { href: "/ajustes", label: "PAC y usuarios", icon: Plug },
     { href: "/timbres", label: "Timbres", icon: Stamp, k: "Alt T" },
-    { href: "/marca", label: "Marca y e.firma", icon: Palette },
+    { href: "/marca", label: "Marca y nómina", icon: Palette },
   ] },
 ];
 
@@ -272,7 +272,15 @@ function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; 
     <span className={cx("grid place-items-center rounded-full font-semibold tabular-nums text-white", errores ? "bg-rojo" : "bg-alerta",
       enRiel ? "absolute -right-0.5 -top-0.5 min-w-[18px] px-1 text-[10px] leading-[18px]" : "ml-auto min-w-5 px-1.5 text-[11px]")}>{total > 99 ? "99+" : total}</span>
   );
-  const fila = (it: Item, cerrar?: () => void) => (
+  const fila = (it: Item, cerrar?: () => void) => it.gratis ? (
+    <Link key={it.href} href={it.href} onClick={() => { cerrar?.(); onIr?.(); }}
+      className={cx("group/fila relative mt-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ring-1 transition-[background-color,box-shadow,transform] duration-150 hover:-translate-y-px",
+        activo(path, it.href) ? "bg-sello text-white ring-sello" : "bg-sello-suave text-sello ring-sello/35 hover:ring-sello/70")}>
+      <it.icon className="size-6 shrink-0 transition-transform duration-150 group-hover/fila:scale-110" strokeWidth={1.75} />
+      <span className="min-w-0 flex-1 leading-tight"><span className="block truncate">{it.label}</span><span className="block text-[11px] font-normal opacity-80">Descarga y lectura</span></span>
+      <span className={cx("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", activo(path, it.href) ? "bg-white/20" : "bg-sello text-white")}>Gratis</span>
+    </Link>
+  ) : (
     <Link key={it.href} href={it.href} onClick={() => { cerrar?.(); onIr?.(); }}
       className={cx("group/fila relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-[color,background-color,filter,transform] duration-150",
         it.cta ? "bg-acento bg-linear-to-b from-white/12 to-transparent font-medium text-white shadow-boton hover:-translate-y-px hover:brightness-110" :
@@ -294,8 +302,9 @@ function Navegacion({ path, riel, onIr, pend }: { path: string; riel?: boolean; 
           <Link key={it.href} href={it.href} aria-label={it.label}
             onMouseEnter={(e) => abrir(it.href, e.currentTarget)} onMouseLeave={cerrarLuego} onFocus={(e) => abrir(it.href, e.currentTarget)} onBlur={cerrarLuego}
             className={cx(boton, it.cta ? "bg-acento bg-linear-to-b from-white/12 to-transparent text-white shadow-boton hover:-translate-y-px hover:brightness-110" :
+              it.gratis ? cx("mt-1 ring-1 hover:-translate-y-px", activo(path, it.href) ? "bg-sello text-white ring-sello" : "bg-sello-suave text-sello ring-sello/40 hover:ring-sello/80") :
               activo(path, it.href) ? cx("bg-acento-suave text-acento", marca) : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
-            <it.icon className="size-[22px] transition-transform duration-150 group-hover/riel:scale-110" strokeWidth={1.75} />
+            <it.icon className={cx("transition-transform duration-150 group-hover/riel:scale-110", it.gratis ? "size-[26px]" : "size-[22px]")} strokeWidth={1.75} />
             {it.href === "/pendientes" && !!pend?.total && globo(pend.total, pend.errores, true)}
           </Link>
         ))}

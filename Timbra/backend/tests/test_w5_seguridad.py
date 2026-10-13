@@ -9,7 +9,7 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
-from app.routers import auth, sat  # noqa: E402
+from app.routers import auth  # noqa: E402
 from app.services import addenda  # noqa: E402
 from test_v2 import _preparar  # noqa: E402
 from test_w1_cuentas import _entrar, _usuario  # noqa: E402
@@ -109,16 +109,24 @@ def test_addendas_solo_las_administra_el_administrador():
         assert c.post("/api/addendas/probar", headers=admin, json={"plantilla": "<x>{{ ''.__class__.__mro__ }}</x>"}).status_code == 422
 
 
-def test_xml_ajeno_con_entidades_se_rechaza_y_la_efirma_no_se_guarda_en_web(monkeypatch):
+def test_xml_ajeno_con_entidades_se_rechaza():
     with TestClient(app) as c:
         h, e = _preparar(c)
-        malo = b'<?xml version="1.0"?><!DOCTYPE c [<!ENTITY x SYSTEM "file:///etc/passwd">]><c>&x;</c>'
-        r = c.post(f"/api/sat/importar-xml/{e['id']}", headers=h, files=[("archivos", ("malo.xml", malo, "text/xml"))])
-        assert r.status_code == 200 and r.json() == {"nuevos": 0, "errores": 1}
-        monkeypatch.setattr(sat, "EN_WEB", True)
-        r = c.post(f"/api/sat/fiel/{e['id']}", headers=h, data={"password": "x"},
-                   files={"cer": ("a.cer", b"x"), "key": ("a.key", b"x")})
-        assert r.status_code == 409 and "e.firma" in r.json()["detail"]
+        secreto = os.path.abspath(os.path.join("_test_datos", "secreto2.txt"))
+        open(secreto, "w").write("LLAVE-QUE-NO-DEBE-SALIR")
+        try:
+            malo = ('<?xml version="1.0"?><!DOCTYPE c [<!ENTITY x SYSTEM "file:///%s">]>'
+                    '<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0" Serie="&x;"><cfdi:Emisor Rfc="%s" Nombre="&x;"/>'
+                    '<cfdi:Receptor Rfc="XAXX010101000"/></cfdi:Comprobante>' % (secreto.replace(os.sep, "/"), e["rfc"])).encode()
+            r = c.post(f"/api/xml/subir?emisor_id={e['id']}", headers=h, files=[("archivos", ("malo.xml", malo, "text/xml"))])
+            assert r.status_code == 200 and r.json()["invalidos"] == 1 and r.json()["nuevos"] == 0
+            # y aunque alguien quitara ese filtro, el lector no resuelve entidades
+            from pathlib import Path
+            from app.xmlsat import lector
+            filas = lector.leer_xml_filas(Path("x.xml"), "Emitido", malo)
+            assert "LLAVE-QUE-NO-DEBE-SALIR" not in str([f.datos for f in filas])
+        finally:
+            os.remove(secreto)
 
 
 def test_tamano_maximo_cache_y_compresion():

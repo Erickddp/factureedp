@@ -38,7 +38,7 @@ def armar_respaldo(zip_path: Path) -> Path:
     copia = _copia_bd()  # copia consistente aunque la app esté escribiendo (modo WAL)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for root, dirs, files in os.walk(datos):
-            dirs[:] = [d for d in dirs if d not in ("logs", "Respaldos")]  # ni registros ni respaldos dentro de respaldos
+            dirs[:] = [d for d in dirs if d not in ("logs", "Respaldos", "tmp")]  # ni registros, ni temporales, ni respaldos dentro de respaldos
             for f in files:
                 p = Path(root) / f
                 if copia and p.name.startswith(copia[1].name):  # .db, -wal, -shm: va la copia
@@ -84,10 +84,10 @@ def _una_vez_al_dia(nombre: str) -> bool:
 
 
 def tick():
-    from . import cobranza, descarga_sat, recurrentes
+    from . import cobranza, recurrentes
 
     with SessionLocal() as db:
-        for nombre, fn in (("recurrentes", recurrentes.correr_automaticas), ("sat", descarga_sat.revisar_pendientes)):
+        for nombre, fn in (("recurrentes", recurrentes.correr_automaticas),):
             try:
                 n = fn(db)
                 if n:

@@ -185,7 +185,7 @@ def test_bandeja_de_pendientes():
 def test_proveedores_recibidos_en_lista_69b():
     with TestClient(app) as c:
         h, e = _preparar(c)
-        from app.services import descarga_sat
+        from app.services import xml_indice
         from satcfdi.create.cfd import cfdi40
         from decimal import Decimal
         from test_v2 import CSD
@@ -201,16 +201,15 @@ def test_proveedores_recibidos_en_lista_69b():
         xml = DemoPac().stamp(comp).xml  # CFDI "recibido": el emisor es otro
         with SessionLocal() as db:
             from app.models import Emisor
-            descarga_sat.guardar_xml(db, db.get(Emisor, e["id"]), xml)
-            db.commit()
+            assert xml_indice.guardar_subidos(db, db.get(Emisor, e["id"]), [("recibido.xml", xml)])["nuevos"] == 1
         from app.services import clientes_io
         orig = clientes_io.listado_69b
         clientes_io.listado_69b = lambda: {"KIJ0906199R1": "Presunto"}
         try:
-            filas = c.get(f"/api/sat/cfdi?emisor_id={e['id']}&direccion=recibido&lista_69b=true", headers=h).json()
+            filas = c.get(f"/api/xml/cfdi?emisor_id={e['id']}&tipo=Recibido&lista_69b=true", headers=h).json()["filas"]
             assert any(f["lista_69b"] == "Presunto" for f in filas)
-            filas = c.get(f"/api/sat/cfdi?emisor_id={e['id']}&direccion=recibido", headers=h).json()
-            assert all(f["lista_69b"] is None for f in filas)  # sin pedirlo no se consulta nada
+            filas = c.get(f"/api/xml/cfdi?emisor_id={e['id']}&tipo=Recibido", headers=h).json()["filas"]
+            assert all("lista_69b" not in f for f in filas)  # sin pedirlo no se consulta nada
         finally:
             clientes_io.listado_69b = orig
 

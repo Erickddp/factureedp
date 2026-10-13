@@ -1,12 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ImageUp, KeyRound, Trash2 } from "lucide-react";
+import { ImageUp, Trash2 } from "lucide-react";
 import { useEmisor } from "@/components/emisor-context";
-import { Badge, Button, Field, Input, Interruptor, PageHeader, Vacio, cx } from "@/components/ui";
+import { Button, Field, Input, Interruptor, PageHeader, Vacio, cx } from "@/components/ui";
 import { api } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
-import { fecha } from "@/lib/format";
 import type { Emisor } from "@/lib/types";
 
 const COLORES = ["#111111", "#3149e0", "#0a7c66", "#8a1c1c", "#6b3fa0", "#b35c00", "#334155"];
@@ -49,7 +48,7 @@ export default function Marca() {
 
   return (
     <>
-      <PageHeader title="Marca, nómina y e.firma">
+      <PageHeader title="Marca y nómina">
         <Button variant="primario" onClick={guardar} loading={cargando}>Guardar cambios</Button>
       </PageHeader>
       <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
@@ -108,42 +107,8 @@ export default function Marca() {
             hint="Cada lunes manda estado de cuenta a los clientes con facturas vencidas (máximo uno por semana)." />
         </section>
 
-        <Fiel emisor={emisor} ok={recargar} />
       </div>
     </>
   );
 }
 
-function Fiel({ emisor, ok }: { emisor: Emisor; ok: () => void }) {
-  const [cer, setCer] = useState<File | null>(null);
-  const [key, setKey] = useState<File | null>(null);
-  const [pwd, setPwd] = useState("");
-  const [cargando, setCargando] = useState(false);
-  const subir = async () => {
-    if (!cer || !key || !pwd) return toast.error("Falta el .cer, el .key o la contraseña de la e.firma.");
-    const fd = new FormData();
-    fd.append("cer", cer); fd.append("key", key); fd.append("password", pwd);
-    setCargando(true);
-    try {
-      await api(`/sat/fiel/${emisor.id}`, { method: "POST", body: fd });
-      toast.success("e.firma guardada (cifrada)");
-      setPwd("");
-      ok();
-    } catch (e) { mostrarError(e); } finally { setCargando(false); }
-  };
-  return (
-    <section className="flex flex-col gap-4 rounded-2xl bg-hoja p-5 ring-1 ring-linea">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 font-semibold"><KeyRound className="size-4" /> e.firma para descarga SAT</h2>
-        {emisor.fiel_vence ? <Badge tono="sello">Vence {fecha(emisor.fiel_vence)}</Badge> : <Badge>Sin cargar</Badge>}
-      </div>
-      <p className="text-xs text-grafito">Sólo se usa para descargar CFDI del SAT. Nunca para sellar facturas. Se guarda cifrada con la llave de tu .env.</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Certificado (.cer)"><Input type="file" accept=".cer" onChange={(e) => setCer(e.target.files?.[0] ?? null)} /></Field>
-        <Field label="Llave privada (.key)"><Input type="file" accept=".key" onChange={(e) => setKey(e.target.files?.[0] ?? null)} /></Field>
-        <Field label="Contraseña" className="sm:col-span-2"><Input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} onKeyDown={(e) => e.key === "Enter" && subir()} /></Field>
-      </div>
-      <Button className="self-start" onClick={subir} loading={cargando}>Guardar e.firma</Button>
-    </section>
-  );
-}

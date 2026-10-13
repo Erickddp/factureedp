@@ -1,50 +1,51 @@
 "use client";
-/** Descarga SAT: portada que manda a la app de descarga y administración de XML (vive aparte). */
+/** XML del SAT: descargar con la e.firma (que no se guarda), ver lo descargado y los números que salen de esos XML. */
+import { useCallback, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, FileUp } from "lucide-react";
+import { BarChart3, CloudDownload } from "lucide-react";
+import { useEmisor } from "@/components/emisor-context";
+import { Vacio, cx } from "@/components/ui";
+import { Comprobantes } from "@/components/xml/comprobantes";
+import { Datos } from "@/components/xml/datos";
+import { Descargar } from "@/components/xml/descargar";
 
-// Dirección de la app de XML. Cámbiala aquí cuando quede publicada.
-const URL_XML = "https://xml.erickddp.com";
-// Se abre en la misma pestaña y le dice a la otra app de dónde vienes, para que muestre «Volver a Timbra».
-const ENLACE = `${URL_XML}/?desde=timbra`;
+type Pestana = "descargar" | "datos";
 
-const HOJAS = [
-  { t: "Recibidos", s: "CFDI de tus proveedores", c: "hoja-a" },
-  { t: "Emitidos", s: "Todo lo que has facturado", c: "hoja-b" },
-  { t: "Conciliación", s: "SAT contra tu contabilidad", c: "hoja-c" },
-];
+export default function XmlSat() {
+  const { emisor } = useEmisor();
+  const [pestana, setPestana] = useState<Pestana>("descargar");
+  const [version, setVersion] = useState(0);  // sube cada vez que entran XML nuevos: refresca tabla y gráficas
+  const refrescar = useCallback(() => setVersion((v) => v + 1), []);
 
-export default function DescargaSat() {
+  if (!emisor)
+    return <Vacio titulo="Da de alta el RFC con el que vas a trabajar"><Link href="/emisores" className="text-cobalto underline">Ir a Emisores</Link></Vacio>;
+
   return (
-    <div className="portada-xml relative grid min-h-[calc(100dvh-7rem)] place-items-center overflow-hidden rounded-3xl bg-primario px-6 py-14 text-center text-sobre-primario">
-      <div aria-hidden className="portada-brillo" />
-      <div className="relative z-10 flex max-w-xl flex-col items-center">
-        <div aria-hidden className="escena-xml mb-12">
-          <div className="pila-xml">
-            {HOJAS.map((h) => (
-              <div key={h.t} className={`hoja-xml ${h.c}`}>
-                <span className="font-mono text-[10px] tracking-widest opacity-60">&lt;cfdi:Comprobante&gt;</span>
-                <b className="mt-1 block text-sm text-tinta">{h.t}</b>
-                <span className="block text-[11px] text-grafito">{h.s}</span>
-                <i /><i /><i />
-              </div>
-            ))}
-          </div>
-        </div>
-        <p className="text-[11px] font-medium uppercase tracking-[.2em] opacity-60">Descarga y administración de XML</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-[40px] sm:leading-[1.1]">Tus XML del SAT, en un solo lugar</h1>
-        <p className="mt-4 max-w-md text-sm opacity-75">
-          La descarga masiva, el resguardo y la conciliación de tus CFDI viven en su propia aplicación. Entra con un clic.
-        </p>
-        <a href={ENLACE} className="boton-xml group mt-9 inline-flex h-14 items-center gap-3 rounded-2xl bg-acento px-8 text-base font-semibold text-white">
-          Abrir Descarga XML SAT
-          <ArrowUpRight className="size-5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-        </a>
-        <p className="mt-3 font-mono text-xs opacity-50">{URL_XML.replace("https://", "")}</p>
-        <Link href="/sat/importar" className="mt-10 inline-flex items-center gap-2 text-sm opacity-70 underline-offset-4 hover:underline hover:opacity-100">
-          <FileUp className="size-4" /> Subir XML que ya tengo y conciliar aquí
-        </Link>
+    <>
+      <div className="mb-5">
+        <p className="text-[11px] font-medium uppercase tracking-[.16em] text-grafito">XML del SAT</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{emisor.nombre}</h1>
+        <p className="font-mono text-sm text-grafito">{emisor.rfc}</p>
       </div>
-    </div>
+      <div role="tablist" className="mb-7 grid grid-cols-2 gap-2 rounded-3xl bg-hoja p-2 ring-1 ring-linea">
+        {([["descargar", "Descargar", "Baja del SAT o lee tus XML", CloudDownload], ["datos", "Datos", "Gráficas y números de esos XML", BarChart3]] as const).map(([id, texto, sub, Icono]) => (
+          <button key={id} role="tab" aria-selected={pestana === id} onClick={() => setPestana(id)}
+            className={cx("flex h-[72px] items-center justify-center gap-3.5 rounded-2xl px-4 text-left transition-[background,color,box-shadow] duration-150",
+              pestana === id ? "bg-acento text-white shadow-boton" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
+            <Icono className="size-8 shrink-0" strokeWidth={1.75} />
+            <span><span className="block text-xl font-semibold leading-tight">{texto}</span><span className={cx("hidden text-xs sm:block", pestana === id ? "opacity-85" : "opacity-70")}>{sub}</span></span>
+          </button>
+        ))}
+      </div>
+
+      {pestana === "descargar" ? (
+        <div className="grid gap-8">
+          <Descargar emisor={emisor} alCambiar={refrescar} />
+          <Comprobantes emisor={emisor} version={version} />
+        </div>
+      ) : (
+        <Datos emisor={emisor} version={version} />
+      )}
+    </>
   );
 }

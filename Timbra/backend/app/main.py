@@ -15,7 +15,7 @@ from .config import EN_WEB, settings
 from .db import SessionLocal, engine
 from .models import Addenda
 from .routers import (addendas, auth, catalogos, clientes, cobranza, correo, dashboard, debug, emisores, facturas, nomina,
-                      claves, lotes, pacs, pendientes, plantillas, portal, productos, sat, terceros)
+                      claves, lotes, pacs, pendientes, plantillas, portal, productos, xml, terceros)
 from .services import almacen
 from .services.addenda import SEMILLAS
 
@@ -50,6 +50,18 @@ async def lifespan(app: FastAPI):
         from .services import lotes as lotes_svc
         if lotes_svc.recuperar_interrumpidas(db):
             log.warning("Había filas de lote a medio timbrar: quedaron marcadas para revisión")
+        from .services import xml_indice, xml_trabajos
+        xml_trabajos.recuperar_interrumpidos()  # la e.firma vive en memoria: tras reiniciar hay que volver a ponerla
+        try:
+            pasados = xml_indice.importar_heredados(db)
+            if pasados:
+                log.info("XML del módulo SAT anterior pasados al nuevo: %s", pasados)
+            completos = xml_indice.completar_nomina(db)
+            if completos:
+                log.info("Recibos de nómina con su detalle leído: %s", completos)
+        except Exception:
+            db.rollback()
+            log.exception("No se pudieron pasar los XML del módulo SAT anterior")
         auth.asegurar_admin(db)
         ya = {n for (n,) in db.query(Addenda.nombre)}  # las básicas que falten (sin tocar las que editaste)
         faltan = [Addenda(**s) for s in SEMILLAS if s["nombre"] not in ya]
@@ -70,14 +82,14 @@ async def lifespan(app: FastAPI):
 
 
 # En internet la documentación interactiva de la API no se publica: es el mapa completo para quien busca por dónde entrar.
-app = FastAPI(title="Timbra API", version="2.9.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan,
+app = FastAPI(title="Timbra API", version="2.12.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan,
               docs_url=None if EN_WEB else "/docs", redoc_url=None, openapi_url=None if EN_WEB else "/openapi.json")
 app.add_middleware(GZipMiddleware, minimum_size=1024)  # pantallas y respuestas grandes viajan comprimidas (3-4 veces menos)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
                    allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
 for r in (auth, pacs, emisores, clientes, productos, plantillas, addendas, facturas, catalogos, dashboard, debug,
-          nomina, sat, cobranza, portal, terceros, lotes, claves, pendientes, correo):
+          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo):
     app.include_router(r.router, prefix="/api")
 app.include_router(portal.publico, prefix="/api")  # autofactura: sin login
 
@@ -86,7 +98,7 @@ MAX_CUERPO = 25 * 1024 * 1024  # nada legítimo pesa más: un ZIP de XML, un Exc
 # Qué puede cargar y a dónde puede hablar la página: sólo este mismo sitio. Un script inyectado no puede traer código de
 # fuera ni mandar datos a otro servidor. (Next necesita 'unsafe-inline' para sus scripts de arranque.)
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
-       "font-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+       "font-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'self' blob:; base-uri 'self'; "
        "form-action 'self'; frame-ancestors 'none'")
 
 

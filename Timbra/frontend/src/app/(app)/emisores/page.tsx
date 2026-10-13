@@ -89,7 +89,7 @@ export default function Emisores() {
                   <Button size="sm" onClick={() => setCsd(e)}><KeyRound className="size-4" /> {e.no_certificado ? "Renovar CSD" : "Subir CSD"}</Button>
                   <Button size="sm" variant="fantasma" onClick={() => setEdit({ ...vacio, rfc: e.rfc, nombre: e.nombre, regimen_fiscal: e.regimen_fiscal,
                     lugar_expedicion: e.lugar_expedicion, email: e.email ?? "", pac_id: e.pac_id ?? "", region_fronteriza: !!e.region_fronteriza, id: e.id })}>Editar</Button>
-                  <Link href="/marca" onClick={() => setEmisorId(e.id)}><Button size="sm" variant="fantasma"><Palette className="size-4" /> Marca, nómina y e.firma</Button></Link>
+                  <Link href="/marca" onClick={() => setEmisorId(e.id)}><Button size="sm" variant="fantasma"><Palette className="size-4" /> Marca y nómina</Button></Link>
                 </div>
                 <div className="mt-4 flex justify-end border-t border-linea pt-3">
                   <button onClick={() => { setRfcEscrito(""); setBorrar(e); }}
