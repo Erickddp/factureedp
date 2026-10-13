@@ -220,6 +220,18 @@ class Usuario(Base):
     creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
+class AccesoSoporte(Base):
+    """Cada vez que el administrador entra a la cuenta de alguien para darle soporte. El dueño de la cuenta lo ve."""
+    __tablename__ = "accesos_soporte"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    admin_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    motivo: Mapped[str | None] = mapped_column(String(200))
+    ip: Mapped[str | None] = mapped_column(String(60))
+    inicio: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    hasta: Mapped[datetime] = mapped_column(DateTime)  # el permiso vence solo
+
+
 class Empleado(Base):
     """Trabajador o asimilado. `receta` = percepciones/deducciones de cada periodo (se ajustan al timbrar)."""
     __tablename__ = "empleados"

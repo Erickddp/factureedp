@@ -49,10 +49,12 @@ def test_cada_cuenta_ve_solo_lo_suyo():
         ea = _emisor(c, ha, rfc_moral(41), "EMPRESA DE ANA")
         eb = _emisor(c, hb, rfc_moral(42), "EMPRESA DE BETO")
 
-        # Listas: cada quien lo suyo; el admin, todo
+        # Listas: cada quien lo suyo; el administrador TAMBIÉN (para ver lo de otro entra en modo soporte)
         assert {e["rfc"] for e in c.get("/api/emisores", headers=ha).json()} == {ea["rfc"]}
         assert {e["rfc"] for e in c.get("/api/emisores", headers=hb).json()} == {eb["rfc"]}
-        assert {ea["rfc"], eb["rfc"], e_admin["rfc"]} <= {e["rfc"] for e in c.get("/api/emisores", headers=admin).json()}
+        del_admin = {e["rfc"] for e in c.get("/api/emisores", headers=admin).json()}
+        assert e_admin["rfc"] in del_admin and not ({ea["rfc"], eb["rfc"]} & del_admin)
+        assert c.get(f"/api/emisores/{ea['id']}", headers=admin).status_code == 404
 
         # Ana da de alta un cliente
         cli = c.post("/api/clientes", headers=ha, json={"emisor_id": ea["id"], "rfc": rfc_de_prueba(51), "nombre": "CLIENTE DE ANA",
@@ -131,3 +133,55 @@ def test_google_entra_vincula_y_no_abre_registro(monkeypatch):
         assert c.delete("/api/auth/google", headers=ha).json()["google_email"] is None
         with SessionLocal() as db:
             assert db.query(Usuario).filter_by(email="persona@gmail.com").first() is None  # no se creó cuenta sola
+
+
+def test_modo_soporte_el_admin_entra_a_una_cuenta_de_forma_explicita_y_queda_registrado():
+    with TestClient(app) as c:
+        admin, e_admin = _preparar(c)
+        ha = _usuario(c, admin, "ana@cuentas.mx", "ana.cuentas")
+        hb = _usuario(c, admin, "beto@cuentas.mx", "beto.cuentas")
+        ea = _emisor(c, ha, rfc_moral(41), "EMPRESA DE ANA")
+        ana = next(u for u in c.get("/api/auth/usuarios", headers=admin).json() if u["usuario"] == "ana.cuentas")
+        beto = next(u for u in c.get("/api/auth/usuarios", headers=admin).json() if u["usuario"] == "beto.cuentas")
+        como_ana = {**admin, "X-Soporte": str(ana["id"])}
+
+        # sin haber entrado en modo soporte, el encabezado solo no abre nada
+        assert c.get("/api/emisores", headers=como_ana).status_code == 403
+        # un usuario normal no puede hacerse pasar por soporte
+        assert c.post(f"/api/auth/soporte/{ana['id']}", headers=hb, json={}).status_code == 403
+        assert c.get("/api/emisores", headers={**hb, "X-Soporte": str(ana["id"])}).status_code == 403
+
+        r = c.post(f"/api/auth/soporte/{ana['id']}", headers=admin, json={"motivo": "No le sale el CSD"})
+        assert r.status_code == 200 and r.json()["email"] == "ana@cuentas.mx"
+        # ahora ve EXACTAMENTE lo de Ana (no lo suyo ni lo de Beto) y puede ayudarle
+        assert {e["rfc"] for e in c.get("/api/emisores", headers=como_ana).json()} == {ea["rfc"]}
+        cli = c.post("/api/clientes", headers=como_ana, json={"emisor_id": ea["id"], "rfc": rfc_de_prueba(77), "nombre": "ALTA HECHA POR SOPORTE",
+                                                              "regimen_fiscal": "612", "codigo_postal": "42501", "uso_cfdi": "G03"})
+        assert cli.status_code == 200, cli.text
+        assert c.post("/api/clientes", headers=como_ana, json={"emisor_id": e_admin["id"], "rfc": rfc_de_prueba(78), "nombre": "X",
+                                                               "regimen_fiscal": "612", "codigo_postal": "42501", "uso_cfdi": "G03"}).status_code == 403
+        # lo que soporte da de alta queda a nombre de Ana, no del administrador
+        nuevo = c.post("/api/emisores", headers=como_ana, json={"rfc": rfc_moral(47), "nombre": "SEGUNDA DE ANA", "regimen_fiscal": "601", "lugar_expedicion": "42501"})
+        assert nuevo.status_code == 200, nuevo.text
+        assert nuevo.json()["rfc"] in {e["rfc"] for e in c.get("/api/emisores", headers=ha).json()}
+        assert nuevo.json()["rfc"] not in {e["rfc"] for e in c.get("/api/emisores", headers=admin).json()}
+        # el permiso es para ESA cuenta: no sirve para la de Beto
+        assert c.get("/api/emisores", headers={**admin, "X-Soporte": str(beto["id"])}).status_code == 403
+        # Ana ve quién entró, cuándo y por qué
+        vistos = c.get("/api/auth/soporte/accesos", headers=ha).json()
+        assert vistos and vistos[0]["motivo"] == "No le sale el CSD" and vistos[0]["quien"]
+        assert c.get("/api/auth/soporte/accesos", headers=hb).json() == []
+        # al salir (o al vencer) deja de ver
+        assert c.delete(f"/api/auth/soporte/{ana['id']}", headers=admin).status_code == 200
+        assert c.get("/api/emisores", headers=como_ana).status_code == 403
+        assert {e["rfc"] for e in c.get("/api/emisores", headers=admin).json()} >= {e_admin["rfc"]}
+        # y vence solo
+        from datetime import datetime, timedelta
+        from app.models import AccesoSoporte
+        c.post(f"/api/auth/soporte/{ana['id']}", headers=admin, json={})
+        with SessionLocal() as db:
+            for a in db.query(AccesoSoporte):
+                a.hasta = datetime.now() - timedelta(minutes=1)
+            db.commit()
+        assert c.get("/api/emisores", headers=como_ana).status_code == 403
+        assert c.delete(f"/api/emisores/{nuevo.json()['id']}?confirmar={nuevo.json()['rfc']}", headers=ha).status_code == 200

@@ -9,7 +9,7 @@ import {
   LayoutDashboard, LayoutTemplate, ListChecks, LogOut, Menu as MenuIcon, Monitor, Moon, Package, Palette, ChevronLeft, ChevronRight, Plug, QrCode,
   ReceiptText, Repeat, ScanSearch, Settings, Stamp, Sun, Table2, Terminal, Users, X, Zap, FolderOpen, Send, Wallet,
 } from "lucide-react";
-import { api, fetcher, getToken, reportarNavegador, setToken } from "@/lib/api";
+import { api, fetcher, getSoporte, getToken, reportarNavegador, setSoporte, setToken, type Soporte } from "@/lib/api";
 import { consola, useConsola } from "@/lib/debug";
 import { mostrarError } from "@/lib/errores";
 import { tema, useTema } from "@/lib/tema";
@@ -165,6 +165,7 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
   const desconectarGoogle = async () => {
     try { cambio(await api<Yo>("/auth/google", { method: "DELETE" })); toast.success("Google desconectado"); } catch (e) { mostrarError(e); }
   };
+  const { data: accesos = [] } = useSWR<{ cuando: string; quien: string; motivo: string | null }[]>(abierto ? "/auth/soporte/accesos" : null, fetcher);
   const dato = (k: string, v: React.ReactNode) => <div className="flex justify-between gap-3 py-1.5 text-sm"><dt className="text-grafito">{k}</dt><dd className="min-w-0 truncate text-right">{v}</dd></div>;
   return (
     <Modal open={abierto} onClose={cerrar} title="Mi perfil"
@@ -193,6 +194,16 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
           {emisor && dato("Timbrado", emisor.modo_demo ? <span className="text-alerta">Modo demo (sin PAC)</span> : "Con PAC")}
           {dato("Tema", <button className="underline" onClick={() => tema.siguiente()}>{t === "oscuro" ? "Oscuro" : t === "claro" ? "Claro" : "Como el sistema"}</button>)}
         </dl>
+        {accesos.length > 0 && (
+          <div className="rounded-xl px-4 py-3 text-sm ring-1 ring-linea">
+            <p className="mb-1.5 font-medium">Soporte ha entrado a tu cuenta</p>
+            <ul className="grid gap-1 text-grafito">
+              {accesos.slice(0, 5).map((a, i) => (
+                <li key={i}>{new Date(a.cuando).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {a.quien}{a.motivo ? ` · ${a.motivo}` : ""}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="grid gap-2">
           <span className="text-[13px] font-medium text-grafito">Cambiar contraseña</span>
           <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
@@ -354,6 +365,25 @@ function Marca({ riel }: { riel?: boolean }) {
   );
 }
 
+/** Modo soporte: siempre a la vista de quién es la cuenta que se está viendo, y la salida a un clic. */
+function BandaSoporte() {
+  const [s, setS] = useState<Soporte | null>(null);
+  useEffect(() => setS(getSoporte()), []);
+  if (!s) return null;
+  const salir = async () => {
+    try { await api(`/auth/soporte/${s.id}`, { method: "DELETE" }); } catch {}
+    setSoporte(null);
+    window.location.href = "/ajustes/";
+  };
+  return (
+    <div className="sticky top-2 z-30 mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-rojo px-4 py-2.5 text-sm text-white shadow-flotante">
+      <AlertTriangle className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1"><b>Modo soporte.</b> Estás dentro de la cuenta de <b>{s.nombre}</b> ({s.email}). Lo que hagas queda en su cuenta.</span>
+      <button onClick={salir} className="rounded-lg bg-white/15 px-3 py-1 font-medium hover:bg-white/25">Salir de su cuenta</button>
+    </div>
+  );
+}
+
 /** Lo que no puede esperar: timbres por acabarse y recurrentes del día. Discreto, arriba del contenido. */
 function Avisos() {
   const { emisor } = useEmisor();
@@ -448,6 +478,7 @@ function Marco({ children }: { children: React.ReactNode }) {
           </button>
         </header>
         <main key={path} className="mx-auto w-full min-w-0 max-w-[1280px] flex-1 px-4 py-6 animate-entrar sm:px-6 lg:px-10 lg:py-8">
+          <BandaSoporte />
           <Avisos />
           {children}
         </main>

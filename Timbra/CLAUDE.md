@@ -279,5 +279,7 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - Intentos de acceso: tope por (equipo, cuenta), por equipo y por cuenta. Nunca sólo por cuenta: dejaría fuera al dueño.
 - En web: sin `/docs` ni `/openapi.json`, CSP y Permissions-Policy en las pantallas, `no-store` en `/api`, tope de 25 MB por
   envío, y NO se guarda la e.firma (`/sat/fiel` responde 409). gzip y caché inmutable para `/_next/static`.
-- Pendiente de decidir con el usuario (fase 2): el administrador ve los datos de TODAS las cuentas.
+- **Modo soporte (2.10):** el administrador ve SÓLO lo suyo. Para ayudar a una cuenta entra con `POST /auth/soporte/{id}`
+  (2 horas, queda en `accesos_soporte` y el dueño lo ve en su perfil); las peticiones llevan `X-Soporte` y `db._identificar`
+  exige un acceso vigente. Lo que soporte crea queda a nombre de la cuenta atendida. tests/test_w1_cuentas.py.
 - tests/test_w5_seguridad.py.

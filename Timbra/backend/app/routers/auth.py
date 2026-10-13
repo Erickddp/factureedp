@@ -143,11 +143,64 @@ def cambiar(data: CambioIn, email: str = Depends(current_user), db: Session = De
     return {"ok": True, "token": create_token(u.email, u.password_hash)}
 
 
+# ---------------------------------------------------------------- modo soporte
+SOPORTE_HORAS = 2
+
+
+class SoporteIn(BaseModel):
+    motivo: str | None = None
+
+
+@router.post("/soporte/{uid}", dependencies=[Depends(solo_admin)])
+def soporte_entrar(uid: int, data: SoporteIn, request: Request, email: str = Depends(current_user), db: Session = Depends(get_db)):
+    """El administrador entra a la cuenta de alguien para ayudarle. Queda anotado y el dueño de la cuenta lo ve."""
+    from datetime import datetime, timedelta
+
+    from ..models import AccesoSoporte
+    yo, u = _actual(db, email), db.get(Usuario, uid)
+    if not u or not u.activo:
+        raise HTTPException(404, "Esa cuenta no existe o está desactivada.")
+    if u.id == yo.id:
+        raise HTTPException(422, "Ésa es tu propia cuenta.")
+    ahora = datetime.now()
+    acc = AccesoSoporte(admin_id=yo.id, usuario_id=u.id, motivo=(data.motivo or "").strip()[:200] or None,
+                        ip=request.client.host if request.client else None, inicio=ahora, hasta=ahora + timedelta(hours=SOPORTE_HORAS))
+    db.add(acc)
+    db.commit()
+    log.warning("MODO SOPORTE: %s entró a la cuenta de %s (%s)", yo.email, u.email, acc.motivo or "sin motivo")
+    return {"id": u.id, "email": u.email, "nombre": u.nombre or u.usuario or u.email, "hasta": acc.hasta}
+
+
+@router.delete("/soporte/{uid}", dependencies=[Depends(solo_admin)])
+def soporte_salir(uid: int, email: str = Depends(current_user), db: Session = Depends(get_db)):
+    from datetime import datetime
+
+    from ..models import AccesoSoporte
+    yo, ahora = _actual(db, email), datetime.now()
+    for acc in db.query(AccesoSoporte).filter(AccesoSoporte.admin_id == yo.id, AccesoSoporte.usuario_id == uid, AccesoSoporte.hasta > ahora):
+        acc.hasta = ahora
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/soporte/accesos")
+def soporte_accesos(email: str = Depends(current_user), db: Session = Depends(get_db)):
+    """Las veces que soporte ha entrado a MI cuenta (transparencia para el dueño)."""
+    from ..models import AccesoSoporte
+    yo = _actual(db, email)
+    nombres = {u.id: u.nombre or u.email for u in db.query(Usuario)}
+    return [{"cuando": a.inicio, "hasta": a.hasta, "quien": nombres.get(a.admin_id, "Soporte"), "motivo": a.motivo}
+            for a in db.query(AccesoSoporte).filter_by(usuario_id=yo.id).order_by(AccesoSoporte.id.desc()).limit(30)]
+
+
 @router.get("/usuarios", dependencies=[Depends(solo_admin)])
 def usuarios(db: Session = Depends(get_db)):
+    from sqlalchemy import select
+
     from ..models import Emisor
     emisores: dict[int, int] = {}
-    for (uid,) in db.query(Emisor.usuario_id):
+    # conteo directo en la tabla: el administrador ya no ve los emisores ajenos, sólo cuántos tiene cada cuenta
+    for (uid,) in db.execute(select(Emisor.__table__.c.usuario_id)):
         emisores[uid] = emisores.get(uid, 0) + 1
     return [{"id": u.id, "email": u.email, "usuario": u.usuario, "nombre": u.nombre, "admin": u.admin, "activo": u.activo,
              "google": bool(u.google_sub), "emisores": emisores.get(u.id, 0)}

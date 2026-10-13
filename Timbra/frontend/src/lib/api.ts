@@ -16,6 +16,17 @@ export function setToken(t: string | null) {
   else localStorage.removeItem("timbra_token");
 }
 
+// Modo soporte: el administrador atiende la cuenta de alguien. Vive sólo en esta pestaña (al cerrarla se sale) y el
+// servidor lo vuelve a comprobar en cada petición: sin un acceso registrado y vigente, este dato no abre nada.
+export type Soporte = { id: number; email: string; nombre: string };
+export function getSoporte(): Soporte | null {
+  if (typeof window === "undefined") return null;
+  try { return JSON.parse(window.sessionStorage.getItem("timbra_soporte") || "null"); } catch { return null; }
+}
+export function setSoporte(s: Soporte | null) {
+  try { if (s) sessionStorage.setItem("timbra_soporte", JSON.stringify(s)); else sessionStorage.removeItem("timbra_soporte"); } catch {}
+}
+
 // En tu PC el servidor y las pantallas viven juntos ("/api"). En web separada (Vercel + Railway) se pone
 // NEXT_PUBLIC_API_URL con la dirección del servidor, p. ej. https://timbra.up.railway.app
 export const API = `${(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "")}/api`;
@@ -26,6 +37,8 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   const headers = new Headers(init.headers);
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  const soporte = getSoporte();
+  if (soporte && !path.startsWith("/auth")) headers.set("X-Soporte", String(soporte.id));
   let body = init.body;
   if (init.json !== undefined) {
     headers.set("Content-Type", "application/json");
@@ -56,6 +69,10 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
       msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
       traza = j.traza;
     } catch {}
+    if (res.status === 403 && soporte && msg.includes("modo soporte") && typeof window !== "undefined") {
+      setSoporte(null); // venció: se regresa a la cuenta propia
+      window.location.href = "/ajustes/";
+    }
     consola.red({ metodo, ruta: path, estado: res.status, ms, req, error: msg });
     throw new ApiError(res.status, msg, req, traza);
   }
@@ -70,7 +87,8 @@ export const fetcher = (path: string): Promise<any> => api(path);
 /** Descarga un archivo autenticado (XML/PDF/ZIP). Si llega HTML (sin PDF en el servidor) lo abre para imprimir. */
 export async function descargar(path: string, nombre: string) {
   const t0 = performance.now();
-  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  const s = getSoporte();
+  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${getToken()}`, ...(s ? { "X-Soporte": String(s.id) } : {}) } });
   const req = res.headers.get("x-request-id") ?? undefined;
   consola.red({ metodo: "GET", ruta: path, estado: res.status, ms: Math.round(performance.now() - t0), req });
   if (!res.ok) {

@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { Download, ExternalLink, Plus } from "lucide-react";
 import { mostrarError } from "@/lib/errores";
-import { api, descargar, fetcher, setToken } from "@/lib/api";
+import { api, descargar, fetcher, setSoporte, setToken } from "@/lib/api";
 import type { Addenda, Pac } from "@/lib/types";
 import { useEmisor } from "@/components/emisor-context";
 import { consola } from "@/lib/debug";
@@ -351,18 +351,28 @@ function Usuarios() {
       mostrarError(e);
     }
   };
+  const darSoporte = async (u: UsuarioFila) => {
+    const motivo = window.prompt(`Vas a entrar a la cuenta de ${u.usuario || u.email} en modo soporte.\nVerás y podrás cambiar sus emisores, clientes y facturas durante 2 horas, y quedará registrado en su perfil.\n\n¿Qué vas a revisar? (opcional)`, "");
+    if (motivo === null) return;
+    try {
+      const r = await api<{ id: number; email: string; nombre: string }>(`/auth/soporte/${u.id}`, { method: "POST", json: { motivo } });
+      setSoporte({ id: r.id, email: r.email, nombre: r.nombre });
+      window.location.href = "/";
+    } catch (e) { mostrarError(e); }
+  };
   return (
     <section className="mt-10 grid gap-4 md:grid-cols-2">
       {yo?.admin && (
         <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
           <h2 className="text-lg font-semibold">Cuentas</h2>
-          <p className="mb-3 text-sm text-grafito">Cada cuenta ve sólo sus propios emisores, clientes y facturas. Tú, como administrador, ves todo.</p>
+          <p className="mb-3 text-sm text-grafito">Cada cuenta ve sólo sus propios emisores, clientes y facturas; tú también. Para ayudar a alguien usa «Dar soporte»: entras a su cuenta por 2 horas y esa persona ve en su perfil que entraste.</p>
           <ul className="mb-4 text-sm">
             {data.map((u) => (
               <li key={u.id} className={cx("flex flex-wrap items-center gap-2 border-b border-linea py-2 last:border-0", !u.activo && "opacity-50")}>
                 <span className="min-w-0 flex-1"><b className="font-medium">{u.usuario || u.email}</b>{u.usuario && <span className="text-grafito"> · {u.email}</span>}
                   <span className="block text-xs text-grafito">{u.emisores} {u.emisores === 1 ? "emisor" : "emisores"}{u.google ? " · Google conectado" : ""}</span></span>
                 {u.admin && <Badge tono="cobalto">admin</Badge>}
+                {u.email !== yo.email && u.activo && <button className="text-xs font-medium text-cobalto underline hover:text-tinta" onClick={() => darSoporte(u)}>Dar soporte</button>}
                 {u.email !== yo.email && <button className="text-xs text-grafito underline hover:text-tinta" onClick={() => activar(u)}>{u.activo ? "Desactivar" : "Activar"}</button>}
               </li>
             ))}

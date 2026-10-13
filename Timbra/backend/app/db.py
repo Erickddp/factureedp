@@ -32,7 +32,9 @@ class Base(DeclarativeBase):
 #   · toda lectura de Emisor y Pac se limita a los de ese usuario,
 #   · toda lectura de cualquier tabla con `emisor_id` (clientes, facturas, productos, lotes…) se limita a sus emisores,
 #   · antes de guardar se verifica que no escriba en un emisor o PAC ajeno (403).
-# Sin `uid` no hay límite: administrador, tareas en segundo plano (lotes, programador) y el portal público de autofactura.
+# Sin `uid` no hay límite: sólo tareas en segundo plano (lotes, programador) y el portal público de autofactura.
+# El ADMINISTRADOR también ve sólo lo suyo. Para ayudar a alguien entra en «modo soporte» a ESA cuenta (encabezado
+# X-Soporte): es explícito, vence solo y queda registrado en `accesos_soporte`, que el dueño de la cuenta puede ver.
 # tests/test_w1_cuentas.py lo vigila.
 # ======================================================================================================================
 def _modelos():
@@ -71,7 +73,7 @@ def _no_escribir_en_lo_ajeno(session, _ctx, _instancias):
     for o in list(session.new) + list(session.dirty):
         if isinstance(o, (models.Emisor, models.Pac)):
             if o.usuario_id is None:
-                o.usuario_id = real  # lo nuevo es de quien lo crea
+                o.usuario_id = uid or real  # lo nuevo es de quien lo crea (en modo soporte, de la cuenta atendida)
             elif uid is not None and o.usuario_id != uid:
                 raise HTTPException(403, "Ese registro es de otra cuenta.")
             if uid is not None and isinstance(o, models.Emisor) and o.pac_id is not None:
@@ -108,8 +110,18 @@ def _identificar(db, request: Request | None):
         raise HTTPException(401, "La contraseña de esta cuenta cambió. Vuelve a entrar.")
     db.info["uid_real"] = fila.id
     db.info["es_admin"] = bool(fila.admin)
-    if not fila.admin:
-        db.info["uid"] = fila.id
+    db.info["uid"] = fila.id
+    atendido = (request.headers.get("x-soporte") or "").strip()
+    if atendido:
+        from datetime import datetime
+
+        from .models import AccesoSoporte
+        a = AccesoSoporte.__table__
+        if not (fila.admin and atendido.isdigit()) or db.execute(
+                select(a.c.id).where(a.c.admin_id == fila.id, a.c.usuario_id == int(atendido), a.c.hasta > datetime.now())).first() is None:
+            raise HTTPException(403, "El modo soporte no está activo o ya venció. Vuelve a entrar desde Cuentas.")
+        db.info["uid"] = int(atendido)
+        db.info["soporte"] = True
 
 
 def get_db(request: Request = None):  # type: ignore[assignment]
