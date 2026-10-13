@@ -5,10 +5,14 @@ Cada cadena comercial (Walmart, Soriana, Liverpool, Chedraui, Amazon, Pemex, CFE
 publica su propio XSD/manual. Aquí se guarda como plantilla Jinja2 editable,
 con los campos que el usuario llena al facturar.
 """
-from jinja2 import Environment, StrictUndefined
+from jinja2 import StrictUndefined
+from jinja2.sandbox import SandboxedEnvironment
 from lxml import etree
 
-_env = Environment(undefined=StrictUndefined, autoescape=True)
+# Entorno aislado: una plantilla de addenda sólo acomoda datos, no puede alcanzar objetos de Python ni del servidor.
+_env = SandboxedEnvironment(undefined=StrictUndefined, autoescape=True)
+# XML sin entidades externas ni red: un XML ajeno no puede hacer que el servidor lea sus propios archivos.
+_SEGURO = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False, huge_tree=False)
 
 
 class AddendaError(Exception):
@@ -21,7 +25,7 @@ def render(plantilla: str, datos: dict, cfdi: dict) -> etree._Element:
     except Exception as e:
         raise AddendaError(f"Falta un dato de la addenda o la plantilla está mal: {e}") from e
     try:
-        return etree.fromstring(txt.strip().encode())
+        return etree.fromstring(txt.strip().encode(), _SEGURO)
     except etree.XMLSyntaxError as e:
         raise AddendaError(f"La addenda no es XML válido: {e}") from e
 

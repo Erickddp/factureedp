@@ -5,6 +5,8 @@ import { ArrowUpRight, FileUp } from "lucide-react";
 
 // Dirección de la app de XML. Cámbiala aquí cuando quede publicada.
 const URL_XML = "https://xml.erickddp.com";
+// Se abre en la misma pestaña y le dice a la otra app de dónde vienes, para que muestre «Volver a Timbra».
+const ENLACE = `${URL_XML}/?desde=timbra`;
 
 const HOJAS = [
   { t: "Recibidos", s: "CFDI de tus proveedores", c: "hoja-a" },
@@ -34,7 +36,7 @@ export default function DescargaSat() {
         <p className="mt-4 max-w-md text-sm opacity-75">
           La descarga masiva, el resguardo y la conciliación de tus CFDI viven en su propia aplicación. Entra con un clic.
         </p>
-        <a href={URL_XML} target="_blank" rel="noopener noreferrer" className="boton-xml group mt-9 inline-flex h-14 items-center gap-3 rounded-2xl bg-acento px-8 text-base font-semibold text-white">
+        <a href={ENLACE} className="boton-xml group mt-9 inline-flex h-14 items-center gap-3 rounded-2xl bg-acento px-8 text-base font-semibold text-white">
           Abrir Descarga XML SAT
           <ArrowUpRight className="size-5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
         </a>

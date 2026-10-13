@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { Download, ExternalLink, Plus } from "lucide-react";
 import { mostrarError } from "@/lib/errores";
-import { api, descargar, fetcher } from "@/lib/api";
+import { api, descargar, fetcher, setToken } from "@/lib/api";
 import type { Addenda, Pac } from "@/lib/types";
 import { useEmisor } from "@/components/emisor-context";
 import { consola } from "@/lib/debug";
@@ -343,7 +343,8 @@ function Usuarios() {
   };
   const cambiar = async () => {
     try {
-      await api("/auth/password", { method: "POST", json: pwd });
+      const r = await api<{ token?: string }>("/auth/password", { method: "POST", json: pwd });
+      if (r.token) setToken(r.token); // las sesiones abiertas en otros equipos se cierran; ésta sigue
       toast.success("Contraseña cambiada");
       setPwd({ actual: "", nueva: "" });
     } catch (e) {

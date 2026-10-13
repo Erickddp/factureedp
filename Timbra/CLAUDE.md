@@ -270,3 +270,14 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - `/api/<ruta inexistente>` responde 404 JSON (antes devolvía la pantalla de inicio con 200).
 - Las columnas `creado` llevan `default=datetime.now` (hora local; el contenedor fija TZ México). El valor por omisión de SQLite
   es UTC y de noche las pantallas mostraban la fecha de mañana.
+
+## Seguridad para producción (2.9, no la rompas)
+- Las plantillas de addenda corren en `SandboxedEnvironment` y sólo el administrador crea, edita y prueba addendas. Antes,
+  `/addendas/probar` dejaba a cualquier cuenta ejecutar código en el servidor con una plantilla Jinja.
+- Todo XML ajeno se lee sin entidades ni DTD (`addenda._SEGURO`; `importar-xml` rechaza `<!DOCTYPE`/`<!ENTITY`).
+- El token lleva la huella de la contraseña (`k`): cambiarla cierra las demás sesiones. `/auth/password` devuelve token nuevo.
+- Intentos de acceso: tope por (equipo, cuenta), por equipo y por cuenta. Nunca sólo por cuenta: dejaría fuera al dueño.
+- En web: sin `/docs` ni `/openapi.json`, CSP y Permissions-Policy en las pantallas, `no-store` en `/api`, tope de 25 MB por
+  envío, y NO se guarda la e.firma (`/sat/fiel` responde 409). gzip y caché inmutable para `/_next/static`.
+- Pendiente de decidir con el usuario (fase 2): el administrador ve los datos de TODAS las cuentas.
+- tests/test_w5_seguridad.py.

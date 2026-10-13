@@ -32,8 +32,16 @@ def decrypt(token: bytes | None) -> bytes | None:
     return _fernet().decrypt(token)
 
 
-def create_token(email: str) -> str:
+def huella_clave(password_hash: str | None) -> str:
+    """Marca corta de la contraseña vigente. Va dentro del token: al cambiar la contraseña, las sesiones abiertas en
+    otros equipos dejan de valer (no revela nada de la contraseña)."""
+    return hashlib.sha256(f"{settings.jwt_secret}|{password_hash or ''}".encode()).hexdigest()[:12]
+
+
+def create_token(email: str, password_hash: str | None = None) -> str:
     payload = {"sub": email, "exp": datetime.now(timezone.utc) + timedelta(days=7)}
+    if password_hash:
+        payload["k"] = huella_clave(password_hash)
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, Upl
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..config import EN_WEB
 from ..db import get_db
 from ..models import CfdiSat, Emisor, Factura, SolicitudSat
 from ..security import current_user
@@ -28,6 +29,9 @@ def _emisor(db, emisor_id) -> Emisor:
 async def subir_fiel(emisor_id: int, cer: UploadFile = File(...), key: UploadFile = File(...),
                      password: str = Form(...), db: Session = Depends(get_db)):
     e = _emisor(db, emisor_id)
+    if EN_WEB:  # la e.firma equivale a tu firma autógrafa: no se guarda en un servidor compartido
+        raise HTTPException(409, "En la versión web no se guarda la e.firma. La descarga del SAT se hace en la aplicación "
+                                 "de XML (xml.erickddp.com) o con Timbra instalado en tu computadora.")
     try:
         svc.cargar_fiel(e, await cer.read(), await key.read(), password)
     except CsdError as ex:
@@ -92,6 +96,9 @@ async def importar_xml(emisor_id: int, archivos: list[UploadFile] = File(...), d
         else:
             blobs = [data]
         for b in blobs:
+            if b"<!DOCTYPE" in b[:4096] or b"<!ENTITY" in b[:4096]:  # un CFDI nunca trae DTD ni entidades: es un XML armado para leer archivos
+                err += 1
+                continue
             try:
                 n += svc.guardar_xml(db, e, b)
             except Exception:

@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -68,7 +69,10 @@ async def lifespan(app: FastAPI):
     log.info("Timbra apagado")
 
 
-app = FastAPI(title="Timbra API", version="2.8.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan)
+# En internet la documentación interactiva de la API no se publica: es el mapa completo para quien busca por dónde entrar.
+app = FastAPI(title="Timbra API", version="2.9.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan,
+              docs_url=None if EN_WEB else "/docs", redoc_url=None, openapi_url=None if EN_WEB else "/openapi.json")
+app.add_middleware(GZipMiddleware, minimum_size=1024)  # pantallas y respuestas grandes viajan comprimidas (3-4 veces menos)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
                    allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
@@ -78,16 +82,26 @@ for r in (auth, pacs, emisores, clientes, productos, plantillas, addendas, factu
 app.include_router(portal.publico, prefix="/api")  # autofactura: sin login
 
 SILENCIO = ("/api/debug/logs", "/api/health", "/api/facturas/preview")
+MAX_CUERPO = 25 * 1024 * 1024  # nada legítimo pesa más: un ZIP de XML, un Excel de clientes o un CSD
+# Qué puede cargar y a dónde puede hablar la página: sólo este mismo sitio. Un script inyectado no puede traer código de
+# fuera ni mandar datos a otro servidor. (Next necesita 'unsafe-inline' para sus scripts de arranque.)
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+       "font-src 'self' data:; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+       "form-action 'self'; frame-ancestors 'none'")
 
 
 @app.middleware("http")
 async def registro(request: Request, call_next):
     """Cada petición lleva un folio (X-Request-ID) que liga el error de la pantalla con su traza."""
-    rid = request.headers.get("x-request-id") or secrets.token_hex(4)
+    rid = (request.headers.get("x-request-id") or secrets.token_hex(4))[:40]
     tok = logs.request_id.set(rid)
     t0 = time.perf_counter()
     try:
-        resp = await call_next(request)
+        largo = request.headers.get("content-length")
+        if largo and largo.isdigit() and int(largo) > MAX_CUERPO:
+            resp = JSONResponse({"detail": "El archivo es demasiado grande (máximo 25 MB). Divídelo.", "request_id": rid}, status_code=413)
+        else:
+            resp = await call_next(request)
     except Exception as e:  # error no controlado: traza completa al registro
         log.exception("Error no controlado en %s %s", request.method, request.url.path)
         from .services.errores_pac import diagnosticar
@@ -105,11 +119,20 @@ async def registro(request: Request, call_next):
     elif ruta.startswith("/api/facturas/preview") and resp.status_code >= 400:
         log.warning("%s %s → %s (%s ms)", request.method, ruta, resp.status_code, ms)
     resp.headers["X-Request-ID"] = rid
+    if ruta.startswith("/api"):
+        resp.headers.setdefault("Cache-Control", "no-store")  # datos fiscales: ni el navegador ni un proxy guardan copia
+    elif ruta.startswith("/_next/static/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"  # el nombre del archivo cambia con cada versión
+    elif resp.headers.get("content-type", "").startswith("text/html"):
+        resp.headers.setdefault("Cache-Control", "no-cache")  # la pantalla siempre es la de la versión vigente
     if EN_WEB:  # el navegador sólo usará HTTPS con este sitio, no lo incrusta nadie y no adivina tipos de archivo
         resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         resp.headers.setdefault("X-Frame-Options", "DENY")
         resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        resp.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+        if not ruta.startswith("/api"):
+            resp.headers.setdefault("Content-Security-Policy", CSP)
     logs.request_id.reset(tok)
     return resp
 

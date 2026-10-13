@@ -155,7 +155,7 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
   };
   const cambiarPwd = async () => {
     setTrabajando("pwd");
-    try { await api("/auth/password", { method: "POST", json: pwd }); setPwd({ actual: "", nueva: "" }); toast.success("Contraseña cambiada"); }
+    try { const r = await api<{ token?: string }>("/auth/password", { method: "POST", json: pwd }); if (r.token) setToken(r.token); setPwd({ actual: "", nueva: "" }); toast.success("Contraseña cambiada"); }
     catch (e) { mostrarError(e); } finally { setTrabajando(""); }
   };
   // Conectar Google: después podrás entrar con «Continuar con Google» (y será la base para Drive y Sheets)

@@ -15,7 +15,8 @@ def listar(db: Session = Depends(get_db)):
     return db.query(Addenda).order_by(Addenda.nombre).all()
 
 
-@router.post("", response_model=AddendaOut)
+# Las addendas son de toda la plataforma (las ven todas las cuentas): sólo el administrador las crea, edita y prueba.
+@router.post("", response_model=AddendaOut, dependencies=[Depends(solo_admin)])
 def crear(data: AddendaIn, db: Session = Depends(get_db)):
     a = Addenda(**data.model_dump())
     db.add(a)
@@ -34,9 +35,11 @@ def editar(addenda_id: int, data: AddendaIn, db: Session = Depends(get_db)):
     return a
 
 
-@router.post("/probar")
+@router.post("/probar", dependencies=[Depends(solo_admin)])
 def probar(data: dict):
     """Renderiza una plantilla con datos de ejemplo para validar antes de guardar."""
+    if not isinstance(data.get("plantilla"), str) or len(data["plantilla"]) > 20000:
+        raise HTTPException(422, "Falta la plantilla o es demasiado larga.")
     try:
         from lxml import etree
         el = render(data["plantilla"], data.get("datos", {}), data.get("cfdi", {"Total": "1160.00", "SubTotal": "1000.00", "Moneda": "MXN", "Serie": "A", "Folio": "1"}))

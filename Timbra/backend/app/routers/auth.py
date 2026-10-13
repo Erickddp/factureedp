@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import or_
@@ -67,27 +67,45 @@ def asegurar_admin(db: Session):
         db.commit()
 
 
-# Freno a quien prueba contraseñas: 6 intentos fallidos por cuenta en 10 minutos y se bloquea un rato.
+# Freno a quien prueba contraseñas. Se cuenta por (equipo, cuenta): 6 fallos en 10 minutos y ese equipo espera, sin que
+# un extraño pueda dejar fuera al dueño de la cuenta desde otro lado. Además, un mismo equipo no puede ir probando
+# cuenta por cuenta (30 fallos en total) y una cuenta atacada desde muchos equipos también se frena (40).
 _FALLOS: dict[str, list[float]] = {}
-_VENTANA, _MAXIMO = 600, 6
+_VENTANA, _MAXIMO, _MAX_IP, _MAX_CUENTA = 600, 6, 30, 40
+
+
+def _recientes(llave: str, ahora: float) -> list[float]:
+    r = [t for t in _FALLOS.get(llave, []) if ahora - t < _VENTANA]
+    if r:
+        _FALLOS[llave] = r
+    else:
+        _FALLOS.pop(llave, None)
+    return r
 
 
 @router.post("/login")
-def login(data: LoginIn, db: Session = Depends(get_db)):
-    quien = data.email.strip().lower()
+def login(data: LoginIn, request: Request, db: Session = Depends(get_db)):
+    quien = data.email.strip().lower()[:200]
+    ip = request.client.host if request.client else "?"
     ahora = time.time()
-    recientes = [t for t in _FALLOS.get(quien, []) if ahora - t < _VENTANA]
-    if len(recientes) >= _MAXIMO:
-        espera = int((_VENTANA - (ahora - recientes[0])) // 60) + 1
-        raise HTTPException(429, f"Demasiados intentos fallidos. Espera {espera} min y vuelve a intentar.")
+    if len(_FALLOS) > 20000:  # nadie llena la memoria a punta de intentos
+        for k in [k for k, v in _FALLOS.items() if not v or ahora - v[-1] >= _VENTANA]:
+            _FALLOS.pop(k, None)
+    llaves = {f"{ip}|{quien}": _MAXIMO, f"ip|{ip}": _MAX_IP, f"cuenta|{quien}": _MAX_CUENTA}
+    for llave, tope in llaves.items():
+        recientes = _recientes(llave, ahora)
+        if len(recientes) >= tope:
+            espera = int((_VENTANA - (ahora - recientes[0])) // 60) + 1
+            raise HTTPException(429, f"Demasiados intentos fallidos. Espera {espera} min y vuelve a intentar.")
     u = db.query(Usuario).filter(or_(Usuario.email == quien, Usuario.usuario == quien), Usuario.activo.is_(True)).first()
     if not u or not verify_password(data.password, u.password_hash):
-        _FALLOS[quien] = recientes + [ahora]
+        for llave in llaves:
+            _FALLOS[llave] = _FALLOS.get(llave, []) + [ahora]
         raise HTTPException(401, "Usuario o contraseña incorrectos")
-    _FALLOS.pop(quien, None)
+    _FALLOS.pop(f"{ip}|{quien}", None)
     if EN_WEB and data.password.lower() in DEBILES:
         raise HTTPException(403, "Esa contraseña de práctica no se permite en el servidor. Pide al administrador que la cambie.")
-    return {"token": create_token(u.email), "nombre": u.nombre, "admin": u.admin}
+    return {"token": create_token(u.email, u.password_hash), "nombre": u.nombre, "admin": u.admin}
 
 
 @router.get("/config")
@@ -121,7 +139,8 @@ def cambiar(data: CambioIn, email: str = Depends(current_user), db: Session = De
         raise HTTPException(422, "Mínimo 8 caracteres")
     u.password_hash = hash_password(data.nueva)
     db.commit()
-    return {"ok": True}
+    # las demás sesiones abiertas con la contraseña anterior dejan de valer; ésta sigue con un token nuevo
+    return {"ok": True, "token": create_token(u.email, u.password_hash)}
 
 
 @router.get("/usuarios", dependencies=[Depends(solo_admin)])
@@ -253,7 +272,7 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
         u.google_sub, u.google_email = sub, correo
         db.commit()
         log.info("Google conectado a %s (%s)", u.email, correo)
-        return _regreso(token=create_token(u.email), aviso=f"Google conectado: {correo}")
+        return _regreso(token=create_token(u.email, u.password_hash), aviso=f"Google conectado: {correo}")
 
     u = db.query(Usuario).filter(Usuario.google_sub == sub).first() or db.query(Usuario).filter(Usuario.email == correo).first()
     if u is None:
@@ -266,4 +285,4 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
     u.google_sub, u.google_email = sub, correo
     db.commit()
     log.info("Entrada con Google: %s", u.email)
-    return _regreso(token=create_token(u.email))
+    return _regreso(token=create_token(u.email, u.password_hash))

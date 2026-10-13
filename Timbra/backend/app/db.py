@@ -94,14 +94,18 @@ def _identificar(db, request: Request | None):
         return
     import jwt
     try:
-        correo = jwt.decode(auto[7:].strip(), settings.jwt_secret, algorithms=["HS256"])["sub"]
+        datos = jwt.decode(auto[7:].strip(), settings.jwt_secret, algorithms=["HS256"])
+        correo = datos["sub"]
     except Exception:
         return  # current_user responde 401 con el mensaje adecuado
     from .models import Usuario
+    from .security import huella_clave
     t = Usuario.__table__
-    fila = db.execute(select(t.c.id, t.c.admin, t.c.activo).where(t.c.email == correo)).first()
+    fila = db.execute(select(t.c.id, t.c.admin, t.c.activo, t.c.password_hash).where(t.c.email == correo)).first()
     if fila is None or not fila.activo:
         raise HTTPException(401, "Tu sesión ya no es válida. Vuelve a entrar.")
+    if datos.get("k") and datos["k"] != huella_clave(fila.password_hash):  # la contraseña cambió después de abrir esta sesión
+        raise HTTPException(401, "La contraseña de esta cuenta cambió. Vuelve a entrar.")
     db.info["uid_real"] = fila.id
     db.info["es_admin"] = bool(fila.admin)
     if not fila.admin:
