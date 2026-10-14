@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from: str | None = None
+    # En el servidor (Railway Hobby bloquea SMTP): correo por la API HTTPS de Resend. Si hay llave, se usa en vez de SMTP.
+    resend_api_key: str | None = None
+    correo_remitente: str = "facturas@erickddp.com"  # dirección del dominio verificado en Resend
 
     # Inicio de sesión con Google, Drive y Sheets (cliente de OAuth del proyecto de Google Cloud "Timbra").
     # Se llenan con: python google_env.py  (lee el JSON descargado de Google; el secreto nunca va al repositorio)

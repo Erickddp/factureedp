@@ -318,6 +318,10 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   cuando ya existe un PAC productivo. Al desmarcarlo, los emisores ajenos quedan sin PAC.
 - **Probar el PAC productivo sin timbrar:** `POST /pacs/{id}/alta?emisor_id=` (botón «Comprobar y dar de alta el RFC») usa
   `registration.add`: comprueba credenciales y registra el RFC. `probar` sólo corre en ambiente de pruebas.
+- **Correo en el servidor (2.13.1):** Railway Hobby bloquea los puertos SMTP. Con `RESEND_API_KEY` el correo sale por la
+  API HTTPS de Resend desde `CORREO_REMITENTE` (facturas@erickddp.com, dominio verificado en Resend) con el nombre del
+  emisor y `reply_to` al correo del emisor (`mailer.enviar(..., nombre=, responder_a=)`). Sin llave, SMTP como siempre (PC).
+  tests/test_w8_correo.py.
 - Guía del día del arranque: DESPLEGAR.md. Lista de pendientes compartida con Rick: PENDIENTES.md.
 - En el SAT real un periodo sin comprobantes termina en estado 5 con CodigoEstadoSolicitud 5004: no es error.
 - tests/test_w7_terceros.py.

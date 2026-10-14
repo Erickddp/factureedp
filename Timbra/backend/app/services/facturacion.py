@@ -378,7 +378,8 @@ def enviar(f: Factura, para: list[str], mensaje: str | None = None):
         f"por ${f.total:,.2f} {f.moneda}.\nUUID: {f.uuid}\n\nSaludos,\n{f.emisor.nombre}"
     )
     with paso(f"Enviar correo a {', '.join(para)}", adjuntos=[a[0] for a in adj]):
-        mailer.enviar(para, f"{tipo} {f.serie or ''}{f.folio or ''} - {f.emisor.nombre}", cuerpo, adj)
+        mailer.enviar(para, f"{tipo} {f.serie or ''}{f.folio or ''} - {f.emisor.nombre}", cuerpo, adj,
+                      nombre=f.emisor.nombre, responder_a=f.emisor.email)
 
 
 def recuperar(db: Session) -> list[str]:

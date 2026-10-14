@@ -128,7 +128,7 @@ def recordar(db: Session, emisor: Emisor, cliente: Cliente, mensaje: str | None 
         f = db.get(Factura, p["factura_id"])
         adj.append((f"{p['folio']}_{f.uuid}.xml", f.xml, "application/xml"))
     with paso(f"Recordatorio de cobranza a {cliente.nombre}", saldo=str(ec["saldo"])):
-        mailer.enviar(cliente.emails, f"Estado de cuenta · {emisor.nombre}", cuerpo, adj)
+        mailer.enviar(cliente.emails, f"Estado de cuenta · {emisor.nombre}", cuerpo, adj, nombre=emisor.nombre, responder_a=emisor.email)
     cliente.ultimo_recordatorio = datetime.now()
     db.commit()
     return {"cliente_id": cliente.id, "ok": True, "saldo": str(ec["saldo"])}

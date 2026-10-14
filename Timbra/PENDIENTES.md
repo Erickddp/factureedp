@@ -22,12 +22,15 @@ Objetivo: tú facturas tus emisores con timbres reales, y los clientes con recar
 - [x] [Claude] Corregir lo que salga del recorrido y de la revisión: los emisores de los clientes se quedaban en modo demo al cambiar de PAC; «Probar» no servía en producción; el error 708 al cancelar salía sin explicación
 
 ### Hacer
-- [ ] [Rick] Decir «push» para subir la 2.13.0 al servidor (no cambia nada para nadie hasta que marques tu PAC «para todas las cuentas»)
-- [ ] [Rick] Llenar y mandar a Finkok la solicitud de pase a producción: a nombre de qué RFC va la cuenta, Constancia de Situación Fiscal, fecha de inicio, correo y contraseña (la escribes tú)
+- [x] [Rick] Decir «push» para subir la 2.13.0 al servidor (subida el 13 de octubre)
+- [x] [Claude] Dejar listo el correo de respuesta a Finkok (borrador en tu Gmail, en el hilo «Kit de Pruebas»)
+- [ ] [Rick] Llenar la solicitud de Finkok, poner tu RFC en el borrador, adjuntar solicitud y Constancia, y enviarlo
+- [x] [Claude] Correo desde el servidor: Railway bloquea SMTP en el plan Hobby; Timbra ahora puede enviar por la API de Resend
+- [ ] [Rick] Crear cuenta en resend.com, verificar el dominio erickddp.com (registros DNS) y poner `RESEND_API_KEY` en Railway
 - [ ] [Rick] Revisar que la contraseña del administrador en el servidor sea una nueva y segura
 - [ ] [Rick] Subir el CSD vigente de cada emisor real
 - [ ] [Rick] Corregir el emisor que quedó con región fronteriza y con un correo en «Registro patronal» (quitar lo que no aplique)
-- [ ] [Rick] Crear la contraseña de aplicación de Gmail y ponerla en Ajustes → Correo (sólo si quieres enviar facturas por correo)
+- [ ] [Rick] Sólo en tu PC: contraseña de aplicación de Gmail en Ajustes → Correo (en el servidor se usa Resend)
 
 ### Construir
 - [x] [Claude] Aviso en el Resumen cuando ya hay PAC productivo pero un emisor tuyo sigue con el de pruebas, y botón «Comprobar y dar de alta el RFC» para probar Finkok productivo sin gastar timbres
@@ -96,6 +99,6 @@ Objetivo: que un cliente se dé de alta, pague y facture sin que intervengas.
 
 ## Lo que ya está hecho (13 de octubre)
 
-- Timbrado para terceros (2.13.0, sin subir): PAC de la plataforma, alta automática del RFC en Finkok, saldo de timbres por cuenta con recarga manual
+- Timbrado para terceros (2.13.0, en el servidor): PAC de la plataforma, alta automática del RFC en Finkok, saldo de timbres por cuenta con recarga manual
 - XML del SAT dentro de Timbra, con la e.firma sólo en memoria y el Excel de 65 columnas
 - Modo soporte, endurecimiento de seguridad, persistencia del servidor comprobada

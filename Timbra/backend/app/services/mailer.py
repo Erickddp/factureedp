@@ -41,8 +41,16 @@ def config() -> dict:
             "remitente": settings.smtp_from or settings.smtp_user, "nombre": "", "origen": "env" if settings.smtp_host else None}
 
 
+def por_api() -> bool:
+    """En el servidor web el correo sale por la API de Resend (Railway bloquea los puertos SMTP en el plan Hobby)."""
+    return bool(settings.resend_api_key)
+
+
 def publica() -> dict:
     """Lo que se puede mostrar en pantalla: nunca la contraseña."""
+    if por_api():
+        return {"configurado": True, "host": "api.resend.com", "port": 443, "user": settings.correo_remitente, "remitente": settings.correo_remitente,
+                "nombre": "", "tiene_password": True, "origen": "resend"}
     c = config()
     return {"configurado": bool(c["host"] and c["user"] and c["password"]), "host": c["host"] or "", "port": c["port"], "user": c["user"] or "",
             "remitente": c["remitente"] or "", "nombre": c["nombre"], "tiene_password": bool(c["password"]), "origen": c["origen"]}
@@ -93,15 +101,54 @@ def _explica(e: Exception, c: dict, paso: str = "") -> str:
     return f"El correo no salió: {t}"
 
 
-def enviar(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, bytes, str]]):
+def _limpios(correos: list[str]) -> list[str]:
+    # sin comas, espacios ni vacíos (una coma de más hacía que el servidor cortara la conexión)
+    return [x for x in (re.sub(r"[\s,;<>]+", "", p or "") for p in correos) if "@" in x]
+
+
+def _resend(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, bytes, str]], nombre: str | None, responder_a: str | None):
+    """Envío por https://api.resend.com: sale de la dirección de Timbra con el nombre del emisor, y las respuestas
+    le llegan al emisor (reply_to)."""
+    import requests
+    nombre = re.sub(r'[<>"]', "", nombre or "Timbra").strip() or "Timbra"
+    cuerpo_json = {"from": f"{nombre} <{settings.correo_remitente}>", "to": para, "subject": asunto, "text": cuerpo,
+                   "attachments": [{"filename": n, "content": base64.b64encode(d).decode()} for n, d, _m in adjuntos]}
+    responder = _limpios([responder_a or ""])
+    if responder:
+        cuerpo_json["reply_to"] = responder
+    try:
+        r = requests.post("https://api.resend.com/emails", json=cuerpo_json, timeout=30,
+                          headers={"Authorization": f"Bearer {settings.resend_api_key}"})
+    except requests.RequestException as e:
+        raise CorreoError(f"No pude conectar con el servicio de correo: {e}") from e
+    if r.status_code >= 300:
+        try:
+            detalle = r.json().get("message") or r.text
+        except ValueError:
+            detalle = r.text
+        if r.status_code in (401, 403) and "domain" in detalle.lower():
+            detalle = f"el dominio de {settings.correo_remitente} aún no está verificado en Resend ({detalle})"
+        elif r.status_code in (401, 403):
+            detalle = f"la llave RESEND_API_KEY no es válida ({detalle})"
+        elif r.status_code == 429:
+            detalle = "se alcanzó el límite de envíos del plan de Resend; reintenta más tarde"
+        raise CorreoError(f"El correo no salió: {detalle}")
+
+
+def enviar(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, bytes, str]],
+           nombre: str | None = None, responder_a: str | None = None):
+    """nombre: con qué nombre aparece el remitente (el del emisor). responder_a: a dónde llegan las respuestas."""
+    para = _limpios(para)
+    if not para:
+        raise CorreoError("No hay un correo de destino válido.")
+    if por_api():
+        return _resend(para, asunto, cuerpo, adjuntos, nombre, responder_a)
     c = config()
     if not (c["host"] and c["user"] and c["password"]):
         raise CorreoError("Falta configurar el correo de envío: Configuración → PAC y usuarios → Correo de envío.")
-    # Limpia destinatarios: sin comas, espacios ni vacíos (una coma de más hacía que el servidor cortara la conexión)
-    para = [x for x in (re.sub(r"[\s,;<>]+", "", p or "") for p in para) if "@" in x]
-    if not para:
-        raise CorreoError("No hay un correo de destino válido.")
     msg = EmailMessage()
+    if responder_a and _limpios([responder_a]):
+        msg["Reply-To"] = _limpios([responder_a])[0]
     msg["From"] = formataddr((c["nombre"], c["remitente"])) if c["nombre"] else c["remitente"]
     msg["To"] = ", ".join(para)
     msg["Subject"] = asunto

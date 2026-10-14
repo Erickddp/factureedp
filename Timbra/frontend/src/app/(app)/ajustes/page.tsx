@@ -233,14 +233,18 @@ function CorreoEnvio() {
     <section className="mt-10">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Correo de envío</h2>
-        {yo?.admin && <Button onClick={abrir}>{cfg?.configurado ? "Cambiar cuenta" : "Configurar correo"}</Button>}
+        {yo?.admin && cfg?.origen !== "resend" && <Button onClick={abrir}>{cfg?.configurado ? "Cambiar cuenta" : "Configurar correo"}</Button>}
       </div>
       <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
         {cfg?.configurado ? (
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-0 flex-1">
               <p className="font-medium">{cfg.nombre ? `${cfg.nombre} · ` : ""}{cfg.user}</p>
-              <p className="text-sm text-grafito">Sale por {cfg.host}:{cfg.port}{cfg.origen === "env" ? " (configurado en el archivo .env)" : ""}</p>
+              <p className="text-sm text-grafito">
+                {cfg.origen === "resend"
+                  ? "Correo de Timbra: sale con el nombre de cada emisor y las respuestas le llegan al correo del emisor."
+                  : `Sale por ${cfg.host}:${cfg.port}${cfg.origen === "env" ? " (configurado en el archivo .env)" : ""}`}
+              </p>
             </div>
             <Field label="Mandar prueba a" className="w-64"><Input value={para} onChange={(e) => setPara(e.target.value)} placeholder="tu@correo.com" inputMode="email" /></Field>
             {yo?.admin && <Button variant="primario" onClick={probar} loading={trabajando === "probar"} disabled={!para.includes("@")}>Enviar prueba</Button>}
