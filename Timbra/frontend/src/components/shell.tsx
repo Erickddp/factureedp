@@ -60,7 +60,7 @@ const leer = (k: string) => { try { return localStorage.getItem(k); } catch { re
 const guardar = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch {} };
 const iniciales = (s: string) => s.trim().split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "?";
 
-type Yo = { email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null };
+type Yo = { email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null; timbres?: number | null };
 
 function SelectorEmisor() {
   const { emisores, emisor, setEmisorId } = useEmisor();
@@ -191,6 +191,7 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
           {yo?.creado && dato("Usuario desde", new Date(yo.creado).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }))}
           {dato("Emisor activo", emisor ? `${emisor.rfc} · ${emisor.nombre}` : "Ninguno")}
           {dato("Emisores dados de alta", emisores.length)}
+          {typeof yo?.timbres === "number" && dato("Timbres disponibles", <b className={yo.timbres <= 0 ? "text-rojo" : undefined}>{yo.timbres}</b>)}
           {emisor && dato("Timbrado", emisor.modo_demo ? <span className="text-alerta">Modo demo (sin PAC)</span> : "Con PAC")}
           {dato("Tema", <button className="underline" onClick={() => tema.siguiente()}>{t === "oscuro" ? "Oscuro" : t === "claro" ? "Claro" : "Como el sistema"}</button>)}
         </dl>
@@ -403,9 +404,17 @@ function Avisos() {
   const enPendientes = usePathname().startsWith("/pendientes");  // ahí el aviso sobra
   const { data: salud } = useSWR<{ almacen?: { permanente: boolean | null } }>("/health", fetcher, { revalidateOnFocus: false });
   const sinDisco = salud?.almacen?.permanente === false;
-  if (!sinDisco && !malos.length && !pend.length && (!pg?.total || enPendientes)) return null;
+  // Saldo de timbres de la cuenta (quien factura con el PAC de Timbra): se avisa cuando quedan pocos
+  const { data: yo } = useSWR<Yo>("/auth/yo", fetcher, { refreshInterval: 120_000 });
+  const pocos = typeof yo?.timbres === "number" && yo.timbres <= 5;
+  if (!sinDisco && !pocos && !malos.length && !pend.length && (!pg?.total || enPendientes)) return null;
   return (
     <div className="escalonar mb-6 flex flex-wrap gap-2">
+      {pocos && (
+        <Link href="/timbres" className={cx("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 ring-current/15", yo!.timbres! <= 0 ? "bg-rojo-suave text-rojo" : "bg-alerta-suave text-alerta")}>
+          <Stamp className="size-4" /> {yo!.timbres! <= 0 ? "Se acabaron tus timbres: recarga para seguir facturando" : `Te quedan ${yo!.timbres} timbres`}
+        </Link>
+      )}
       {sinDisco && (
         <Link href="/ajustes" className="inline-flex items-center gap-2 rounded-full bg-rojo-suave px-3 py-1.5 text-[13px] font-medium text-rojo ring-1 ring-current/15">
           <AlertTriangle className="size-4" /> Este servidor no guarda de forma permanente: lo que captures se perdería al actualizar

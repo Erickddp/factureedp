@@ -27,6 +27,7 @@ export default function Ajustes() {
   const [pac, setPac] = useState<Record<string, any> | null>(null);
   const [add, setAdd] = useState<(Partial<Addenda> & { camposTxt: string }) | null>(null);
   const [probar, setProbar] = useState("");
+  const { data: yoAdmin } = useSWR<{ admin: boolean }>("/auth/yo", fetcher);
 
   const guardarPac = async () => {
     const { id, rfc, contrato, requestor, ...rest } = pac!;
@@ -116,6 +117,12 @@ export default function Ajustes() {
               <input type="checkbox" checked={pac.pruebas} onChange={(e) => setPac({ ...pac, pruebas: e.target.checked })} className="accent-cobalto" />
               Ambiente de pruebas (desmárcalo para timbrar en serio)
             </label>
+            {yoAdmin?.admin && pac.proveedor !== "demo" && (
+              <label className="flex items-start gap-2 rounded-xl bg-acento-suave/60 px-3 py-2.5 text-sm">
+                <input type="checkbox" checked={!!pac.plataforma} onChange={(e) => setPac({ ...pac, plataforma: e.target.checked })} className="mt-0.5 accent-cobalto" />
+                <span><b>Usar este PAC para todas las cuentas.</b> Los emisores de tus clientes timbran con tu cuenta del PAC (se dan de alta solos en Finkok) y a cada cuenta se le descuenta de su saldo de timbres. Nadie más ve estas credenciales.</span>
+              </label>
+            )}
             <div className="flex justify-end gap-2"><Button onClick={() => setPac(null)}>Cancelar</Button><Button variant="primario" onClick={guardarPac}>Guardar PAC</Button></div>
           </div>
         )}
@@ -320,7 +327,7 @@ function DatosGuardados() {
   );
 }
 
-type UsuarioFila = { id: number; email: string; usuario: string | null; nombre: string | null; admin: boolean; activo: boolean; google: boolean; emisores: number };
+type UsuarioFila = { id: number; email: string; usuario: string | null; nombre: string | null; admin: boolean; activo: boolean; google: boolean; emisores: number; timbres: number | null };
 
 /** Cuentas: cada usuario ve sólo sus emisores, clientes y facturas. Sólo el administrador las da de alta. */
 function Usuarios() {
@@ -351,6 +358,18 @@ function Usuarios() {
       mostrarError(e);
     }
   };
+  const recargar = async (u: UsuarioFila) => {
+    const txt = window.prompt(`Timbres para ${u.usuario || u.email} (hoy tiene ${u.timbres}).\n¿Cuántos le abonas? Usa un número negativo para corregir.`, "30");
+    if (txt === null) return;
+    const cantidad = Number(txt);
+    if (!Number.isInteger(cantidad) || cantidad === 0) return void toast.error("Escribe un número entero, por ejemplo 30.");
+    const motivo = window.prompt("¿Por qué? (queda anotado: «Recarga de $50», «Cortesía»…)", cantidad > 0 ? "Recarga" : "Corrección") ?? "";
+    try {
+      const r = await api<{ timbres: number }>(`/auth/usuarios/${u.id}/timbres`, { method: "POST", json: { cantidad, motivo } });
+      toast.success(`${u.usuario || u.email} ahora tiene ${r.timbres} timbres`);
+      mutate();
+    } catch (e) { mostrarError(e); }
+  };
   const darSoporte = async (u: UsuarioFila) => {
     const motivo = window.prompt(`Vas a entrar a la cuenta de ${u.usuario || u.email} en modo soporte.\nVerás y podrás cambiar sus emisores, clientes y facturas durante 2 horas, y quedará registrado en su perfil.\n\n¿Qué vas a revisar? (opcional)`, "");
     if (motivo === null) return;
@@ -370,7 +389,9 @@ function Usuarios() {
             {data.map((u) => (
               <li key={u.id} className={cx("flex flex-wrap items-center gap-2 border-b border-linea py-2 last:border-0", !u.activo && "opacity-50")}>
                 <span className="min-w-0 flex-1"><b className="font-medium">{u.usuario || u.email}</b>{u.usuario && <span className="text-grafito"> · {u.email}</span>}
-                  <span className="block text-xs text-grafito">{u.emisores} {u.emisores === 1 ? "emisor" : "emisores"}{u.google ? " · Google conectado" : ""}</span></span>
+                  <span className="block text-xs text-grafito">{u.emisores} {u.emisores === 1 ? "emisor" : "emisores"}{u.google ? " · Google conectado" : ""}
+                    {u.timbres !== null && <> · <b className={cx("tabular-nums", u.timbres <= 0 ? "text-rojo" : "text-tinta")}>{u.timbres} timbres</b></>}</span></span>
+                {u.timbres !== null && <button className="text-xs font-medium text-sello underline hover:text-tinta" onClick={() => recargar(u)}>Recargar</button>}
                 {u.admin && <Badge tono="cobalto">admin</Badge>}
                 {u.email !== yo.email && u.activo && <button className="text-xs font-medium text-cobalto underline hover:text-tinta" onClick={() => darSoporte(u)}>Dar soporte</button>}
                 {u.email !== yo.email && <button className="text-xs text-grafito underline hover:text-tinta" onClick={() => activar(u)}>{u.activo ? "Desactivar" : "Activar"}</button>}
@@ -399,10 +420,34 @@ function Usuarios() {
 }
 
 function TarjetaPac({ p, editar }: { p: Pac; editar: () => void }) {
+  if (p.propio === false)
+    return (
+      <div className="rounded-2xl bg-sello-suave/60 p-5 ring-1 ring-sello/30">
+        <p className="font-semibold">Timbrado incluido en Timbra</p>
+        <p className="mt-1 text-sm text-grafito">No necesitas contratar un PAC: tus facturas se timbran ante el SAT con el de Timbra y se descuentan de tus timbres.{p.pruebas ? " Por ahora está en ambiente de pruebas." : ""}</p>
+      </div>
+    );
+  return <TarjetaPacPropia p={p} editar={editar} />;
+}
+
+function TarjetaPacPropia({ p, editar }: { p: Pac; editar: () => void }) {
   const { emisores } = useEmisor();
   const [emisorId, setEmisorId] = useState<number | "">(emisores.find((e) => e.pac_id === p.id)?.id ?? emisores[0]?.id ?? "");
-  const [probando, setProbando] = useState<"" | "timbre" | "ciclo">("");
+  const [probando, setProbando] = useState<"" | "timbre" | "ciclo" | "alta">("");
   const [res, setRes] = useState<{ ok: boolean; texto: string } | null>(null);
+  const alta = async () => {
+    if (!emisorId) return;
+    setProbando("alta");
+    setRes(null);
+    try {
+      const r = await api<{ rfc: string; mensaje: string }>(`/pacs/${p.id}/alta?emisor_id=${emisorId}`, { method: "POST" });
+      setRes({ ok: true, texto: `Credenciales correctas. ${r.rfc} quedó dado de alta en tu cuenta de Finkok (${r.mensaje}). Ya puede timbrar.` });
+    } catch (e) {
+      setRes({ ok: false, texto: (e as Error).message });
+    } finally {
+      setProbando("");
+    }
+  };
   const probar = async (ciclo: boolean) => {
     if (!emisorId) return;
     setProbando(ciclo ? "ciclo" : "timbre");
@@ -435,6 +480,15 @@ function TarjetaPac({ p, editar }: { p: Pac; editar: () => void }) {
           <Button onClick={() => probar(false)} loading={probando === "timbre"} disabled={!!probando}>Probar timbrado</Button>
           <Button onClick={() => probar(true)} loading={probando === "ciclo"} disabled={!!probando}
             title="Timbra, cancela (motivo 02) y consulta estatus: las pruebas que pide el PAC para darte producción">Probar ciclo completo</Button>
+        </div>
+      )}
+      {!p.pruebas && p.proveedor === "finkok" && emisores.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Select value={emisorId} onChange={(e) => setEmisorId(Number(e.target.value))} className="min-w-0 flex-1" aria-label="Emisor para dar de alta">
+            {emisores.map((e) => <option key={e.id} value={e.id}>{e.rfc}</option>)}
+          </Select>
+          <Button onClick={alta} loading={probando === "alta"} disabled={!!probando}
+            title="No timbra ni gasta: revisa tu usuario y contraseña de Finkok y registra el RFC en tu cuenta">Comprobar y dar de alta el RFC</Button>
         </div>
       )}
       {res && (

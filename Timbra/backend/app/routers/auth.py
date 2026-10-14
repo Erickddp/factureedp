@@ -49,7 +49,7 @@ class PerfilIn(BaseModel):
 
 def _yo(u: Usuario) -> dict:
     return {"id": u.id, "email": u.email, "usuario": u.usuario, "nombre": u.nombre, "admin": u.admin, "creado": u.creado,
-            "google_email": u.google_email}
+            "google_email": u.google_email, "timbres": None if u.admin else u.timbres}
 
 
 def _actual(db: Session, email: str) -> Usuario:
@@ -143,6 +143,34 @@ def cambiar(data: CambioIn, email: str = Depends(current_user), db: Session = De
     return {"ok": True, "token": create_token(u.email, u.password_hash)}
 
 
+# ---------------------------------------------------------------- timbres de cada cuenta
+class RecargaIn(BaseModel):
+    cantidad: int
+    motivo: str | None = None
+
+
+@router.post("/usuarios/{uid}/timbres", dependencies=[Depends(solo_admin)])
+def recargar_timbres(uid: int, data: RecargaIn, email: str = Depends(current_user), db: Session = Depends(get_db)):
+    """El administrador abona (o corrige, con número negativo) timbres a una cuenta. Queda anotado quién y por qué."""
+    from ..services import timbres
+    if not db.get(Usuario, uid):
+        raise HTTPException(404, "Usuario no existe")
+    if data.cantidad == 0 or abs(data.cantidad) > 100000:
+        raise HTTPException(422, "Escribe cuántos timbres (por ejemplo 30).")
+    saldo = timbres.recargar(db, uid, data.cantidad, data.motivo, _actual(db, email).id)
+    log.warning("TIMBRES: %s abonó %s a la cuenta %s (saldo %s) · %s", email, data.cantidad, uid, saldo, data.motivo or "")
+    return {"timbres": saldo}
+
+
+@router.get("/timbres")
+def mis_timbres(email: str = Depends(current_user), db: Session = Depends(get_db)):
+    """Saldo y recargas de MI cuenta."""
+    from ..models import MovimientoTimbres
+    u = _actual(db, email)
+    movs = db.query(MovimientoTimbres).filter_by(usuario_id=u.id).order_by(MovimientoTimbres.id.desc()).limit(30)
+    return {"timbres": None if u.admin else u.timbres, "movimientos": [{"cuando": m.creado, "cantidad": m.cantidad, "saldo": m.saldo, "motivo": m.motivo} for m in movs]}
+
+
 # ---------------------------------------------------------------- modo soporte
 SOPORTE_HORAS = 2
 
@@ -203,7 +231,7 @@ def usuarios(db: Session = Depends(get_db)):
     for (uid,) in db.execute(select(Emisor.__table__.c.usuario_id)):
         emisores[uid] = emisores.get(uid, 0) + 1
     return [{"id": u.id, "email": u.email, "usuario": u.usuario, "nombre": u.nombre, "admin": u.admin, "activo": u.activo,
-             "google": bool(u.google_sub), "emisores": emisores.get(u.id, 0)}
+             "google": bool(u.google_sub), "emisores": emisores.get(u.id, 0), "timbres": None if u.admin else u.timbres}
             for u in db.query(Usuario).order_by(Usuario.email)]
 
 

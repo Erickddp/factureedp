@@ -302,3 +302,22 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - Sin probar contra el SAT real desde Timbra (sólo SAT simulado): la descarga usa el mismo flujo que sí se probó en escritorio;
   la lista de cancelados es nueva y no se ha probado en real. La nómina no se lee a detalle.
 - Capturas: si usas Chrome por CDP, NO uses el puerto 9333 (otra sesión de Claude lo usa en esta PC); usa 9477.
+
+## Timbrado para terceros (2.13, no lo rompas)
+- **PAC de la plataforma** (`Pac.plataforma`, uno solo, lo marca el administrador): con él timbran TODAS las cuentas. Las demás
+  cuentas lo ven como «Timbrado incluido en Timbra», sin credenciales, y no lo pueden editar ni probar (`routers/pacs._mio`).
+  Los emisores sin PAC lo reciben solos (alta, subir CSD, o al marcar el PAC).
+- **Alta del RFC en Finkok por web service** (`pac.registrar_emisor`, operación `add`, tipo OnDemand): si Finkok contesta 702
+  al timbrar, Timbra da de alta el RFC y reintenta con el mismo XML sellado. Probado en Finkok pruebas el 13-oct-2026.
+- **Saldo de timbres por cuenta** (`Usuario.timbres`, 3 de regalo): se descuenta uno por cada timbre con el PAC de la
+  plataforma EN PRODUCCIÓN (pruebas, demo, PAC propio y administrador no descuentan). Sin saldo no se timbra. Recarga manual
+  del administrador en Ajustes → Cuentas (`movimientos_timbres`). Mercado Pago y caducidad a 12 meses: sin hacer.
+- **Cambio de PAC de la plataforma** (`pacs._plataforma`): al marcar uno nuevo, los emisores de OTRAS cuentas que usaban el
+  anterior se pasan solos (el anterior deja de ser visible para ellas y, por el filtro de cuenta, su emisor quedaría en modo
+  demo sin avisar). Los del administrador no se mueven; el Resumen avisa en rojo «sigue timbrando en ambiente de pruebas»
+  cuando ya existe un PAC productivo. Al desmarcarlo, los emisores ajenos quedan sin PAC.
+- **Probar el PAC productivo sin timbrar:** `POST /pacs/{id}/alta?emisor_id=` (botón «Comprobar y dar de alta el RFC») usa
+  `registration.add`: comprueba credenciales y registra el RFC. `probar` sólo corre en ambiente de pruebas.
+- Guía del día del arranque: DESPLEGAR.md. Lista de pendientes compartida con Rick: PENDIENTES.md.
+- En el SAT real un periodo sin comprobantes termina en estado 5 con CodigoEstadoSolicitud 5004: no es error.
+- tests/test_w7_terceros.py.

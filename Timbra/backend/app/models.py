@@ -31,6 +31,9 @@ class Pac(Base):
     token_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
     extra: Mapped[dict] = mapped_column(JSON, default=dict)  # contrato, rfc integrador, etc.
     pruebas: Mapped[bool] = mapped_column(Boolean, default=True)
+    # PAC de la plataforma: con él timbran TODAS las cuentas (sus emisores se dan de alta solos en el PAC). Sus credenciales
+    # sólo las ve y edita su dueño (el administrador); a cada cuenta se le descuenta de su saldo de timbres.
+    plataforma: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # Control de timbres: paquete comprado (None = pospago tipo Finkok), desde cuándo cuenta y aviso
     timbres_contratados: Mapped[int | None] = mapped_column(Integer)
     timbres_desde: Mapped[datetime | None] = mapped_column(DateTime)
@@ -218,7 +221,21 @@ class Usuario(Base):
     google_email: Mapped[str | None] = mapped_column(String(200))
     admin: Mapped[bool] = mapped_column(Boolean, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Saldo de timbres para facturar con el PAC de la plataforma. Cada cuenta nueva trae 3 de regalo.
+    timbres: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
     creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
+
+
+class MovimientoTimbres(Base):
+    """Cada recarga (o ajuste) de timbres a una cuenta: quién, cuántos y por qué. El consumo se ve en las facturas."""
+    __tablename__ = "movimientos_timbres"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    cantidad: Mapped[int] = mapped_column(Integer)
+    saldo: Mapped[int] = mapped_column(Integer)  # como quedó después
+    motivo: Mapped[str | None] = mapped_column(String(200))
+    admin_id: Mapped[int | None] = mapped_column(Integer)
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
 
 class AccesoSoporte(Base):

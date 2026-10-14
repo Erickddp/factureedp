@@ -105,7 +105,7 @@ class SatSimulado:
         return {"cod_estatus": "5000", "mensaje": "ok", "paquete_b64": base64.b64encode(mem.getvalue()).decode()}
 
 
-def esperar(c, h, tid, segundos=40):
+def esperar(c, h, tid, segundos=120):
     fin = time.time() + segundos
     t = {}
     while time.time() < fin:
@@ -644,3 +644,33 @@ def test_un_contribuyente_que_solo_baja_xml_no_recibe_avisos_de_csd(sat):
         assert not any("CSD" in a["texto"] for a in c.get(f"/api/dashboard?emisor_id={j['emisor_id']}", headers=h).json()["alertas"])
         assert c.get(f"/api/pendientes/resumen?emisor_id={j['emisor_id']}", headers=h).json()["errores"] == 0
         c.delete(f"/api/emisores/{j['emisor_id']}?confirmar={rfc}", headers=h)
+
+
+def test_un_periodo_sin_comprobantes_no_es_un_error(sat):
+    """Uso real: una contribuyente asalariada no tiene emitidos; el SAT terminó esas solicitudes en estado 5 con 5004
+    y la descarga salía «con error» aunque todo lo recibido se había bajado bien."""
+    with TestClient(app) as c:
+        h, e = _preparar(c)
+        _vaciar(c, h, e)
+        g1 = _recibido("KIJ0906199R1", "KERNEL INDUSTIA JUGUETERA", "300", tasa="0.16")
+
+        class SinEmitidos(SatSimulado):
+            def solicitar(self, rfc, tipo, desde, hasta):
+                if tipo == "emitidos":   # el SAT sí acepta la solicitud…
+                    self.solicitudes.append(("xml", tipo, desde, hasta))
+                    return {"cod_estatus": "5000", "mensaje": "Solicitud Aceptada", "id_solicitud": "sol-xml-vacio-1"}
+                return super().solicitar(rfc, tipo, desde, hasta)
+
+            def verificar(self, rfc, id_solicitud):
+                if "vacio" in id_solicitud:  # …y luego la termina rechazada porque no hay nada
+                    return {"estado_solicitud": "5", "cod_estatus": "5000", "codigo_estado_solicitud": "5004", "numero_cfdis": "0",
+                            "mensaje": "Solicitud Aceptada", "paquetes": []}
+                return super().verificar(rfc, id_solicitud)
+
+        xml_tareas.fabrica_cliente = lambda emisor_id: SinEmitidos({"recibidos": [("g1.xml", g1)]})
+        hoy = date.today()
+        r = c.post("/api/xml/descargas", headers=h, json={"emisor_id": e["id"], "desde": hoy.replace(day=1).isoformat(), "hasta": hoy.isoformat(),
+                                                         "tipo": "ambos", "cancelados": False})
+        t = esperar(c, h, r.json()["id"])
+        assert t["estado"] == "listo" and t["resumen"]["errores"] == [] and t["resumen"]["nuevos"] == 1, t
+        _vaciar(c, h, e)

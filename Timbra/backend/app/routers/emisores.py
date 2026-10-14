@@ -36,6 +36,10 @@ def crear(data: EmisorIn, db: Session = Depends(get_db)):
     if db.connection().execute(select(Emisor.__table__.c.id).where(Emisor.__table__.c.rfc == data.rfc)).first():
         raise HTTPException(409, f"{data.rfc} ya está registrado en otra cuenta de Timbra. Si es tuyo, pide al administrador que lo libere.")
     e = Emisor(**data.model_dump())
+    if e.pac_id is None:  # sin PAC propio: factura con el de la plataforma (si el administrador ya lo puso)
+        from ..services import timbres
+        plataforma = timbres.pac_plataforma(db)
+        e.pac_id = plataforma.id if plataforma else None
     e.series = [Serie(serie="A", tipo="I", default=True), Serie(serie="NC", tipo="E", default=True),
                 Serie(serie="P", tipo="P", default=True), Serie(serie="T", tipo="T", default=True),
                 Serie(serie="N", tipo="N", default=True)]
@@ -63,6 +67,10 @@ async def subir_csd(emisor_id: int, cer: UploadFile = File(...), key: UploadFile
         cargar_csd(e, await cer.read(), await key.read(), password)
     except CsdError as ex:
         raise HTTPException(422, str(ex))
+    if e.pac_id is None:
+        from ..services import timbres
+        plataforma = timbres.pac_plataforma(db)
+        e.pac_id = plataforma.id if plataforma else None
     db.commit()
     return e
 

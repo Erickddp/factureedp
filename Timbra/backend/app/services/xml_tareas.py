@@ -93,7 +93,12 @@ class _ConMetadata:
         return r
 
     def verificar(self, rfc, id_solicitud):
-        return self.cli.verificar(rfc, id_solicitud)
+        v = self.cli.verificar(rfc, id_solicitud)
+        # Visto con el SAT real: cuando en el periodo no hay comprobantes, la solicitud termina «rechazada» (estado 5) y el
+        # motivo viene en CodigoEstadoSolicitud = 5004 (sin información). No es un error: el periodo está vacío.
+        if isinstance(v, dict) and str(v.get("codigo_estado_solicitud") or "") == "5004":
+            v = {**v, "cod_estatus": "5004"}
+        return v
 
     def descargar_paquete(self, rfc, id_paquete):
         return self.cli.descargar_paquete(rfc, id_paquete)

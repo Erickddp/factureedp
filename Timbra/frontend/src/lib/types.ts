@@ -117,6 +117,8 @@ export type Addenda = {
 export type Pac = {
   id: number; nombre: string; proveedor: string; usuario: string | null; pruebas: boolean; extra: Record<string, string>;
   timbres_contratados?: number | null; timbres_desde?: string | null; timbres_alerta?: number;
+  plataforma?: boolean; // con este PAC timbran todas las cuentas
+  propio?: boolean; // false = es el de la plataforma: esta cuenta lo usa pero no lo administra
 };
 
 export type Cat = { clave: string; descripcion: string };

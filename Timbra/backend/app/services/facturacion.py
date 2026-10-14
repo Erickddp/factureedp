@@ -110,9 +110,19 @@ def previsualizar(db: Session, data: FacturaIn) -> dict:
 
 
 def _hay_timbres(db: Session, emisor: Emisor):
-    msg = timbres.bloqueo(emisor.pac, db)
+    msg = timbres.bloqueo(emisor.pac, db) or timbres.sin_saldo(db, emisor)
     if msg:
         raise FacturacionError(msg)
+
+
+def _timbrar(db: Session, emisor: Emisor, comp):
+    """Timbra y, si la cuenta factura con el PAC de la plataforma, le descuenta un timbre (sólo si el PAC sí timbró)."""
+    msg = timbres.sin_saldo(db, emisor)
+    if msg:
+        raise FacturacionError(msg)
+    uuid, xml = pac_svc.timbrar(emisor.pac, comp)
+    timbres.consumir(db, emisor)
+    return uuid, xml
 
 
 def _validar_o_fallar(db: Session, emisor: Emisor, data: FacturaIn, cliente: Cliente | None):
@@ -169,7 +179,7 @@ def emitir(db: Session, data: FacturaIn, fila_id: int | None = None) -> Factura:
     with paso("Sellar con CSD", no_certificado=emisor.no_certificado):
         comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
     try:
-        uuid, xml = pac_svc.timbrar(emisor.pac, comp)
+        uuid, xml = _timbrar(db, emisor, comp)
     except pac_svc.PacError as e:
         # Autocorrección segura: el PAC rechazó por fecha (nada se timbró) → re-armar con la hora actual y re-sellar
         if not (e.diag and e.diag.accion == "refechar" and data.fecha is None):
@@ -179,7 +189,7 @@ def emitir(db: Session, data: FacturaIn, fila_id: int | None = None) -> Factura:
         if tpl:
             addenda_svc.render(tpl.plantilla, datos, comp)
         comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
-        uuid, xml = pac_svc.timbrar(emisor.pac, comp)
+        uuid, xml = _timbrar(db, emisor, comp)
     ruta = _respaldar(emisor.rfc, uuid, xml)  # primero al disco, luego a la BD
     log.info("Respaldo XML: %s", ruta)
     aviso_addenda = None
@@ -241,7 +251,7 @@ def emitir_pago(db: Session, data: PagoIn) -> Factura:
     comp = cfdi_svc.construir_pago(emisor, cliente, docs, data.fecha_pago, data.forma_pago,
                                    serie, folio, data.tipo_cambio)
     comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
-    uuid, xml = pac_svc.timbrar(emisor.pac, comp)
+    uuid, xml = _timbrar(db, emisor, comp)
     _respaldar(emisor.rfc, uuid, xml)
 
     rep = Factura(emisor_id=emisor.id, cliente_id=cliente.id, tipo="P", serie=serie, folio=folio,
@@ -283,7 +293,7 @@ def emitir_nomina(db: Session, data: NominaIn) -> list[dict]:
                 comp = nomina_svc.construir(emisor, emp, r, serie, folio, cfdi_svc.ahora_mx(emisor.lugar_expedicion))
             with paso("Sellar con CSD", no_certificado=emisor.no_certificado):
                 comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
-            uuid, xml = pac_svc.timbrar(emisor.pac, comp)
+            uuid, xml = _timbrar(db, emisor, comp)
             _respaldar(emisor.rfc, uuid, xml)
             f = Factura(emisor_id=emisor.id, empleado_id=emp.id, tipo="N", serie=serie, folio=folio, moneda="MXN",
                         metodo_pago="PUE", forma_pago="99", subtotal=comp["SubTotal"],

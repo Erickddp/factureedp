@@ -59,6 +59,28 @@ Si prefieres empezar limpio, sólo vuelve a subir el CSD en el servidor.
 - **Cuentas:** cada usuario ve sólo sus emisores. Las cuentas las crea el administrador; `REGISTRO_ABIERTO=true` deja que
   cualquiera con Google cree la suya (no lo actives hasta tener cobro y términos de servicio).
 
+## Día del arranque: pasar a Finkok de producción
+
+Cuando Finkok te mande el usuario y la contraseña de producción, en `https://factura.erickddp.com`:
+
+1. **Ajustes → PAC → Agregar PAC.** Proveedor Finkok, tu usuario y contraseña de producción.
+   Quita la palomita de «Ambiente de pruebas» y pon la de «Usar este PAC para todas las cuentas». Guarda.
+   - Los emisores de tus clientes que timbraban con el de pruebas se pasan solos al nuevo.
+   - Los tuyos no se mueven solos (algunos son RFC de prueba): el Resumen de cada uno te avisa en rojo si sigue en pruebas.
+2. **Comprueba las credenciales sin gastar timbres.** En la tarjeta del PAC nuevo elige un emisor y pulsa
+   «Comprobar y dar de alta el RFC». Debe decir «Credenciales correctas». Si dice que Finkok rechazó el usuario o la
+   contraseña, edita el PAC y vuelve a escribirla.
+3. **Emisores → Editar** cada emisor tuyo que vaya a facturar de verdad: en «PAC» elige el de producción. Revisa que su CSD
+   esté vigente (el Resumen avisa si no).
+4. **Primera factura real:** una factura chica a un cliente de confianza. Al timbrar ya no aparece el aviso amarillo de
+   «ambiente de pruebas». Búscala en el portal del SAT (Verificación de CFDI) con su UUID.
+5. **Clientes con cuenta propia:** cada cuenta trae 3 timbres. Para recargar: Ajustes → Cuentas → «Recargar».
+   La primera factura real de cada cliente, hazla junto con él.
+
+Si algo sale mal, desmarca «Usar este PAC para todas las cuentas»: los emisores de los clientes quedan sin PAC
+(no timbran) y los tuyos siguen como los dejaste.
+
 ## Estado
 
-Preparado pero **no probado en un despliegue real**: esta PC no tiene Docker. Cuenta con una ronda de ajustes en el primer intento.
+En producción en `https://factura.erickddp.com` (Railway, despliegue automático con cada push a `main`).
+Persistencia del volumen comprobada en varios despliegues (`/api/health` → `almacen`).

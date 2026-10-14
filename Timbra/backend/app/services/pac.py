@@ -95,6 +95,43 @@ def get_pac(pac: Pac | None):
     raise PacError(f"PAC no soportado: {p}")
 
 
+def registrar_emisor(pac: Pac, rfc: str) -> str:
+    """Da de alta el RFC emisor en la cuenta de Finkok (tipo OnDemand: se paga lo que se timbra). Sin esto Finkok responde
+    702 al timbrar. Es seguro repetirlo: si ya existe, Finkok lo dice y no pasa nada. Devuelve el mensaje de Finkok."""
+    import requests
+    from lxml import etree
+    if pac is None or pac.proveedor != "finkok":
+        raise PacError("El alta automática del RFC sólo existe para Finkok.")
+    host = "https://demo-facturacion.finkok.com" if pac.pruebas else "https://facturacion.finkok.com"
+    ns = "http://facturacion.finkok.com/registration"
+    env = etree.Element("{http://schemas.xmlsoap.org/soap/envelope/}Envelope", nsmap={"soapenv": "http://schemas.xmlsoap.org/soap/envelope/", "reg": ns})
+    etree.SubElement(env, "{http://schemas.xmlsoap.org/soap/envelope/}Header")
+    add = etree.SubElement(etree.SubElement(env, "{http://schemas.xmlsoap.org/soap/envelope/}Body"), f"{{{ns}}}add")
+    for campo, valor in (("reseller_username", pac.usuario), ("reseller_password", _dec(pac.password_enc)),
+                         ("taxpayer_id", rfc.upper()), ("type_user", "O")):
+        etree.SubElement(add, f"{{{ns}}}{campo}").text = valor or ""
+    with paso(f"Dar de alta {rfc} en {_nombre(pac)}"):
+        r = requests.post(f"{host}/servicios/soap/registration", data=etree.tostring(env, xml_declaration=True, encoding="UTF-8"),
+                          headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": "add"}, timeout=30)
+    try:
+        raiz = etree.fromstring(r.content)
+    except etree.XMLSyntaxError:
+        raise PacError(f"Finkok no contestó bien al dar de alta {rfc} (HTTP {r.status_code}).")
+    dato = {etree.QName(n).localname: (n.text or "") for n in raiz.iter() if isinstance(n.tag, str) and not len(n)}
+    mensaje = dato.get("message") or dato.get("faultstring") or r.text[:200]
+    ok = dato.get("success", "").lower() == "true" or "already" in mensaje.lower() or "ya exist" in mensaje.lower()
+    log.info("Alta de %s en Finkok: %s", rfc, mensaje)
+    if not ok:
+        if "authentication" in mensaje.lower():
+            raise PacError(f"Finkok rechazó el usuario o la contraseña de {pac.nombre}: revísalos en Ajustes → PAC ({mensaje}).")
+        raise PacError(f"Finkok no dio de alta el RFC {rfc}: {mensaje}")
+    if "already" in mensaje.lower():
+        return "ya estaba dado de alta"
+    if "created" in mensaje.lower():
+        return "dado de alta ahora"
+    return mensaje
+
+
 def _nombre(pac: Pac | None) -> str:
     if pac is None or pac.proveedor == "demo":
         return "PAC demo"
@@ -124,7 +161,8 @@ def timbrar(pac: Pac | None, cfdi) -> tuple[str, bytes]:
     from .errores_pac import diagnosticar
 
     obj = get_pac(pac)
-    for intento in range(REINTENTOS + 1):
+    alta_hecha = False
+    for intento in range(REINTENTOS + 2):
         try:
             with paso(f"Timbrar con {_nombre(pac)}", serie=cfdi.get("Serie"), folio=cfdi.get("Folio"),
                       total=str(cfdi.get("Total")), intento=intento + 1):
@@ -144,6 +182,14 @@ def timbrar(pac: Pac | None, cfdi) -> tuple[str, bytes]:
                 if doc is not None:
                     log.info("Recuperado el timbre previo del mismo CFDI (no se duplicó)")
                     break
+            if d and d.clave == "rfc_pac" and pac is not None and pac.proveedor == "finkok" and not alta_hecha:
+                # El RFC aún no está en la cuenta de Finkok: se da de alta y se vuelve a intentar con el mismo XML sellado
+                alta_hecha = True
+                try:
+                    registrar_emisor(pac, str(cfdi["Emisor"]["Rfc"]))
+                    continue
+                except Exception as e3:  # noqa: BLE001
+                    log.warning("No se pudo dar de alta el RFC en Finkok: %s", e3)
             if d and d.accion == "reintentar" and intento < REINTENTOS:
                 log.warning("Reintento %s/%s con el mismo XML sellado en %ss", intento + 1, REINTENTOS, ESPERA[intento])
                 time.sleep(ESPERA[intento])
@@ -209,6 +255,7 @@ CANCEL_ERRORES = {
     "210": "No es cancelable: tiene CFDI relacionados vigentes (REP o notas de crédito)",
     "211": "Ya hay una solicitud de cancelación en proceso",
     "212": "No cancelable: el receptor ya rechazó la cancelación o fuera de plazo",
+    "708": "el SAT no respondió al PAC (falla de conexión del SAT). La factura sigue vigente: reintenta en unos minutos",
 }
 
 

@@ -26,6 +26,7 @@ class PacIn(BaseModel):
     token: str | None = None
     extra: dict = {}
     pruebas: bool = True
+    plataforma: bool = False  # sólo el administrador: con este PAC timbran todas las cuentas
     timbres_contratados: int | None = None
     timbres_desde: datetime | None = None
     timbres_alerta: int = 50
@@ -38,6 +39,8 @@ class PacOut(ORM):
     usuario: str | None
     extra: dict
     pruebas: bool
+    plataforma: bool = False
+    propio: bool = True  # False = es el de la plataforma y esta cuenta sólo lo usa (no ve ni cambia sus credenciales)
     timbres_contratados: int | None = None
     timbres_desde: datetime | None = None
     timbres_alerta: int = 50

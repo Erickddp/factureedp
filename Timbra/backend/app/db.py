@@ -1,5 +1,5 @@
 from fastapi import HTTPException, Request
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import create_engine, event, or_, select
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, with_loader_criteria
 
 from .config import settings
@@ -57,7 +57,7 @@ def _solo_lo_mio(estado):
     mios = _mis_emisores(models, uid)
     estado.statement = estado.statement.options(
         with_loader_criteria(models.Emisor, models.Emisor.usuario_id == uid, include_aliases=True),
-        with_loader_criteria(models.Pac, models.Pac.usuario_id == uid, include_aliases=True),
+        with_loader_criteria(models.Pac, or_(models.Pac.usuario_id == uid, models.Pac.plataforma.is_(True)), include_aliases=True),
         *[with_loader_criteria(m, m.emisor_id.in_(mios), include_aliases=True) for m in con_emisor],
     )
 
@@ -78,7 +78,8 @@ def _no_escribir_en_lo_ajeno(session, _ctx, _instancias):
                 raise HTTPException(403, "Ese registro es de otra cuenta.")
             if uid is not None and isinstance(o, models.Emisor) and o.pac_id is not None:
                 t = models.Pac.__table__
-                if session.connection().execute(select(t.c.usuario_id).where(t.c.id == o.pac_id)).scalar() != uid:
+                dueno, de_todos = session.connection().execute(select(t.c.usuario_id, t.c.plataforma).where(t.c.id == o.pac_id)).first() or (None, False)
+                if dueno != uid and not de_todos:
                     raise HTTPException(403, "Ese PAC es de otra cuenta.")
         elif uid is not None and getattr(o, "emisor_id", None) is not None:
             if permitidos is None:
