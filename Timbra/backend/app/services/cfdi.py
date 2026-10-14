@@ -8,7 +8,7 @@ from satcfdi.create.cfd import cfdi40, implocal10
 
 from ..config import settings
 from ..models import Cliente, Emisor
-from ..schemas import ConceptoIn, FacturaIn, ReceptorIn
+from ..schemas import ConceptoIn, FacturaIn, GlobalIn, ReceptorIn
 
 PUBLICO_GENERAL_RFC = "XAXX010101000"
 EXTRANJERO_RFC = "XEXX010101000"
@@ -171,7 +171,7 @@ def construir(emisor: Emisor, data: FacturaIn, cliente: Cliente | None,
     tipo = data.tipo
     if data.publico_general and not data.informacion_global:
         hoy = ahora_mx()
-        data.informacion_global = {"periodicidad": "04", "meses": f"{hoy.month:02d}", "ano": hoy.year}
+        data.informacion_global = GlobalIn(periodicidad="04", meses=f"{hoy.month:02d}", ano=hoy.year)
     ig = data.informacion_global
     if ig is not None and not isinstance(ig, dict):
         ig = ig.model_dump()

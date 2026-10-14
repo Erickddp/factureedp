@@ -12,6 +12,8 @@ shutil.rmtree("./_test_datos", ignore_errors=True)
 os.environ.setdefault("DATA_DIR", "./_test_datos")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_datos/timbra.db")
 os.environ["PROGRAMADOR"] = "False"
+# Llave de prueba de 32+ bytes: la de ejemplo es corta y PyJWT avisa en cada token.
+os.environ.setdefault("JWT_SECRET", "jwt-de-pruebas-" + "x" * 40)
 
 # Mismo reloj que el servidor (Dockerfile: TZ=America/Mexico_City). Las pruebas comparan datetime.now() contra ahora_mx():
 # en una máquina en UTC difieren 6 h y las recurrentes "de hoy" todavía no vencen.
