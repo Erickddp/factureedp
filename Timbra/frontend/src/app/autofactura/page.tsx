@@ -104,7 +104,10 @@ function Autofactura() {
           <Button type="submit" variant="primario" size="lg" className="sm:col-span-2" loading={cargando} disabled={!info} style={{ background: color, color: "#fff" }}>Generar mi factura</Button>
         </form>
       )}
-      <p className="mt-auto pt-10 text-center text-xs text-grafito">Factura electrónica CFDI 4.0 · Timbra</p>
+      <p className="mt-auto pt-10 text-center text-xs text-grafito">
+        Factura electrónica CFDI 4.0 · Timbra · Tus datos los usa el emisor sólo para hacer tu factura ·{" "}
+        <a href="/legal/privacidad/" target="_blank" className="underline">Aviso de privacidad</a>
+      </p>
     </main>
   );
 }

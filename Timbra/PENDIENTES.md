@@ -84,7 +84,10 @@ Objetivo: que un cliente se dé de alta, pague y facture sin que intervengas.
 
 ### Hacer
 - [ ] [Rick] Abrir la cuenta de Mercado Pago y darme las llaves (las pones tú en Railway)
-- [ ] [Rick] Aviso de privacidad y términos de uso (los redacto, tú los revisas)
+- [x] Aviso de privacidad y términos de uso redactados y conectados (/legal/terminos, /legal/privacidad; cada cuenta los acepta)
+- [ ] [Rick] Llenar nombre legal, RFC y domicilio del responsable en `frontend/src/lib/legal.ts` (hoy salen resaltados en amarillo)
+- [ ] [Rick] Crear el buzón privacidad@erickddp.com (o cambiarlo en `lib/legal.ts`)
+- [ ] [Rick] Revisar los textos con abogado antes de abrir el registro; confirmar plazo de borrado (90 días) y la política de reembolso
 
 ### Construir
 - [ ] [Claude] Recargas con Mercado Pago (paga y el saldo sube solo)

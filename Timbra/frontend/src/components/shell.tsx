@@ -60,7 +60,10 @@ const leer = (k: string) => { try { return localStorage.getItem(k); } catch { re
 const guardar = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch {} };
 const iniciales = (s: string) => s.trim().split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "?";
 
-type Yo = { email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null; timbres?: number | null };
+type Yo = {
+  email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null; timbres?: number | null;
+  terminos?: { vigente: string; aceptada: string | null; aceptados: string | null; pendiente: boolean };
+};
 
 function SelectorEmisor() {
   const { emisores, emisor, setEmisorId } = useEmisor();
@@ -193,6 +196,7 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
           {dato("Emisores dados de alta", emisores.length)}
           {typeof yo?.timbres === "number" && dato("Timbres disponibles", <b className={yo.timbres <= 0 ? "text-rojo" : undefined}>{yo.timbres}</b>)}
           {emisor && dato("Timbrado", emisor.modo_demo ? <span className="text-alerta">Modo demo (sin PAC)</span> : "Con PAC")}
+          {yo?.terminos?.aceptados && dato("Términos y privacidad", <span>Aceptados el {new Date(yo.terminos.aceptados).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })} · <Link className="underline" href="/legal/terminos/" target="_blank">Ver</Link></span>)}
           {dato("Tema", <button className="underline" onClick={() => tema.siguiente()}>{t === "oscuro" ? "Oscuro" : t === "claro" ? "Claro" : "Como el sistema"}</button>)}
         </dl>
         {accesos.length > 0 && (
@@ -440,6 +444,45 @@ function Avisos() {
   );
 }
 
+/**
+ * Términos de uso y aviso de privacidad: la cuenta los acepta antes de usar Timbra y otra vez cuando cambian (backend/app/legal.py).
+ * No se cierra con Esc ni dando clic afuera: o aceptas, o sales de tu cuenta. En modo soporte no aparece (no acepta el administrador por otro).
+ */
+function AceptarTerminos({ version, nueva, listo }: { version: string; nueva: boolean; listo: (y: Yo) => void }) {
+  const router = useRouter();
+  const [ok, setOk] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const aceptar = async () => {
+    setEnviando(true);
+    try { listo(await api<Yo>("/auth/terminos", { method: "POST", json: { version } })); toast.success("Listo, gracias"); }
+    catch (e) { mostrarError(e); } finally { setEnviando(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-tinta/50 backdrop-blur-[3px] animate-velo sm:items-center sm:p-4">
+      <div role="dialog" aria-modal aria-labelledby="terminos-titulo" className="w-full rounded-t-2xl bg-hoja p-6 shadow-flotante animate-subir sm:max-w-md sm:rounded-2xl">
+        <h2 id="terminos-titulo" className="text-lg font-semibold">{nueva ? "Actualizamos los términos" : "Antes de empezar"}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-grafito">
+          {nueva
+            ? "Cambiamos los términos de uso o el aviso de privacidad. Revísalos y acéptalos para seguir usando Timbra."
+            : "Timbra guarda tus datos fiscales y tu CSD para timbrar a tu nombre. Lee cómo los cuidamos y las reglas del servicio."}
+        </p>
+        <div className="mt-4 flex flex-col gap-1.5 text-sm">
+          <Link href="/legal/terminos/" target="_blank" className="font-medium text-acento underline-offset-4 hover:underline">Términos de uso ↗</Link>
+          <Link href="/legal/privacidad/" target="_blank" className="font-medium text-acento underline-offset-4 hover:underline">Aviso de privacidad ↗</Link>
+        </div>
+        <label className="mt-5 flex cursor-pointer items-start gap-2.5 text-sm">
+          <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-acento)]" autoFocus />
+          <span>Leí y acepto los términos de uso y el aviso de privacidad.</span>
+        </label>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="fantasma" onClick={() => { setToken(null); router.push("/login/"); }}><LogOut className="size-4" /> Salir</Button>
+          <Button variant="primario" onClick={aceptar} loading={enviando} disabled={!ok}>Aceptar y continuar</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Marco({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const { emisor: emisorActivo } = useEmisor();
@@ -520,6 +563,7 @@ function Marco({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <Perfil abierto={perfil} cerrar={() => setPerfil(false)} yo={yo} cambio={(y) => mutYo(y, false)} />
+      {yo?.terminos?.pendiente && !getSoporte() && <AceptarTerminos version={yo.terminos.vigente} nueva={!!yo.terminos.aceptada} listo={(y) => mutYo(y, false)} />}
       <Consola />
     </div>
   );
