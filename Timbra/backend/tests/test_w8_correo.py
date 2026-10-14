@@ -81,6 +81,35 @@ def test_respaldo_diario_sale_del_servidor_cifrado(monkeypatch, tmp_path):
     assert not any(p.name.endswith("_solo_base.zip") for p in tmp_path.iterdir()) and os.path.exists(zip_path)
 
 
+def test_tope_de_descargas_del_sat_a_la_vez(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.db import SessionLocal
+    from app.main import app
+    from app.models import Usuario, XmlTrabajo
+    from app.routers import xml as xml_router
+    from app.services import xml_tareas
+    from test_v2 import _preparar
+
+    monkeypatch.setattr(xml_tareas, "fabrica_cliente", object())  # sin e.firma real: no se llega a lanzar nada
+    with TestClient(app) as c:
+        h, e = _preparar(c)
+        with SessionLocal() as db:
+            uid = db.query(Usuario).filter_by(email="rick@erickddp.com").first().id
+            falsos = [XmlTrabajo(usuario_id=uid, emisor_id=e["id"] + 1000 + i, clase="sat", estado="curso", params={}, resumen={}, registro="")
+                      for i in range(xml_router.DESCARGAS_POR_CUENTA)]
+            db.add_all(falsos)
+            db.commit()
+            ids = [f.id for f in falsos]
+        try:
+            r = c.post("/api/xml/descargas", headers=h, json={"emisor_id": e["id"], "desde": "2026-01-01", "hasta": "2026-01-31", "tipo": "emitidos"})
+            assert r.status_code == 429 and "descargas del SAT en curso" in r.json()["detail"], r.text
+        finally:
+            with SessionLocal() as db:
+                db.query(XmlTrabajo).filter(XmlTrabajo.id.in_(ids)).delete()
+                db.commit()
+
+
 def test_sin_llave_sigue_por_smtp(monkeypatch):
     monkeypatch.setattr(settings, "resend_api_key", None)
     assert mailer.publica()["origen"] != "resend"

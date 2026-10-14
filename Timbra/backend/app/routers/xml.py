@@ -23,6 +23,8 @@ router = APIRouter(prefix="/xml", tags=["xml"], dependencies=[Depends(current_us
 
 POR_PAGINA = 100
 MAX_SUBIDA = 2000  # archivos por envío (la pantalla manda la carpeta en tandas)
+DESCARGAS_POR_CUENTA = 3  # descargas del SAT a la vez por cuenta (distintos RFC)
+DESCARGAS_EN_TOTAL = 8  # y en todo el servidor
 
 
 def _emisor(db: Session, emisor_id: int) -> Emisor:
@@ -150,6 +152,14 @@ def descargar(data: DescargaIn, db: Session = Depends(get_db)):
         raise HTTPException(422, "Pon tu e.firma para descargar del SAT. Por seguridad no se guarda: se pide cada vez.")
     if db.query(XmlTrabajo).filter_by(emisor_id=e.id, clase="sat", estado="curso").count():
         raise HTTPException(409, "Ya hay una descarga en curso para este RFC. Espera a que termine o detenla.")
+    # Topes: cada descarga es un hilo que habla con el SAT por minutos. Se cuentan las de TODAS las cuentas (sin filtro).
+    from sqlalchemy import select
+    tabla = XmlTrabajo.__table__
+    en_curso = db.connection().execute(select(tabla.c.usuario_id).where(tabla.c.clase == "sat", tabla.c.estado == "curso")).scalars().all()
+    if sum(1 for u in en_curso if u == db.info.get("uid_real")) >= DESCARGAS_POR_CUENTA:
+        raise HTTPException(429, f"Ya tienes {DESCARGAS_POR_CUENTA} descargas del SAT en curso. Espera a que termine alguna.")
+    if len(en_curso) >= DESCARGAS_EN_TOTAL:
+        raise HTTPException(429, "Timbra está atendiendo muchas descargas del SAT en este momento. Intenta en unos minutos.")
     tid = xml_trabajos.crear(db, db.info.get("uid_real"), e.id, "sat", {
         "desde": data.desde.isoformat(), "hasta": data.hasta.isoformat(), "tipo": data.tipo, "cancelados": data.cancelados})
     desde, hasta = datetime.combine(data.desde, datetime.min.time()), datetime.combine(data.hasta, datetime.min.time())

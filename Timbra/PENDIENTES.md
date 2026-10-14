@@ -52,8 +52,8 @@ Objetivo: que nada se pierda y que aguante a varios clientes a la vez.
 - [ ] [Claude] Revisar los registros del servidor de la primera semana real
 
 ### Mejorar
-- [ ] [Claude] Límites por cuenta (facturas por minuto, tamaño de descargas del SAT)
-- [ ] [Claude] Investigar por qué Finkok rechaza la nómina (NOM111) y corregirlo
+- [x] [Claude] Límites por cuenta: máximo 3 descargas del SAT a la vez por cuenta y 8 en todo el servidor (los timbres ya los limita el saldo)
+- [ ] [Claude] Investigar por qué Finkok rechaza la nómina (NOM111) y corregirlo. Pregunta ya incluida en tu borrador a Ricardo; sigo cuando conteste
 
 ### Hacer
 - [ ] [Rick] Poner las variables de Google en Railway (con el prompt que ya tienes)
