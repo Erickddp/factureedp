@@ -9,6 +9,38 @@ Cada fase tiene cinco pasos: **aprender** (revisar qué hay), **mejorar** (corre
 
 ---
 
+## Lo que te toca a ti, Rick (lista viva)
+
+Claude agrega aquí cada cosa que sólo tú puedes hacer, en orden de urgencia, y la tacha cuando le confirmas.
+Las mismas tareas siguen en su fase abajo, con su contexto.
+
+**Ya, para arrancar (fase 1)**
+- [ ] Llenar la solicitud de Finkok, poner tu RFC en el borrador, adjuntar solicitud y Constancia, y enviarlo
+- [ ] Crear cuenta en resend.com, verificar el dominio erickddp.com (DNS) y poner `RESEND_API_KEY` en Railway
+- [ ] Cambiar la contraseña del administrador en el servidor por una nueva y segura
+- [ ] Subir el CSD vigente de cada emisor real
+- [ ] Corregir el emisor con región fronteriza y un correo en «Registro patronal»
+- [ ] Con las credenciales de Finkok: Ajustes → PAC → nuevo Finkok productivo, «Usar este PAC para todas las cuentas», Probar
+- [ ] Timbrar tu primera factura real y revisarla en el SAT
+- [ ] Primera factura real de un cliente, junto con él
+- [ ] Sólo en tu PC: contraseña de aplicación de Gmail en Ajustes → Correo
+
+**Esta semana (fase 2)**
+- [ ] Decidir si pasamos a Postgres de Railway (ver «Base de datos» en fase 2); si es sí: agregar el servicio Postgres en Railway
+- [ ] Poner `RESPALDO_CORREO` en Railway (cuando Resend esté listo)
+- [ ] Hacer una restauración de prueba siguiendo la guía
+- [ ] Poner las variables de Google en Railway y probar «Entrar con Google» en factura.erickddp.com
+
+**Antes de vender (fase 3)**
+- [ ] Llenar nombre legal, RFC y domicilio en `frontend/src/lib/legal.ts` (hoy salen en amarillo en los avisos)
+- [ ] Crear el buzón privacidad@erickddp.com (o cambiarlo en `lib/legal.ts`)
+- [ ] Revisar términos y aviso de privacidad con abogado; confirmar borrado en 90 días y política de reembolso
+- [ ] Decidir precios de los paquetes de timbres
+- [ ] Abrir la cuenta de Mercado Pago y poner las llaves en Railway
+- [ ] Dar de alta a tu primer cliente de paga
+
+---
+
 ## Fase 1: arrancar en producción (13 al 16 de octubre)
 
 Objetivo: tú facturas tus emisores con timbres reales, y los clientes con recarga manual.
@@ -54,6 +86,15 @@ Objetivo: que nada se pierda y que aguante a varios clientes a la vez.
 ### Mejorar
 - [x] [Claude] Límites por cuenta: máximo 3 descargas del SAT a la vez por cuenta y 8 en todo el servidor (los timbres ya los limita el saldo)
 - [ ] [Claude] Investigar por qué Finkok rechaza la nómina (NOM111) y corregirlo. Pregunta ya incluida en tu borrador a Ricardo; sigo cuando conteste
+
+### Base de datos: SQLite → Postgres de Railway
+- [x] [Claude] Evaluación (14-oct): la suite completa corre contra Postgres 16: 94 de 96 pasan. Se corrigieron 3 cosas que SQLite
+  escondía (comodín «\0» al crear usuario daba 500; limpiezas de prueba que violaban llaves foráneas: SQLite no las revisa)
+- [ ] [Claude] Respaldo con Postgres: hoy el respaldo diario NO incluye la base si es Postgres (sólo XML). Exportación propia de
+  todas las tablas dentro del mismo zip cifrado, sin depender de `pg_dump` (las 2 pruebas que faltan)
+- [ ] [Claude] Mudanza: script que copia la base SQLite del volumen a Postgres, cuenta registros de cada tabla y no borra el origen
+- [ ] [Claude] `psycopg` en requirements (driver de Postgres; hoy no viene)
+- [ ] [Rick] Agregar Postgres en Railway y pasar su `DATABASE_URL` al servicio (yo te guío; no lo hagas antes de la mudanza)
 
 ### Hacer
 - [ ] [Rick] Poner las variables de Google en Railway (con el prompt que ya tienes)

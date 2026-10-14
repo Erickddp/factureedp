@@ -4,8 +4,8 @@ from pathlib import Path
 
 import shutil
 
-os.environ["DATA_DIR"] = "./_test_datos"
-os.environ["DATABASE_URL"] = "sqlite:///./_test_datos/timbra.db"
+os.environ.setdefault("DATA_DIR", "./_test_datos")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_datos/timbra.db")
 os.environ["PROGRAMADOR"] = "False"
 
 from fastapi.testclient import TestClient  # noqa: E402

@@ -266,7 +266,7 @@ def crear_usuario(data: UsuarioIn, db: Session = Depends(get_db)):
         raise HTTPException(422, "El nombre de usuario lleva de 3 a 40 letras minúsculas, números, punto o guion.")
     if len(data.password) < 8:
         raise HTTPException(422, "La contraseña lleva mínimo 8 caracteres")
-    if db.query(Usuario).filter(or_(Usuario.email == correo, Usuario.usuario == (usuario or "\0"))).first():
+    if db.query(Usuario).filter(or_(Usuario.email == correo, Usuario.usuario == usuario) if usuario else Usuario.email == correo).first():
         raise HTTPException(409, "Ese correo o nombre de usuario ya existe")
     db.add(Usuario(email=correo, usuario=usuario, nombre=data.nombre, password_hash=hash_password(data.password), admin=data.admin))
     db.commit()
