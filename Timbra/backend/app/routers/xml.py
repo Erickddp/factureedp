@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -295,7 +296,8 @@ async def subir(emisor_id: int, request: Request, archivos: list[UploadFile] = F
         raise HTTPException(422, f"Máximo {MAX_SUBIDA} archivos por envío.")
     leidos = [(Path(a.filename or "sin_nombre.xml").name, await a.read()) for a in archivos
               if (a.filename or "").lower().endswith((".xml", ".zip"))]
-    return xml_indice.guardar_subidos(db, e, leidos)
+    # leer cientos de XML es pesado: fuera del ciclo de eventos, para no congelar a las demás cuentas
+    return await run_in_threadpool(xml_indice.guardar_subidos, db, e, leidos)
 
 
 @router.post("/leer")
@@ -308,6 +310,10 @@ async def leer(rfc: str = "", actual: str = "", archivos: list[UploadFile] = Fil
         raise HTTPException(422, f"Máximo {MAX_SUBIDA} archivos por envío.")
     leidos = [(Path(a.filename or "sin_nombre.xml").name, await a.read()) for a in archivos
               if (a.filename or "").lower().endswith((".xml", ".zip"))]
+    return await run_in_threadpool(_leer, db, leidos, rfc, actual)
+
+
+def _leer(db: Session, leidos: list, rfc: str, actual: str) -> dict:
     cand = xml_indice.candidatos_a_dueno(leidos)
     if not cand:
         raise HTTPException(422, "Ahí no encontré ningún CFDI. Elige la carpeta donde están los XML (o un ZIP con ellos).")

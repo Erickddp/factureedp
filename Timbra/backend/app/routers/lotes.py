@@ -3,6 +3,7 @@ import copy
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -107,21 +108,24 @@ async def crear(emisor_id: int = Form(...), perfil_id: int = Form(...), nombre: 
     if not emisor or not perfil or perfil.emisor_id != emisor.id:
         raise HTTPException(404, "Emisor o perfil no existe")
     contenido = await archivo.read() if archivo else None
-    try:
-        filas = svc.leer_filas(perfil.config, texto, contenido, archivo.filename if archivo else None)
-    except svc.ErrorFila as e:
-        raise HTTPException(422, str(e))
-    if not filas:
-        raise HTTPException(422, "No encontré renglones. Pega las filas de tu tabla (con o sin encabezados).")
-    if len(filas) > 1000:
-        raise HTTPException(422, "Máximo 1,000 filas por lote. Divide la tabla.")
-    perfil.usos += 1
-    lote = svc.crear_lote(db, emisor, (nombre or "").strip() or f"{perfil.nombre} · {datetime.now():%d/%m/%Y %H:%M}",
-                          copy.deepcopy(perfil.config), perfil.id, filas)
-    return await _detalle(lote.id, db)
+
+    def armar():  # leer y validar hasta 1,000 filas es trabajo pesado: fuera del ciclo de eventos (no congela a los demás)
+        try:
+            filas = svc.leer_filas(perfil.config, texto, contenido, archivo.filename if archivo else None)
+        except svc.ErrorFila as e:
+            raise HTTPException(422, str(e))
+        if not filas:
+            raise HTTPException(422, "No encontré renglones. Pega las filas de tu tabla (con o sin encabezados).")
+        if len(filas) > 1000:
+            raise HTTPException(422, "Máximo 1,000 filas por lote. Divide la tabla.")
+        perfil.usos += 1
+        lote = svc.crear_lote(db, emisor, (nombre or "").strip() or f"{perfil.nombre} · {datetime.now():%d/%m/%Y %H:%M}",
+                              copy.deepcopy(perfil.config), perfil.id, filas)
+        return _detalle(lote.id, db)
+    return await run_in_threadpool(armar)
 
 
-async def _detalle(lid: int, db: Session) -> dict:
+def _detalle(lid: int, db: Session) -> dict:
     lote = _lote(db, lid)
     filas = db.query(LoteFila).filter_by(lote_id=lid).order_by(LoteFila.n).all()
     return {**svc.resumen_lote(db, lote), "filas": [_fila(db, f) for f in filas], "config": lote.config,
@@ -129,8 +133,8 @@ async def _detalle(lid: int, db: Session) -> dict:
 
 
 @router.get("/{lid}")
-async def detalle(lid: int, db: Session = Depends(get_db)):
-    return await _detalle(lid, db)
+def detalle(lid: int, db: Session = Depends(get_db)):
+    return _detalle(lid, db)
 
 
 class FilaIn(BaseModel):

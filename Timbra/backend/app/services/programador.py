@@ -32,12 +32,44 @@ def respaldo_diario(destino: Path | None = None, conservar: int = 14) -> Path | 
     return zip_path
 
 
-def armar_respaldo(zip_path: Path) -> Path:
+MAX_CORREO = 25 * 1024 * 1024  # el servicio de correo acepta ~40 MB ya en base64
+
+
+def respaldo_fuera(zip_path: Path) -> str | None:
+    """Copia del respaldo FUERA del servidor: por correo a RESPALDO_CORREO, cifrada con la SECRET_KEY (sin esa llave el
+    archivo no sirve de nada, aunque alguien lo vea). Si pesa demasiado, va sólo la base (las facturas timbradas viven
+    también ahí). Se abre con `python restaurar_respaldo.py archivo.timbra`. Devuelve a quién se mandó, o None."""
+    from . import mailer
+    from ..security import encrypt
+
+    para = (settings.respaldo_correo or "").strip()
+    if not para or not mailer.por_api():
+        return None
+    origen, nota = zip_path, "completo (base y XML)"
+    if zip_path.stat().st_size > MAX_CORREO:
+        origen = zip_path.with_name(zip_path.stem + "_solo_base.zip")
+        armar_respaldo(origen, solo_base=True)
+        nota = "sólo la base de datos (el completo pesa demasiado para correo; está en el servidor)"
+    try:
+        cifrado = encrypt(origen.read_bytes())
+    finally:
+        if origen != zip_path:
+            origen.unlink(missing_ok=True)
+    nombre = zip_path.stem + ".timbra"
+    mailer.enviar([para], f"Respaldo de Timbra {datetime.now():%d/%m/%Y}",
+                  f"Respaldo diario de Timbra: {nota}.\n\nEstá cifrado con tu SECRET_KEY: guárdalo tal cual. Para abrirlo, en tu PC:\n"
+                  f"  cd Timbra\\backend\n  .venv\\Scripts\\python restaurar_respaldo.py {nombre}\n\nLa guía completa está en DESPLEGAR.md → «Restaurar un respaldo».",
+                  [(nombre, cifrado, "application/octet-stream")], nombre="Timbra")
+    log.info("Respaldo enviado fuera del servidor a %s (%s, %s KB)", para, nota, len(cifrado) // 1024)
+    return para
+
+
+def armar_respaldo(zip_path: Path, solo_base: bool = False) -> Path:
     """Escribe en `zip_path` todo lo que hace falta para levantar Timbra en otra máquina: base, XML, correo y .env."""
     datos = Path(settings.data_dir).resolve()
     copia = _copia_bd()  # copia consistente aunque la app esté escribiendo (modo WAL)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, dirs, files in os.walk(datos):
+        for root, dirs, files in ([] if solo_base else os.walk(datos)):
             dirs[:] = [d for d in dirs if d not in ("logs", "Respaldos", "tmp")]  # ni registros, ni temporales, ni respaldos dentro de respaldos
             for f in files:
                 p = Path(root) / f
@@ -103,7 +135,9 @@ def tick():
                 log.exception("Programador · cobranza falló")
     if _una_vez_al_dia("respaldo"):
         try:
-            respaldo_diario()
+            hecho = respaldo_diario()
+            if hecho:
+                respaldo_fuera(hecho)
         except Exception:
             log.exception("Respaldo diario falló")
 

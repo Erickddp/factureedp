@@ -55,6 +55,20 @@ def siguiente(db: Session, emisor_id: int, tipo: str, serie: str | None) -> tupl
     raise FolioError("No encontré un folio libre en la serie.")
 
 
+def devolver(db: Session, emisor_id: int, serie: str | None, folio: str | None) -> None:
+    """El PAC no timbró: el contador regresa a ese folio, SÓLO si nadie tomó otro después (si ya avanzó, queda un hueco:
+    el SAT no exige folios consecutivos). Se usa porque el folio se confirma en la base ANTES de llamar al PAC."""
+    if not str(folio or "").isdigit():
+        return
+    try:
+        db.rollback()
+        db.execute(update(Serie).where(Serie.emisor_id == emisor_id, Serie.serie == serie, Serie.siguiente_folio == int(folio) + 1)
+                   .values(siguiente_folio=int(folio)))
+        db.commit()
+    except Exception:  # devolver es cortesía: nunca tapa el error original
+        db.rollback()
+
+
 def tomar(db: Session, emisor_id: int, tipo: str, serie: str | None, folio: str,
           fila_id: int | None = None) -> tuple[str | None, str]:
     """Usa EXACTAMENTE ese folio (el de tu hoja). Falla si ya lo tiene otra factura u otra fila apartada.

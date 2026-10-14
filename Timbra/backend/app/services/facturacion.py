@@ -116,10 +116,14 @@ def _hay_timbres(db: Session, emisor: Emisor):
 
 
 def _timbrar(db: Session, emisor: Emisor, comp):
-    """Timbra y, si la cuenta factura con el PAC de la plataforma, le descuenta un timbre (sólo si el PAC sí timbró)."""
+    """Timbra y, si la cuenta factura con el PAC de la plataforma, le descuenta un timbre (sólo si el PAC sí timbró).
+    Antes de hablar con el PAC se confirma lo pendiente (el folio apartado): SQLite tiene UN solo escritor, y si la
+    transacción siguiera abierta durante la llamada al PAC (segundos), todas las demás cuentas esperarían en fila y
+    terminarían en «database is locked». Si el PAC falla, quien llama regresa el folio con folios.devolver."""
     msg = timbres.sin_saldo(db, emisor)
     if msg:
         raise FacturacionError(msg)
+    db.commit()
     uuid, xml = pac_svc.timbrar(emisor.pac, comp)
     timbres.consumir(db, emisor)
     return uuid, xml
@@ -176,20 +180,24 @@ def emitir(db: Session, data: FacturaIn, fila_id: int | None = None) -> Factura:
         datos = {**((cliente.addenda_defaults if cliente else {}) or {}), **(data.addenda.datos if data.addenda else {})}
         addenda_svc.render(tpl.plantilla, datos, comp)
 
-    with paso("Sellar con CSD", no_certificado=emisor.no_certificado):
-        comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
     try:
-        uuid, xml = _timbrar(db, emisor, comp)
-    except pac_svc.PacError as e:
-        # Autocorrección segura: el PAC rechazó por fecha (nada se timbró) → re-armar con la hora actual y re-sellar
-        if not (e.diag and e.diag.accion == "refechar" and data.fecha is None):
-            raise
-        log.warning("Fecha rechazada por el PAC: re-armo con la hora actual y reintento una vez")
-        comp = cfdi_svc.construir(emisor, data, cliente, serie, folio)
-        if tpl:
-            addenda_svc.render(tpl.plantilla, datos, comp)
-        comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
-        uuid, xml = _timbrar(db, emisor, comp)
+        with paso("Sellar con CSD", no_certificado=emisor.no_certificado):
+            comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
+        try:
+            uuid, xml = _timbrar(db, emisor, comp)
+        except pac_svc.PacError as e:
+            # Autocorrección segura: el PAC rechazó por fecha (nada se timbró) → re-armar con la hora actual y re-sellar
+            if not (e.diag and e.diag.accion == "refechar" and data.fecha is None):
+                raise
+            log.warning("Fecha rechazada por el PAC: re-armo con la hora actual y reintento una vez")
+            comp = cfdi_svc.construir(emisor, data, cliente, serie, folio)
+            if tpl:
+                addenda_svc.render(tpl.plantilla, datos, comp)
+            comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
+            uuid, xml = _timbrar(db, emisor, comp)
+    except Exception:
+        folios.devolver(db, emisor.id, serie, folio)
+        raise
     ruta = _respaldar(emisor.rfc, uuid, xml)  # primero al disco, luego a la BD
     log.info("Respaldo XML: %s", ruta)
     aviso_addenda = None
@@ -250,8 +258,12 @@ def emitir_pago(db: Session, data: PagoIn) -> Factura:
     log.info("Emitiendo complemento de pago %s%s para %s (%s documentos)", serie, folio, cliente.rfc, len(docs))
     comp = cfdi_svc.construir_pago(emisor, cliente, docs, data.fecha_pago, data.forma_pago,
                                    serie, folio, data.tipo_cambio)
-    comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
-    uuid, xml = _timbrar(db, emisor, comp)
+    try:
+        comp.sign(signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
+        uuid, xml = _timbrar(db, emisor, comp)
+    except Exception:
+        folios.devolver(db, emisor.id, serie, folio)
+        raise
     _respaldar(emisor.rfc, uuid, xml)
 
     rep = Factura(emisor_id=emisor.id, cliente_id=cliente.id, tipo="P", serie=serie, folio=folio,
@@ -285,6 +297,7 @@ def emitir_nomina(db: Session, data: NominaIn) -> list[dict]:
         if not emp or emp.emisor_id != emisor.id:
             out.append({"empleado_id": r.empleado_id, "ok": False, "error": "El empleado no es de este emisor."})
             continue
+        serie = folio = uuid = None
         try:
             _hay_timbres(db, emisor)
             serie, folio = folios.siguiente(db, emisor.id, "N", data.serie)
@@ -304,7 +317,9 @@ def emitir_nomina(db: Session, data: NominaIn) -> list[dict]:
             out.append({"empleado_id": emp.id, "ok": True, "factura_id": f.id, "uuid": uuid,
                         "folio": f"{serie}{folio}", "neto": str(f.total)})
         except Exception as e:
-            db.rollback()  # regresa el folio
+            db.rollback()
+            if uuid is None and folio is not None:  # el PAC no timbró: se regresa el folio (ya estaba confirmado)
+                folios.devolver(db, emisor.id, serie, folio)
             log.warning("Recibo de %s no se timbró: %s", emp.nombre, e)
             out.append({"empleado_id": emp.id, "ok": False, "error": str(e)})
             continue

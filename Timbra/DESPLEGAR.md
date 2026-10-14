@@ -80,6 +80,28 @@ Cuando Finkok te mande el usuario y la contraseña de producción, en `https://f
 Si algo sale mal, desmarca «Usar este PAC para todas las cuentas»: los emisores de los clientes quedan sin PAC
 (no timbran) y los tuyos siguen como los dejaste.
 
+## Respaldos
+
+- **En el servidor:** cada día a primera hora se guarda `timbra_AAAAMMDD.zip` dentro del volumen (`/data/Respaldos`,
+  se quedan los últimos 7). En Ajustes → Datos guardados puedes bajar uno al momento.
+- **Fuera del servidor (recomendado):** pon en Railway la variable `RESPALDO_CORREO` con tu correo. Con Resend ya
+  configurado, cada día te llega `timbra_AAAAMMDD.timbra`, cifrado con tu `SECRET_KEY`: sin esa llave nadie lo puede abrir.
+  Si el respaldo pesa más de 25 MB, llega sólo la base de datos (las facturas timbradas también viven ahí).
+
+## Restaurar un respaldo
+
+1. Abre el archivo en tu PC (necesitas el mismo `.env` del servidor, o sea la misma `SECRET_KEY`):
+   ```
+   cd Timbra\backend
+   .venv\Scripts\python restaurar_respaldo.py C:\ruta\timbra_20261014.timbra
+   ```
+   Deja `timbra_20261014.zip` junto al archivo. Adentro viene `datos/` (timbra.db y los XML).
+2. **Para revisarlo en tu PC:** cierra Timbra, renombra tu `backend\datos` a `datos_antes`, copia la carpeta `datos` del
+   zip en `backend\` y abre Timbra. Para regresar, renombra al revés.
+3. **Para devolverlo al servidor:** en Railway, servicio → Settings → pausa el despliegue; con el volumen montado,
+   sube `datos/timbra.db` a `/data/timbra.db` (borra antes `timbra.db-wal` y `timbra.db-shm`) y vuelve a desplegar.
+   Si no lo has hecho nunca, pídemelo y lo hacemos juntos: un error aquí sí borra datos.
+
 ## Estado
 
 En producción en `https://factura.erickddp.com` (Railway, despliegue automático con cada push a `main`).

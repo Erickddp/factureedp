@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
 
 
 # En internet la documentación interactiva de la API no se publica: es el mapa completo para quien busca por dónde entrar.
-app = FastAPI(title="Timbra API", version="2.13.1", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan,
+app = FastAPI(title="Timbra API", version="2.13.2", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan,
               docs_url=None if EN_WEB else "/docs", redoc_url=None, openapi_url=None if EN_WEB else "/openapi.json")
 app.add_middleware(GZipMiddleware, minimum_size=1024)  # pantallas y respuestas grandes viajan comprimidas (3-4 veces menos)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),

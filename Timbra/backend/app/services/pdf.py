@@ -8,6 +8,7 @@ PDF: weasyprint si está (necesita GTK); si no, Edge o Chrome sin ventana (viene
 se entrega el HTML listo para imprimir (Ctrl+P → Guardar como PDF).
 """
 import base64
+import hashlib
 import html as _html
 import io
 import os
@@ -15,7 +16,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
+from collections import OrderedDict
 from decimal import Decimal
 from pathlib import Path
 
@@ -423,7 +426,30 @@ def _navegador() -> str | None:
     return None
 
 
+# Cada PDF abre un navegador (cientos de MB). Sin tope, 30 PDF a la vez en el servidor lo dejan sin memoria y se cae
+# todo Timbra; con tope, esperan su turno. Los ya hechos se guardan un rato en memoria (bajar dos veces es instantáneo).
+_NAVEGADORES = threading.BoundedSemaphore(int(os.environ.get("PDF_SIMULTANEOS", "3")))
+_HECHOS: "OrderedDict[str, bytes]" = OrderedDict()
+_HECHOS_MAX = 64
+_HECHOS_LOCK = threading.Lock()
+
+
 def _pdf_navegador(h: str) -> bytes:
+    clave = hashlib.sha256(h.encode("utf-8")).hexdigest()
+    with _HECHOS_LOCK:
+        if clave in _HECHOS:
+            _HECHOS.move_to_end(clave)
+            return _HECHOS[clave]
+    with _NAVEGADORES:
+        data = _pdf_navegador_sin_tope(h)
+    with _HECHOS_LOCK:
+        _HECHOS[clave] = data
+        while len(_HECHOS) > _HECHOS_MAX:
+            _HECHOS.popitem(last=False)
+    return data
+
+
+def _pdf_navegador_sin_tope(h: str) -> bytes:
     exe = _navegador()
     if not exe:
         raise RuntimeError("no hay Edge ni Chrome instalados")

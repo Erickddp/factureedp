@@ -170,11 +170,12 @@ def test_disco_o_base_fallan_despues_de_timbrar():
         finally:
             respaldo.guardar = orig_g
         # 2) La base falla en el commit tras timbrar: se recupera sola del respaldo y no repite folio
-        orig_c, estado = Session.commit, {"fallo": False}
+        #    (el 1er commit es el que aparta el folio ANTES de llamar al PAC; el 2º, el de guardar lo timbrado)
+        orig_c, estado = Session.commit, {"n": 0}
 
         def commit_que_falla(self):
-            if not estado["fallo"]:
-                estado["fallo"] = True
+            estado["n"] += 1
+            if estado["n"] == 2:
                 raise RuntimeError("database is locked")
             return orig_c(self)
         Session.commit = commit_que_falla
@@ -187,3 +188,13 @@ def test_disco_o_base_fallan_despues_de_timbrar():
         assert "Recuperada" in (rec["error"] or "")
         sig = c.post("/api/facturas", headers=h, json=_cuerpo(e, cli)).json()
         assert sig["serie"] == rec["serie"] and int(sig["folio"]) == int(rec["folio"]) + 1
+        # 3) El PAC rechaza: el folio ya se había confirmado antes de llamarlo, y se regresa (no queda hueco)
+        from app.services import pac as pac_svc
+        orig_t = facturacion.pac_svc.timbrar
+        facturacion.pac_svc.timbrar = lambda *a, **k: (_ for _ in ()).throw(pac_svc.PacError("El PAC rechazó el CFDI: CFDI40999"))
+        try:
+            assert c.post("/api/facturas", headers=h, json=_cuerpo(e, cli)).status_code == 422
+        finally:
+            facturacion.pac_svc.timbrar = orig_t
+        otra = c.post("/api/facturas", headers=h, json=_cuerpo(e, cli)).json()
+        assert int(otra["folio"]) == int(sig["folio"]) + 1

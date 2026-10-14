@@ -48,7 +48,7 @@ Objetivo: tú facturas tus emisores con timbres reales, y los clientes con recar
 Objetivo: que nada se pierda y que aguante a varios clientes a la vez.
 
 ### Aprender
-- [ ] [Claude] Prueba de carga: 10 cuentas timbrando y descargando XML al mismo tiempo sobre SQLite
+- [x] [Claude] Prueba de carga: 10 cuentas timbrando y descargando XML al mismo tiempo sobre SQLite. Salieron «base de datos ocupada» después de timbrar (timbre cobrado y no guardado), pantallas congeladas al subir XML o lotes, y riesgo de quedarse sin memoria con muchos PDF. Corregido: 0 errores en la segunda corrida
 - [ ] [Claude] Revisar los registros del servidor de la primera semana real
 
 ### Mejorar
@@ -60,12 +60,13 @@ Objetivo: que nada se pierda y que aguante a varios clientes a la vez.
 - [ ] [Rick] Probar «Entrar con Google» en factura.erickddp.com
 
 ### Construir
-- [ ] [Claude] Respaldo automático fuera del servidor (diario, a tu Drive o a otro lugar que elijas)
+- [x] [Claude] Respaldo automático fuera del servidor: diario, por correo, cifrado con tu SECRET_KEY
+- [ ] [Rick] Poner en Railway la variable `RESPALDO_CORREO` con tu correo (funciona cuando Resend ya esté listo)
 - [ ] [Claude] Segundo paso de seguridad para la cuenta de administrador (Google obligatorio o código)
 - [ ] [Claude] Subir a Drive desde la web (hoy sólo funciona en tu PC)
 
 ### Guiar
-- [ ] [Claude] Guía para restaurar un respaldo si algo sale mal
+- [x] [Claude] Guía para restaurar un respaldo si algo sale mal (DESPLEGAR.md → «Restaurar un respaldo»)
 - [ ] [Rick] Hacer una restauración de prueba siguiendo la guía
 
 ---

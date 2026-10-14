@@ -322,6 +322,14 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   API HTTPS de Resend desde `CORREO_REMITENTE` (facturas@erickddp.com, dominio verificado en Resend) con el nombre del
   emisor y `reply_to` al correo del emisor (`mailer.enviar(..., nombre=, responder_a=)`). Sin llave, SMTP como siempre (PC).
   tests/test_w8_correo.py.
+- **Concurrencia (2.13.2, prueba de carga `tests/carga_manual.py`):** SQLite tiene un solo escritor. `facturacion._timbrar`
+  hace `db.commit()` ANTES de llamar al PAC (confirma el folio apartado) para no tener la escritura tomada durante la
+  llamada de red; si el PAC falla, quien llama hace `folios.devolver` (regresa el contador sólo si nadie avanzó). Antes,
+  con 10 cuentas timbrando a la vez salían «database is locked» DESPUÉS de timbrar. Rutas `async def` no deben hacer
+  trabajo pesado de BD/XML en el ciclo de eventos: `run_in_threadpool` (xml subir/leer, lotes crear; lotes detalle es def).
+  PDF con navegador: máximo `PDF_SIMULTANEOS` (3) a la vez y caché de 64 en memoria (cada Chromium pesa cientos de MB).
+- **Respaldo fuera del servidor:** `programador.respaldo_fuera` manda cada día el zip cifrado con la SECRET_KEY a
+  `RESPALDO_CORREO` (vía Resend); >25 MB va sólo la base. Se abre con `backend/restaurar_respaldo.py`. Guía en DESPLEGAR.md.
 - Guía del día del arranque: DESPLEGAR.md. Lista de pendientes compartida con Rick: PENDIENTES.md.
 - En el SAT real un periodo sin comprobantes termina en estado 5 con CodigoEstadoSolicitud 5004: no es error.
 - tests/test_w7_terceros.py.
