@@ -3,7 +3,6 @@ import os
 import shutil
 import time
 
-shutil.rmtree("./_test_datos", ignore_errors=True)  # corrida limpia al ejecutar este archivo solo
 
 os.environ.setdefault("DATA_DIR", "./_test_datos")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_datos/timbra.db")

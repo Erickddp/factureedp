@@ -4,7 +4,6 @@ from pathlib import Path
 
 import shutil
 
-shutil.rmtree("./_test_datos", ignore_errors=True)
 os.environ["DATA_DIR"] = "./_test_datos"
 os.environ["DATABASE_URL"] = "sqlite:///./_test_datos/timbra.db"
 os.environ["PROGRAMADOR"] = "False"
