@@ -46,6 +46,12 @@ def test_con_llave_sale_por_resend_con_el_nombre_del_emisor(monkeypatch):
         mailer.enviar(["cliente@prueba.mx"], "x", "y", [])
     with pytest.raises(mailer.CorreoError, match="destino válido"):
         mailer.enviar(["sin-arroba"], "x", "y", [])
+    with pytest.raises(mailer.CorreoError, match="no tiene la forma"):
+        mailer.enviar(["cliente@gmail"], "x", "y", [])
+    # el punto que se cuela al final al copiar de un texto se quita solo
+    monkeypatch.setattr(requests, "post", lambda url, json=None, headers=None, timeout=None: enviados.append((url, json, headers)) or Resp(200, {"id": "x"}))
+    mailer.enviar(["cperickd@gmail.com."], "x", "y", [])
+    assert enviados[-1][1]["to"] == ["cperickd@gmail.com"]
 
 
 def test_respaldo_diario_sale_del_servidor_cifrado(monkeypatch, tmp_path):

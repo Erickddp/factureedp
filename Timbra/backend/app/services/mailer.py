@@ -101,9 +101,21 @@ def _explica(e: Exception, c: dict, paso: str = "") -> str:
     return f"El correo no salió: {t}"
 
 
+CORREO_OK = re.compile(r"^[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
+
+
 def _limpios(correos: list[str]) -> list[str]:
-    # sin comas, espacios ni vacíos (una coma de más hacía que el servidor cortara la conexión)
-    return [x for x in (re.sub(r"[\s,;<>]+", "", p or "") for p in correos) if "@" in x]
+    # sin comas, espacios ni vacíos (una coma de más hacía que el servidor cortara la conexión), y sin el punto o la
+    # coma que se cuela al final al copiar de un texto («cliente@gmail.com.»)
+    return [x for x in (re.sub(r"[\s,;<>]+", "", p or "").strip(".") for p in correos) if "@" in x]
+
+
+def _validos(para: list[str]) -> list[str]:
+    malos = [x for x in para if not CORREO_OK.match(x)]
+    if malos:
+        raise CorreoError(f"Revisa {'el correo' if len(malos) == 1 else 'los correos'} {', '.join(malos)}: "
+                          "no tiene la forma nombre@dominio.com.")
+    return para
 
 
 def _resend(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, bytes, str]], nombre: str | None, responder_a: str | None):
@@ -145,6 +157,7 @@ def enviar(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, 
     para = _limpios(para)
     if not para:
         raise CorreoError("No hay un correo de destino válido.")
+    _validos(para)
     if por_api():
         return _resend(para, asunto, cuerpo, adjuntos, nombre, responder_a)
     c = config()
