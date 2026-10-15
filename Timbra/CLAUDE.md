@@ -338,6 +338,11 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - **Vencimiento de timbres:** cada recarga (`MovimientoTimbres` con `vence`/`restantes`) dura 12 meses; `consumir` gasta
   primero el lote que vence antes; `timbres.vencer` corre una vez al día en el programador. Los 3 de regalo no vencen.
   tests/test_w9_pagos.py. Guía para Rick de todas las conexiones externas: CONECTAR.md. Borradores legales: legal/.
+- **Leer carpetas con VARIOS contribuyentes (`xml_indice.repartir`):** cada CFDI va con el RFC que más aparece en la tanda
+  (empates: `rfc` elegido, luego `actual`), y además con la otra parte si es dueña de algo en la carpeta o ya es de la
+  cuenta (A factura a B: emitido de A y recibido de B). Sin dueño claro → `sin_dueno`; si ninguno lo tiene → `elegir`.
+  Todas las tandas van a `/xml/leer` (ya no a `/xml/subir`). En celular no se ofrece «Elegir carpeta» (los navegadores
+  móviles no la soportan): XML sueltos o ZIP. Probado con las carpetas reales revueltas: 231 + 66, sin altas de más.
 - Guía del día del arranque: DESPLEGAR.md. Lista de pendientes compartida con Rick: PENDIENTES.md.
 - En el SAT real un periodo sin comprobantes termina en estado 5 con CodigoEstadoSolicitud 5004: no es error.
 - tests/test_w7_terceros.py.

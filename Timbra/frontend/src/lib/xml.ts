@@ -136,31 +136,43 @@ export async function copiarTabla(f: Filtros): Promise<number> {
 /** Sube XML o ZIP por tandas (una carpeta puede traer miles). Avisa el avance con `paso`. */
 export type Candidato = { rfc: string; nombre: string; veces: number };
 
-/** `actual`: el RFC en el que se está trabajando. `elegir`: se llama si los XML no dejan claro de quién son. */
+export type ContribuyenteLeido = { emisor_id: number; rfc: string; nombre: string; creado: boolean; nuevos: number; repetidos: number };
+
+/** `actual`: el RFC en el que se está trabajando. `elegir`: se llama si los XML no dejan claro de quién son.
+ *  Una carpeta puede traer XML de VARIOS contribuyentes: el servidor manda cada CFDI con su dueño (y da de alta los que
+ *  falten). Aquí se juntan las tandas por RFC. */
 export async function subirXml(archivos: File[], paso: (hechos: number, total: number) => void, actual = "",
   elegir: (c: Candidato[]) => Promise<string | null> = async () => null) {
   const utiles = archivos.filter((a) => /\.(xml|zip)$/i.test(a.name));
-  const res = { nuevos: 0, repetidos: 0, ajenos: 0, invalidos: 0, total: utiles.length, emisor_id: 0, rfc: "", nombre: "", creado: false };
-  let tanda: File[] = [], peso = 0, hechos = 0;
+  const res = { nuevos: 0, repetidos: 0, ajenos: 0, invalidos: 0, total: utiles.length, emisor_id: 0, rfc: "", nombre: "", creado: false,
+    contribuyentes: [] as ContribuyenteLeido[] };
+  const porRfc = new Map<string, ContribuyenteLeido>();
+  let tanda: File[] = [], peso = 0, hechos = 0, elegido = "";
   const enviar = async () => {
     if (!tanda.length) return;
     const fd = new FormData();
     tanda.forEach((a) => fd.append("archivos", a, a.name));
-    // La primera tanda dice de quién es la carpeta (el RFC que aparece en todos los XML); las demás entran a ese mismo RFC.
-    const mandar = async (rfc = "") => {
-      const ruta = res.emisor_id ? `/xml/subir?emisor_id=${res.emisor_id}` : `/xml/leer?actual=${encodeURIComponent(actual)}&rfc=${encodeURIComponent(rfc)}`;
+    // Todas las tandas van a /xml/leer; tras la primera, el RFC principal desempata a su favor en las siguientes.
+    const mandar = async () => {
+      const ruta = `/xml/leer?actual=${encodeURIComponent(res.rfc || actual)}&rfc=${encodeURIComponent(elegido)}`;
       const r = await fetch(`${API}${ruta}`, { method: "POST", headers: cabeceras(), body: fd });
       if (!r.ok) await fallo(r);
       return r.json();
     };
     let j = await mandar();
-    if (j.elegir) {  // dos RFC aparecen igual de veces: se pregunta de quién es la carpeta
-      const rfc = await elegir(j.elegir as Candidato[]);
-      if (!rfc) throw new ApiError(0, "No se leyó nada: falta decir de quién son esos XML.");
-      j = await mandar(rfc);
+    if (j.elegir) {  // ningún CFDI de esta tanda tiene dueño claro: se pregunta de quién son
+      elegido = (await elegir(j.elegir as Candidato[])) ?? "";
+      if (!elegido) throw new ApiError(0, "No se leyó nada: falta decir de quién son esos XML.");
+      j = await mandar();
     }
-    if (!res.emisor_id) { res.emisor_id = j.emisor_id; res.rfc = j.rfc; res.nombre = j.nombre; res.creado = j.creado; }
-    res.nuevos += j.nuevos; res.repetidos += j.repetidos; res.ajenos += j.ajenos; res.invalidos += j.invalidos;
+    for (const c of (j.contribuyentes ?? []) as ContribuyenteLeido[]) {
+      const ya = porRfc.get(c.rfc);
+      if (ya) { ya.nuevos += c.nuevos; ya.repetidos += c.repetidos; ya.creado ||= c.creado; } else porRfc.set(c.rfc, { ...c });
+    }
+    res.nuevos += j.nuevos ?? 0; res.repetidos += j.repetidos ?? 0; res.ajenos += j.ajenos ?? 0; res.invalidos += j.invalidos ?? 0;
+    res.contribuyentes = [...porRfc.values()].sort((a, b) => b.nuevos + b.repetidos - (a.nuevos + a.repetidos));
+    const p = res.contribuyentes[0];
+    if (p) { res.emisor_id = p.emisor_id; res.rfc = p.rfc; res.nombre = p.nombre; res.creado = p.creado; }
     hechos += tanda.length;
     paso(hechos, utiles.length);
     tanda = []; peso = 0;
