@@ -330,6 +330,14 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   PDF con navegador: máximo `PDF_SIMULTANEOS` (3) a la vez y caché de 64 en memoria (cada Chromium pesa cientos de MB).
 - **Respaldo fuera del servidor:** `programador.respaldo_fuera` manda cada día el zip cifrado con la SECRET_KEY a
   `RESPALDO_CORREO` (vía Resend); >25 MB va sólo la base. Se abre con `backend/restaurar_respaldo.py`. Guía en DESPLEGAR.md.
+- **Compra de timbres (2.14, `services/pagos.py`, `routers/pagos.py`):** Mercado Pago Checkout Pro. `POST /pagos` crea el
+  `Pago` y la preferencia (external_reference = id del pago); `POST /pagos/aviso` (webhook, sin sesión, firma opcional con
+  `MP_WEBHOOK_SECRET`) y `POST /pagos/regreso` CONSULTAN el pago en la API de Mercado Pago y abonan una sola vez (UPDATE
+  condicional a «aprobado»; monto y moneda deben coincidir). Sin `MP_ACCESS_TOKEN` no se activa. Precios en `PAQUETES` o
+  `PAQUETES_TIMBRES` (JSON). `Pago` no tiene emisor_id: el filtro por cuenta es manual (usuario_id).
+- **Vencimiento de timbres:** cada recarga (`MovimientoTimbres` con `vence`/`restantes`) dura 12 meses; `consumir` gasta
+  primero el lote que vence antes; `timbres.vencer` corre una vez al día en el programador. Los 3 de regalo no vencen.
+  tests/test_w9_pagos.py. Guía para Rick de todas las conexiones externas: CONECTAR.md. Borradores legales: legal/.
 - Guía del día del arranque: DESPLEGAR.md. Lista de pendientes compartida con Rick: PENDIENTES.md.
 - En el SAT real un periodo sin comprobantes termina en estado 5 con CodigoEstadoSolicitud 5004: no es error.
 - tests/test_w7_terceros.py.

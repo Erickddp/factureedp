@@ -86,6 +86,22 @@ def sin_saldo(db: Session, emisor) -> str | None:
     return None
 
 
+VIGENCIA_MESES = 12  # cada recarga vence a los 12 meses
+
+
+def _gastar_de_lotes(db: Session, usuario_id: int, n: int) -> None:
+    """Descuenta `n` de los lotes vigentes, primero el que vence antes. Lo que no alcance sale de los timbres sin
+    vencimiento (los de regalo o de antes de que hubiera lotes)."""
+    from sqlalchemy import select, update
+
+    from ..models import MovimientoTimbres as M
+    for _ in range(n):
+        lote = db.execute(select(M.id).where(M.usuario_id == usuario_id, M.restantes > 0).order_by(M.vence, M.id).limit(1)).scalar()
+        if lote is None:
+            return
+        db.execute(update(M).where(M.id == lote, M.restantes > 0).values(restantes=M.restantes - 1))
+
+
 def consumir(db: Session, emisor) -> None:
     """Un timbre menos para la cuenta dueña del emisor. Se llama justo después de que el PAC timbró."""
     from sqlalchemy import update
@@ -94,15 +110,64 @@ def consumir(db: Session, emisor) -> None:
     u = _cuenta_que_paga(db, emisor)
     if u is not None:
         db.execute(update(Usuario).where(Usuario.id == u.id).values(timbres=Usuario.timbres - 1))
+        _gastar_de_lotes(db, u.id, 1)
 
 
-def recargar(db: Session, usuario_id: int, cantidad: int, motivo: str | None, admin_id: int | None) -> int:
+def recargar(db: Session, usuario_id: int, cantidad: int, motivo: str | None, admin_id: int | None,
+             pago_id: int | None = None, vence: bool = True) -> int:
+    """Abona (o corrige, si es negativo). Lo abonado es un lote que vence en VIGENCIA_MESES; una corrección negativa
+    sale de los lotes como si fueran timbres usados."""
     from ..models import MovimientoTimbres, Usuario
+    from .cfdi import ahora_mx
     u = db.get(Usuario, usuario_id)
-    u.timbres = max(0, (u.timbres or 0) + cantidad)
-    db.add(MovimientoTimbres(usuario_id=u.id, cantidad=cantidad, saldo=u.timbres, motivo=(motivo or "").strip()[:200] or None, admin_id=admin_id))
+    antes = u.timbres or 0
+    u.timbres = max(0, antes + cantidad)
+    mov = MovimientoTimbres(usuario_id=u.id, cantidad=cantidad, saldo=u.timbres, motivo=(motivo or "").strip()[:200] or None,
+                            admin_id=admin_id, pago_id=pago_id)
+    if cantidad > 0 and vence:
+        hoy = ahora_mx().replace(tzinfo=None)
+        mov.vence = _mas_meses(hoy, VIGENCIA_MESES)
+        mov.restantes = cantidad
+    elif cantidad < 0:
+        _gastar_de_lotes(db, u.id, min(-cantidad, antes))
+    db.add(mov)
     db.commit()
     return u.timbres
+
+
+def _mas_meses(d: datetime, meses: int) -> datetime:
+    import calendar
+    m = d.month - 1 + meses
+    a, m = d.year + m // 12, m % 12 + 1
+    return d.replace(year=a, month=m, day=min(d.day, calendar.monthrange(a, m)[1]))
+
+
+def vencer(db: Session) -> int:
+    """Descuenta lo que quedó en los lotes ya vencidos (corre una vez al día). Devuelve cuántos timbres vencieron."""
+    from sqlalchemy import update
+
+    from ..models import MovimientoTimbres as M, Usuario
+    from .cfdi import ahora_mx
+    hoy = ahora_mx().replace(tzinfo=None)
+    total = 0
+    for lote in db.query(M).filter(M.restantes > 0, M.vence <= hoy).order_by(M.id).all():
+        quedan = lote.restantes
+        lote.restantes = 0
+        u = db.get(Usuario, lote.usuario_id)
+        quita = min(quedan, u.timbres or 0)
+        db.execute(update(Usuario).where(Usuario.id == u.id).values(timbres=Usuario.timbres - quita))
+        db.flush()
+        db.refresh(u)
+        db.add(M(usuario_id=u.id, cantidad=-quita, saldo=u.timbres, motivo=f"Vencieron (recarga del {lote.creado:%d/%m/%Y})"))
+        total += quita
+    db.commit()
+    return total
+
+
+def proximo_vencimiento(db: Session, usuario_id: int) -> dict | None:
+    from ..models import MovimientoTimbres as M
+    lote = db.query(M).filter(M.usuario_id == usuario_id, M.restantes > 0).order_by(M.vence, M.id).first()
+    return {"fecha": lote.vence, "timbres": lote.restantes} if lote else None
 
 
 def pac_plataforma(db: Session) -> Pac | None:

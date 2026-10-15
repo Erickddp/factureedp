@@ -127,6 +127,15 @@ def tick():
             except Exception:
                 db.rollback()
                 log.exception("Programador · %s falló", nombre)
+        if _una_vez_al_dia("vencer_timbres"):
+            try:
+                from . import timbres
+                n = timbres.vencer(db)
+                if n:
+                    log.info("Programador · vencieron %s timbres (recargas de hace 12 meses)", n)
+            except Exception:
+                db.rollback()
+                log.exception("Programador · vencer timbres falló")
         if _una_vez_al_dia("cobranza"):
             try:
                 cobranza.recordatorios_automaticos(db)

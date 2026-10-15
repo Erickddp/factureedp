@@ -15,7 +15,7 @@ from .config import EN_WEB, settings
 from .db import SessionLocal, engine
 from .models import Addenda
 from .routers import (addendas, auth, catalogos, clientes, cobranza, correo, dashboard, debug, emisores, facturas, nomina,
-                      claves, lotes, pacs, pendientes, plantillas, portal, productos, xml, terceros)
+                      claves, lotes, pacs, pagos, pendientes, plantillas, portal, productos, xml, terceros)
 from .services import almacen
 from .services.addenda import SEMILLAS
 
@@ -82,14 +82,14 @@ async def lifespan(app: FastAPI):
 
 
 # En internet la documentación interactiva de la API no se publica: es el mapa completo para quien busca por dónde entrar.
-app = FastAPI(title="Timbra API", version="2.13.3", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan,
+app = FastAPI(title="Timbra API", version="2.14.0", description="Facturación CFDI 4.0 multi-emisor", lifespan=lifespan,
               docs_url=None if EN_WEB else "/docs", redoc_url=None, openapi_url=None if EN_WEB else "/openapi.json")
 app.add_middleware(GZipMiddleware, minimum_size=1024)  # pantallas y respuestas grandes viajan comprimidas (3-4 veces menos)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
                    allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
 for r in (auth, pacs, emisores, clientes, productos, plantillas, addendas, facturas, catalogos, dashboard, debug,
-          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo):
+          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo, pagos):
     app.include_router(r.router, prefix="/api")
 app.include_router(portal.publico, prefix="/api")  # autofactura: sin login
 

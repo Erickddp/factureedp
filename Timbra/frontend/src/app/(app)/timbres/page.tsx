@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { Coins, RefreshCw } from "lucide-react";
@@ -9,7 +9,117 @@ import { mostrarError } from "@/lib/errores";
 import { fecha, isoLocal } from "@/lib/format";
 import type { Pac, TimbresPac } from "@/lib/types";
 
+type Paquete = { clave: string; timbres: number; precio: string | number };
+type InfoPaquetes = { activo: boolean; paquetes: Paquete[]; timbres: number | null; vence: { fecha: string; timbres: number } | null; vigencia_meses: number };
+type Movimiento = { cuando: string; cantidad: number; saldo: number; motivo: string | null; vence: string | null; restantes: number | null };
+type PagoFila = { id: number; timbres: number; monto: string; estado: string; creado: string; detalle: string | null };
+
 export default function Timbres() {
+  const { data: yo } = useSWR<{ admin: boolean }>("/auth/yo", fetcher);
+  if (!yo) return null;
+  return yo.admin ? <TimbresAdmin /> : <MisTimbres />;
+}
+
+/** Cuentas que facturan con el PAC de Timbra: su saldo, cuándo vence y comprar más. */
+function MisTimbres() {
+  const { data: info, mutate } = useSWR<InfoPaquetes>("/pagos/paquetes", fetcher);
+  const { data: movs, mutate: mMovs } = useSWR<{ movimientos: Movimiento[] }>("/auth/timbres", fetcher);
+  const { data: pagos = [], mutate: mPagos } = useSWR<PagoFila[]>("/pagos", fetcher);
+  const [comprando, setComprando] = useState("");
+
+  // De regreso de Mercado Pago: /timbres?pago=12&payment_id=345&status=approved
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const pago = Number(q.get("pago"));
+    if (!pago) return;
+    window.history.replaceState(null, "", "/timbres");
+    api<{ estado: string; timbres: number; timbres_cuenta: number }>("/pagos/regreso", { method: "POST", json: { pago, payment_id: q.get("payment_id") } })
+      .then((r) => {
+        if (r.estado === "aprobado") toast.success(`¡Listo! Se abonaron ${r.timbres} timbres. Ahora tienes ${r.timbres_cuenta}.`);
+        else if (r.estado === "pendiente") toast.info("Tu pago está en proceso. Los timbres se abonan solos en cuanto Mercado Pago lo confirme.");
+        else toast.error("El pago no se completó. No se cobró nada; puedes intentarlo de nuevo.");
+        mutate(); mMovs(); mPagos();
+      })
+      .catch(mostrarError);
+  }, [mutate, mMovs, mPagos]);
+
+  const comprar = async (p: Paquete) => {
+    setComprando(p.clave);
+    try {
+      const r = await api<{ url: string }>("/pagos", { method: "POST", json: { paquete: p.clave } });
+      window.location.href = r.url;
+    } catch (e) { mostrarError(e); setComprando(""); }
+  };
+  const saldo = info?.timbres ?? 0;
+  return (
+    <>
+      <PageHeader title="Mis timbres" />
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="flex flex-col gap-2 rounded-2xl bg-hoja p-6 ring-1 ring-linea">
+          <p className="text-[11px] uppercase tracking-[.06em] text-grafito">Timbres disponibles</p>
+          <p className={cx("text-5xl font-semibold tabular-nums", saldo <= 0 ? "text-rojo" : saldo <= 5 ? "text-alerta" : "text-tinta")}>{saldo}</p>
+          <p className="text-sm text-grafito">Cada factura, nota de crédito o complemento de pago usa uno, aunque después lo canceles.</p>
+          {info?.vence && <p className="text-sm text-grafito">{info.vence.timbres} vencen el <b className="text-tinta">{fecha(info.vence.fecha)}</b>. Cada recarga dura {info.vigencia_meses} meses.</p>}
+        </div>
+        <div className="rounded-2xl bg-hoja p-6 ring-1 ring-linea">
+          <p className="mb-4 font-semibold">Comprar timbres</p>
+          {!info?.activo ? (
+            <p className="text-sm text-grafito">El pago en línea se activa pronto. Mientras, pide tu recarga a quien te dio de alta en Timbra.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {info.paquetes.map((p) => (
+                <button key={p.clave} onClick={() => comprar(p)} disabled={!!comprando}
+                  className="flex flex-col items-start gap-1 rounded-xl bg-papel p-4 text-left ring-1 ring-linea transition hover:ring-cobalto disabled:opacity-60">
+                  <span className="text-2xl font-semibold tabular-nums">{p.timbres}</span>
+                  <span className="text-xs text-grafito">timbres</span>
+                  <span className="mt-2 text-lg font-semibold">${Number(p.precio).toLocaleString("es-MX")}</span>
+                  <span className="text-xs text-grafito">${(Number(p.precio) / p.timbres).toFixed(2)} c/u · IVA incluido</span>
+                  <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-cobalto">
+                    {comprando === p.clave ? "Abriendo Mercado Pago…" : <><Coins className="size-4" /> Comprar</>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="mt-3 text-xs text-grafito">Pagas en Mercado Pago (tarjeta, OXXO o transferencia). Los timbres se abonan solos al confirmarse el pago.</p>
+        </div>
+      </div>
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
+          <p className="mb-3 font-semibold">Movimientos</p>
+          {!movs?.movimientos.length ? <p className="text-sm text-grafito">Sin recargas todavía.</p> : (
+            <ul className="divide-y divide-linea text-sm">
+              {movs.movimientos.map((m, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0"><span className="block truncate">{m.motivo || (m.cantidad > 0 ? "Recarga" : "Ajuste")}</span>
+                    <span className="text-xs text-grafito">{fecha(m.cuando)}{m.vence ? ` · vence ${fecha(m.vence)}` : ""}</span></span>
+                  <b className={cx("tabular-nums", m.cantidad < 0 ? "text-rojo" : "text-sello")}>{m.cantidad > 0 ? "+" : ""}{m.cantidad}</b>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="rounded-2xl bg-hoja p-5 ring-1 ring-linea">
+          <p className="mb-3 font-semibold">Mis compras</p>
+          {!pagos.length ? <p className="text-sm text-grafito">Aún no compras en línea.</p> : (
+            <ul className="divide-y divide-linea text-sm">
+              {pagos.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+                  <span>{p.timbres} timbres · ${Number(p.monto).toLocaleString("es-MX")}<span className="block text-xs text-grafito">{fecha(p.creado)}</span></span>
+                  <Badge tono={p.estado === "aprobado" ? "sello" : p.estado === "pendiente" ? "cobalto" : "rojo"}>
+                    {{ aprobado: "Abonado", pendiente: "Pendiente", rechazado: "Rechazado", cancelado: "Cancelado" }[p.estado] ?? p.estado}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TimbresAdmin() {
   const [vivo, setVivo] = useState(false);
   const { data = [], mutate, isLoading } = useSWR<TimbresPac[]>(`/pacs/timbres?en_vivo=${vivo}`, fetcher);
   const { data: pacs = [], mutate: mPacs } = useSWR<Pac[]>("/pacs", fetcher);

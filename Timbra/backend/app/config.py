@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     resend_api_key: str | None = None
     correo_remitente: str = "facturas@erickddp.com"  # dirección del dominio verificado en Resend
     respaldo_correo: str | None = None  # a dónde mandar cada día el respaldo cifrado (fuera del servidor)
+    # Compra de timbres en línea (services/pagos.py)
+    mp_access_token: str | None = None
+    mp_webhook_secret: str | None = None
+    paquetes_timbres: str | None = None  # JSON opcional para cambiar paquetes y precios
 
     # Inicio de sesión con Google, Drive y Sheets (cliente de OAuth del proyecto de Google Cloud "Timbra").
     # Se llenan con: python google_env.py  (lee el JSON descargado de Google; el secreto nunca va al repositorio)
