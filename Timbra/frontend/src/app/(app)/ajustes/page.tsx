@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { Download, ExternalLink, Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import { mostrarError } from "@/lib/errores";
 import { api, descargar, fetcher, setSoporte, setToken } from "@/lib/api";
 import type { Addenda, Pac } from "@/lib/types";
@@ -68,8 +68,7 @@ export default function Ajustes() {
   return (
     <>
       <PageHeader title="PAC, addendas y usuarios" />
-      <GuiaCompra />
-      <section className="mt-10">
+      <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">PACs</h2>
           <Button size="sm" onClick={() => setPac({ nombre: "", proveedor: "finkok", pruebas: true })}><Plus className="size-4" /> PAC</Button>
@@ -145,54 +144,6 @@ export default function Ajustes() {
         )}
       </Modal>
     </>
-  );
-}
-
-const OPCIONES = [
-  {
-    nombre: "Finkok · el que te recomiendo",
-    url: "https://www.finkok.com/",
-    precio: "$150 + IVA al mes cubre de 0 a 500 timbres; del 501 en adelante $0.30 + IVA c/u. Pagas al mes vencido lo que timbraste: sin paquetes, anualidad ni plazo forzoso. Tel. (55) 4624 0181.",
-    pasos: [
-      "Crea tu cuenta de pruebas en demo-facturacion.finkok.com (es en línea, sin costo).",
-      "En ese panel da de alta el RFC de pruebas del SAT (ej. EKU9003173C9) y baja sus CSD de prueba de su wiki.",
-      "En Timbra: + PAC → Finkok, pega usuario y contraseña, deja 'pruebas' marcado y presiona 'Probar timbrado'.",
-      "Pide el pase a producción a integracion@finkok.com indicando el correo de tu cuenta de pruebas.",
-      "En facturacion.finkok.com da de alta cada RFC emisor (tipo OnDemand) y cambia tus credenciales en Timbra; desmarca 'pruebas'.",
-    ],
-  },
-  {
-    nombre: "SW Sapien · alternativa",
-    url: "https://tienda.sw.com.mx/shop",
-    precio: "Prepago en su tienda en línea: 1,200 timbres $2,266 · 5,000 $5,530 · 10,000 $8,230. Los paquetes publicados dicen “para Odoo”: antes de pagar confirma con ventas que sirvan por API.",
-    pasos: [
-      "Pide tu usuario de pruebas gratis en su portal de desarrolladores (developers.sw.com.mx).",
-      "En Timbra: + PAC → SW Sapien, usuario y contraseña (o token), 'pruebas' marcado, 'Probar timbrado'.",
-      "Compra el paquete y cambia a credenciales de producción.",
-    ],
-  },
-];
-
-
-function GuiaCompra() {
-  return (
-    <section className="rounded-2xl bg-tinta p-6 text-white">
-      <h2 className="text-lg font-semibold">Dónde comprar timbres</h2>
-      <p className="mt-1 text-sm text-white/70">Precios consultados en septiembre 2026. Confírmalos al contratar.</p>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {OPCIONES.map((o) => (
-          <a key={o.nombre} href={o.url} target="_blank" rel="noreferrer" className="rounded-xl bg-white/10 p-4 hover:bg-white/15">
-            <p className="flex items-center gap-2 font-semibold">{o.nombre} <ExternalLink className="size-4" /></p>
-            <p className="mt-2 text-sm text-white/85">{o.precio}</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-white/70">{o.pasos.map((p) => <li key={p}>{p}</li>)}</ol>
-          </a>
-        ))}
-      </div>
-      <p className="mt-4 text-sm text-white/70">
-        Tu app no se “certifica” ante el SAT: sólo el PAC está autorizado. Lo único que piden es que pruebes en su ambiente de pruebas antes de darte producción.
-        Además de timbres, cada RFC necesita su CSD (Certificado de Sello Digital) vigente. Se tramita gratis en el portal del SAT con la e.firma (Certisat / SAT ID).
-      </p>
-    </section>
   );
 }
 
