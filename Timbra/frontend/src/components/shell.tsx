@@ -159,6 +159,8 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
     catch (e) { mostrarError(e); } finally { setTrabajando(""); }
   };
   // Conectar Google: después podrás entrar con «Continuar con Google» (y será la base para Drive y Sheets)
+  const { data: cfgAuth } = useSWR<{ google: boolean }>("/auth/config", fetcher);
+  const googleListo = cfgAuth?.google;  // sin las variables de Google en el servidor no se ofrece conectar
   const conectarGoogle = async () => {
     try { window.location.href = (await api<{ url: string }>("/auth/google/vincular")).url; } catch (e) { mostrarError(e); }
   };
@@ -187,6 +189,7 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
           {dato("Correo de acceso", yo?.email)}
           {dato("Google", yo?.google_email
             ? <span>{yo.google_email} · <button className="underline" onClick={desconectarGoogle}>Desconectar</button></span>
+            : googleListo === false ? <span className="text-grafito">Se activa pronto</span>
             : <button className="underline" onClick={conectarGoogle}>Conectar mi cuenta de Google</button>)}
           {yo?.creado && dato("Usuario desde", new Date(yo.creado).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }))}
           {dato("Emisor activo", emisor ? `${emisor.rfc} · ${emisor.nombre}` : "Ninguno")}

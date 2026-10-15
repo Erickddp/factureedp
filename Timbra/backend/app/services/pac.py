@@ -123,7 +123,9 @@ def registrar_emisor(pac: Pac, rfc: str) -> str:
     log.info("Alta de %s en Finkok: %s", rfc, mensaje)
     if not ok:
         if "authentication" in mensaje.lower():
-            raise PacError(f"Finkok rechazó el usuario o la contraseña de {pac.nombre}: revísalos en Ajustes → PAC ({mensaje}).")
+            extra = ("" if pac.pruebas else " Si son los de tu cuenta de PRUEBAS (demo), edita el PAC y marca «Ambiente de pruebas»: "
+                     "esa cuenta no existe en producción hasta que Finkok te dé la productiva.")
+            raise PacError(f"Finkok rechazó el usuario o la contraseña de {pac.nombre}: revísalos en Ajustes → PAC ({mensaje}).{extra}")
         raise PacError(f"Finkok no dio de alta el RFC {rfc}: {mensaje}")
     if "already" in mensaje.lower():
         return "ya estaba dado de alta"

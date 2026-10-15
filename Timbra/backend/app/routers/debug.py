@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from importlib.metadata import version
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -95,10 +95,10 @@ def _http(url: str) -> tuple[bool, int, str]:
 
 
 @router.get("/servicios", dependencies=[Depends(solo_admin)])
-def servicios(db: Session = Depends(get_db)):
+def servicios(request: Request, db: Session = Depends(get_db)):
     out = []
     up = int(time.time() - INICIO)
-    out.append(_chk("API", "ok", f"Timbra {os.environ.get('TIMBRA_VERSION', '1.1')} · Python {platform.python_version()} "
+    out.append(_chk("API", "ok", f"Timbra {request.app.version} · Python {platform.python_version()} "
                     f"· arriba {up // 3600}h {up % 3600 // 60}m · modo depuración {'sí' if settings.debug else 'no'}"))
     t0 = time.perf_counter()
     try:
@@ -131,7 +131,13 @@ def servicios(db: Session = Depends(get_db)):
         out.append(_chk("PDF", "ok", "weasyprint disponible: PDF directo"))
     except Exception:
         out.append(_chk("PDF", "aviso", "Sin weasyprint/GTK: el botón PDF abre la factura para imprimir a PDF"))
-    if settings.smtp_host:
+    from ..services import mailer
+    correo = mailer.publica()
+    if correo["origen"] == "resend":
+        out.append(_chk("Correo", "ok", f"Resend · sale desde {correo['remitente']} con el nombre de cada emisor"))
+    elif correo["configurado"]:
+        out.append(_chk("Correo", "ok", f"{correo['user']} vía {correo['host']}:{correo['port']}"))
+    elif settings.smtp_host:
         t0 = time.perf_counter()
         try:
             with socket.create_connection((settings.smtp_host, settings.smtp_port), timeout=5):
@@ -141,7 +147,7 @@ def servicios(db: Session = Depends(get_db)):
         except Exception as e:
             out.append(_chk("Correo (SMTP)", "error", f"{settings.smtp_host}:{settings.smtp_port} → {e}"))
     else:
-        out.append(_chk("Correo (SMTP)", "aviso", "Sin configurar: llena SMTP_* en backend\\.env para mandar facturas"))
+        out.append(_chk("Correo", "aviso", "Sin configurar: Ajustes → Correo de envío (en el servidor: variable RESEND_API_KEY)"))
 
     for p in db.query(Pac).order_by(Pac.nombre):
         if p.proveedor == "demo":
@@ -157,8 +163,8 @@ def servicios(db: Session = Depends(get_db)):
 
     hoy = datetime.now(timezone.utc).replace(tzinfo=None)
     for e in db.query(Emisor).order_by(Emisor.rfc):
-        if not e.cer:
-            out.append(_chk(f"CSD {e.rfc}", "error", "Sin CSD cargado", grupo="emisor"))
+        if not e.cer:  # sin CSD puede bajar y leer XML; sólo hace falta para facturar
+            out.append(_chk(f"CSD {e.rfc}", "aviso", "Sin CSD: puede usar XML del SAT; para facturar sube su CSD en Emisores", grupo="emisor"))
             continue
         dias = (e.csd_vence - hoy).days if e.csd_vence else None
         estado = "error" if dias is not None and dias < 0 else ("aviso" if dias is not None and dias < 30 else "ok")
