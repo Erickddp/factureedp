@@ -126,7 +126,11 @@ def _resend(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str,
             detalle = r.json().get("message") or r.text
         except ValueError:
             detalle = r.text
-        if r.status_code in (401, 403) and "domain" in detalle.lower():
+        propio = re.search(r"own email address \(([^)]+)\)", detalle)
+        if propio:  # cuenta de Resend sin dominio verificado: sólo deja mandar al correo con que se abrió
+            detalle = (f"Resend sigue en modo de prueba y sólo deja enviar a {propio.group(1)}. Verifica tu dominio en "
+                       f"resend.com/domains para enviar a cualquier cliente")
+        elif r.status_code in (401, 403) and "domain" in detalle.lower():
             detalle = f"el dominio de {settings.correo_remitente} aún no está verificado en Resend ({detalle})"
         elif r.status_code in (401, 403):
             detalle = f"la llave RESEND_API_KEY no es válida ({detalle})"

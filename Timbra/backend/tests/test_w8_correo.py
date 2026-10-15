@@ -37,6 +37,10 @@ def test_con_llave_sale_por_resend_con_el_nombre_del_emisor(monkeypatch):
     monkeypatch.setattr(requests, "post", lambda *a, **k: Resp(403, {"message": "The erickddp.com domain is not verified"}))
     with pytest.raises(mailer.CorreoError, match="no está verificado"):
         mailer.enviar(["cliente@prueba.mx"], "x", "y", [])
+    monkeypatch.setattr(requests, "post", lambda *a, **k: Resp(403, {"message": "You can only send testing emails to your own email address "
+                                                                              "(yo@prueba.mx). To send emails to other recipients, please verify a domain"}))
+    with pytest.raises(mailer.CorreoError, match="sólo deja enviar a yo@prueba.mx"):
+        mailer.enviar(["cliente@prueba.mx"], "x", "y", [])
     monkeypatch.setattr(requests, "post", lambda *a, **k: Resp(401, {"message": "API key is invalid"}))
     with pytest.raises(mailer.CorreoError, match="RESEND_API_KEY"):
         mailer.enviar(["cliente@prueba.mx"], "x", "y", [])
