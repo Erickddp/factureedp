@@ -257,7 +257,7 @@ def emitir_pago(db: Session, data: PagoIn) -> Factura:
             raise FacturacionError(f"{f.serie}{f.folio} es PUE: no lleva complemento de pago.")
         if d.imp_pagado > f.saldo:
             raise FacturacionError(f"{f.serie}{f.folio}: pagas {d.imp_pagado} y el saldo es {f.saldo}.")
-        docs.append((f.xml, f.parcialidades + 1, f.saldo, d.imp_pagado))
+        docs.append((f.xml, _parcialidad_siguiente(db, f), f.saldo, d.imp_pagado))
         facturas.append((f, d.imp_pagado))
 
     _hay_timbres(db, emisor)
@@ -342,6 +342,32 @@ def emitir_nomina(db: Session, data: NominaIn) -> list[dict]:
 _UUID = re.compile(r"[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}")
 
 
+_DOCTO = re.compile(r"<[^>]*DoctoRelacionado\b[^>]*>")
+
+
+def _reps_vivos(db: Session, f: Factura) -> list[tuple[Factura, int]]:
+    """REP vigentes (o con cancelación en espera) que pagan la factura f, con el NumParcialidad que le dieron (del XML)."""
+    out = []
+    reps = db.query(Factura).filter(Factura.emisor_id == f.emisor_id, Factura.tipo == "P",
+                                    Factura.estado.in_(("timbrada", "cancelacion_pendiente"))).all()
+    for r in reps:
+        if not any(d.get("factura_id") == f.id for d in (r.payload or {}).get("documentos", [])):
+            continue
+        num = 0
+        for tag in _DOCTO.findall(r.xml.decode() if isinstance(r.xml, bytes) else (r.xml or "")):
+            if f.uuid and f.uuid.upper() in tag.upper():
+                m = re.search(r'NumParcialidad="(\d+)"', tag)
+                num = int(m.group(1)) if m else 0
+        out.append((r, num))
+    return out
+
+
+def _parcialidad_siguiente(db: Session, f: Factura) -> int:
+    """La más alta vigente + 1 (no «contador + 1»): si alguna vez se canceló un REP fuera de orden, el contador se queda
+    atrás y repetiría el número de un REP vivo (dos «parcialidad 2» para la misma factura)."""
+    return max([f.parcialidades] + [n for _, n in _reps_vivos(db, f)]) + 1
+
+
 def _liberar_pago(db: Session, rep: Factura):
     """Un REP cancelado ya no cuenta: cada factura que pagaba recupera el saldo y la parcialidad (sin esto, la factura
     quedaba «con complementos vivos» para siempre y no se podía cancelar). Se llama al pasar a «cancelada», una sola vez."""
@@ -376,6 +402,18 @@ def cancelar(db: Session, f: Factura, motivo: str, sustitucion: str | None) -> F
         sustitucion = None  # sólo el motivo 01 lleva sustitución
     if f.tipo == "I" and f.parcialidades > 0:
         raise FacturacionError("Tiene complementos de pago vivos. Cancela primero los REP.")
+    if f.tipo == "P":
+        # Sólo se cancela el último REP de cada factura: cancelar uno de en medio deja la cadena de saldos rota
+        # (el siguiente REP repetiría su parcialidad y su saldo anterior no cuadraría con los vivos)
+        for d in (f.payload or {}).get("documentos", []):
+            origen = db.get(Factura, d.get("factura_id"))
+            if not origen:
+                continue
+            despues = [r for r, _ in _reps_vivos(db, origen) if r.id > f.id]
+            if despues:
+                nombres = ", ".join(f"{r.serie or ''}{r.folio or ''}" for r in despues)
+                raise FacturacionError(f"Cancela primero los REP posteriores de {origen.serie or ''}{origen.folio or ''}: {nombres}. "
+                                       "Los complementos de pago se cancelan del más reciente al más antiguo.")
     emisor = f.emisor
     acuse = pac_svc.cancelar(emisor.pac, f.xml, motivo, sustitucion,
                              signer_de(emisor, permitir_vencido=_modo_pruebas(emisor)))
