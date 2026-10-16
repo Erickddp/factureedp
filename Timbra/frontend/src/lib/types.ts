@@ -30,6 +30,7 @@ export type Emisor = {
   activo: boolean;
   series: Serie[];
   modo_demo?: boolean;
+  ambiente?: "produccion" | "pruebas" | "demo";  // sólo producción vale ante el SAT (models.Emisor.ambiente)
 };
 
 export type Cliente = {
@@ -134,7 +135,7 @@ export type Plantilla = {
 export type TimbresPac = {
   pac_id: number; nombre: string; proveedor: string; pruebas: boolean; usados_mes: number; usados_paquete?: number;
   contratados: number | null; desde: string | null; alerta: number; restantes: number | null; nivel: "ok" | "aviso" | "error";
-  texto: string | null; pac?: { saldo: number | null; usados: number | null; ilimitado: boolean; vence: string | null }; pac_error?: string;
+  texto: string | null; nota?: string | null; pac?: { saldo: number | null; usados: number | null; ilimitado: boolean; vence: string | null }; pac_error?: string;
 };
 
 export type Empleado = {

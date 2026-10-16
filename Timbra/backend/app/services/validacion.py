@@ -19,6 +19,8 @@ GENERICOS = {"XAXX010101000", "XEXX010101000"}
 
 # c_RegimenFiscal: a qué tipo de persona aplica
 REG_FISICA = {"605", "606", "607", "608", "610", "611", "612", "614", "615", "616", "621", "625", "626"}
+# RFC de prueba que publica el SAT: sólo sirven con el CSD de prueba y un PAC en ambiente de pruebas (demo)
+RFC_PRUEBAS_SAT = {"EKU9003173C9", "XIA190128J61", "CACX7605101P8"}
 REG_MORAL = {"601", "603", "610", "620", "622", "623", "624", "626"}
 
 # c_UsoCFDI: regímenes del receptor con los que es compatible cada uso
@@ -240,6 +242,9 @@ def validar(db, emisor: Emisor, data: FacturaIn, cliente: Cliente | None) -> dic
         (r.aviso if modo_prueba else r.error)("emisor.csd", f"El CSD de {emisor.rfc} venció el {emisor.csd_vence:%d/%m/%Y}.")
     if emisor.pac is None or emisor.pac.proveedor == "demo":
         r.aviso("emisor.pac", "Modo demo: se sella pero NO se timbra ante el SAT.")
+    elif emisor.rfc.upper() in RFC_PRUEBAS_SAT and not emisor.pac.pruebas:
+        r.error("emisor.pac", f"{emisor.rfc} es un RFC de PRUEBAS del SAT y «{emisor.pac.nombre}» es un PAC de PRODUCCIÓN: el PAC lo rechazaría "
+                              "(y no puede timbrar un RFC de prueba). Asigna a este emisor un PAC en ambiente de pruebas (demo) en Emisores y CSD.")
     elif emisor.pac.pruebas:
         r.aviso("emisor.pac", f"{emisor.pac.nombre} está en ambiente de pruebas: el CFDI no tiene validez fiscal.")
     persona_emisor = tipo_persona(emisor.rfc)
@@ -305,8 +310,10 @@ def validar(db, emisor: Emisor, data: FacturaIn, cliente: Cliente | None) -> dic
             r.error(cp, f"Concepto {i}: el precio debe ser mayor a 0.")
         if cant and vu and desc and desc > cant * vu:
             r.error(cp, f"Concepto {i}: el descuento es mayor que el importe.")
-        if not c.clave_prod_serv or select("C756_c_ClaveProdServ", c.clave_prod_serv) is None:
-            r.error(cp, f"Concepto {i}: clave SAT {c.clave_prod_serv or '(vacía)'} no existe en el catálogo vigente.")
+        if not c.clave_prod_serv:
+            r.error(cp, f"Concepto {i}: falta la clave SAT. Escribe una palabra del concepto en la columna Clave SAT y elige una de la lista.")
+        elif select("C756_c_ClaveProdServ", c.clave_prod_serv) is None:
+            r.error(cp, f"Concepto {i}: clave SAT {c.clave_prod_serv} no existe en el catálogo vigente.")
         if not c.clave_unidad or select("C756_c_ClaveUnidad", c.clave_unidad) is None:
             r.error(cp, f"Concepto {i}: clave de unidad {c.clave_unidad or '(vacía)'} no existe.")
         if tipo != "T":
@@ -332,7 +339,13 @@ def validar(db, emisor: Emisor, data: FacturaIn, cliente: Cliente | None) -> dic
             r.aviso(cp, f"Concepto {i}: 01010101 (no existe en catálogo) sólo se recomienda en factura global.")
 
     if usa_8:
-        if not getattr(emisor, "region_fronteriza", False):
+        # El catálogo c_CodigoPostal marca qué CP están en la franja (columna EstimuloFranjaFronteriza). Fuera de ella el
+        # PAC rechaza con CFDI40998: se dice antes de gastar el intento.
+        fila_cp = select("C756_c_CodigoPostal", emisor.lugar_expedicion)
+        if fila_cp is not None and len(fila_cp) > 3 and str(fila_cp[3]) != "1":
+            r.error("impuestos", f"IVA 8%: el CP de expedición {emisor.lugar_expedicion} no está en la franja fronteriza "
+                                 "(el SAT lo rechaza con CFDI40998). Usa IVA 16% o corrige el CP del emisor.")
+        elif not getattr(emisor, "region_fronteriza", False):
             r.aviso("impuestos", "IVA 8%: sólo si estás en el padrón del estímulo de región fronteriza. "
                                  "Si aplica, márcalo en Emisores y CSD.")
         if (data.fecha or datetime.now()).replace(tzinfo=None) > FIN_ESTIMULO_FRONTERA:

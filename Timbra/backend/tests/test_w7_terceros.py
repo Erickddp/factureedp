@@ -14,6 +14,7 @@ from app.db import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Emisor, Pac, Usuario  # noqa: E402
 from app.services import pac as pac_svc  # noqa: E402
+from app.services import validacion  # noqa: E402
 from test_lotes import _esperar, _nuevo_lote, _perfil, fila  # noqa: E402
 from test_v2 import _cliente, _preparar  # noqa: E402
 from test_v5_clientes import rfc_moral  # noqa: E402
@@ -29,6 +30,7 @@ CUERPO = {"metodo_pago": "PUE", "forma_pago": "03", "conceptos": [{
 def plataforma(monkeypatch):
     """El administrador pone su Finkok de producción al servicio de todas las cuentas (el timbrado en sí se simula)."""
     monkeypatch.setattr(pac_svc, "get_pac", lambda pac: pac_svc.DemoPac())
+    monkeypatch.setattr(validacion, "RFC_PRUEBAS_SAT", set())  # el CSD de prueba hace de «RFC real» en este simulacro
     # el CSD de pruebas del repositorio venció en 2023: aquí se acepta para poder sellar (en producción real no se acepta)
     import app.services.facturacion as fac
     import app.services.signer as signer_mod

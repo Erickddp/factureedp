@@ -176,31 +176,129 @@ def _rfcs(root) -> tuple[str, str]:
     return de, para
 
 
-def guardar_subidos(db: Session, emisor: Emisor, archivos: list[tuple[str, bytes]]) -> dict:
-    """XML que el usuario ya tenía: se guardan como emitidos o recibidos según el papel del RFC en cada uno.
-    Los que no son de este RFC no entran (se cuentan como ajenos)."""
-    alm = Almacen(str(carpeta_xml(emisor.id)), emisor.rfc)
-    rfc = emisor.rfc.upper()
-    res = {"nuevos": 0, "repetidos": 0, "ajenos": 0, "invalidos": 0}
+GENERICOS = ("XAXX010101000", "XEXX010101000")
+
+
+def _cfdis(archivos: list[tuple[str, bytes]]):
+    """(nombre, contenido, rfc emisor, rfc receptor) de cada CFDI válido; None en lugar de la tupla si no es CFDI."""
     for nombre, datos in _xml_sueltos(archivos):
         if not datos or b"<!DOCTYPE" in datos[:4096] or b"<!ENTITY" in datos[:4096]:  # un CFDI nunca trae DTD ni entidades
-            res["invalidos"] += 1
+            yield None
             continue
         root = lector._raiz(Path(nombre), datos)
         if root is None or lector.etree.QName(root).localname != "Comprobante":
-            res["invalidos"] += 1
+            yield None
             continue
         de, para = _rfcs(root)
-        if rfc not in (de, para):
-            res["ajenos"] += 1
-            continue
+        yield nombre, datos, de, para
+
+
+def _guardar_en(db: Session, emisor: Emisor, piezas: list[tuple[str, bytes, str]], res: dict) -> None:
+    """Guarda cada (nombre, contenido, rfc emisor del CFDI) como emitido o recibido de `emisor`."""
+    alm = Almacen(str(carpeta_xml(emisor.id)), emisor.rfc)
+    rfc = emisor.rfc.upper()
+    for nombre, datos, de in piezas:
         ruta, _ = alm.guardar(datos, "emitidos" if de == rfc else "recibidos", Path(nombre).name)
         res["nuevos" if indexar(db, emisor.id, ruta, origen="subido") else "repetidos"] += 1
+
+
+def guardar_subidos(db: Session, emisor: Emisor, archivos: list[tuple[str, bytes]]) -> dict:
+    """XML que el usuario ya tenía: se guardan como emitidos o recibidos según el papel del RFC en cada uno.
+    Los que no son de este RFC no entran (se cuentan como ajenos)."""
+    rfc = emisor.rfc.upper()
+    res = {"nuevos": 0, "repetidos": 0, "ajenos": 0, "invalidos": 0}
+    piezas = []
+    for c in _cfdis(archivos):
+        if c is None:
+            res["invalidos"] += 1
+        elif rfc not in (c[2], c[3]):
+            res["ajenos"] += 1
+        else:
+            piezas.append((c[0], c[1], c[2]))
+    _guardar_en(db, emisor, piezas, res)
     db.commit()
     return res
 
 
-def candidatos_a_dueno(archivos: list[tuple[str, bytes]]) -> list[dict]:
+def repartir(db: Session, archivos: list[tuple[str, bytes]], contribuyente, elegido: str = "", actual: str = "") -> dict:
+    """Una carpeta (o tanda) de XML de uno o VARIOS contribuyentes: cada CFDI va con su dueño.
+
+    - El dueño es el RFC del CFDI que más aparece en la carpeta (un contribuyente aparece en todos sus comprobantes; sus
+      clientes y proveedores, en pocos). Empates: el `elegido`, luego el `actual`.
+    - Además entra en los RFC del CFDI que ya son tuyos (si los dos lo son, en los dos: emitido de uno, recibido del otro).
+    - Un CFDI suelto entre dos RFC ajenos que aparecen igual de veces no tiene dueño claro: se deja fuera (`sin_dueno`).
+      Si NINGUNO tiene dueño claro, no se guarda nada y se devuelve `elegir` para preguntar.
+    `contribuyente(rfc, nombre, regimen, cp)` abre o da de alta el emisor (puede lanzar 409 si es de otra cuenta).
+    """
+    from fastapi import HTTPException
+
+    cfdis, invalidos = [], 0
+    for c in _cfdis(archivos):
+        if c is None:
+            invalidos += 1
+        else:
+            cfdis.append(c)
+    if not cfdis:
+        return {"vacio": True, "invalidos": invalidos}
+    datos = {x["rfc"]: x for x in candidatos_a_dueno(archivos, limite=None)}
+    veces = {r: d["veces"] for r, d in datos.items()}
+    mios = {r for (r,) in db.query(Emisor.rfc).filter(Emisor.rfc.in_(list(veces)))}
+    elegido, actual = elegido.upper().strip(), actual.upper().strip()
+
+    def partes_de(de, para):
+        return [r for r in dict.fromkeys((de, para)) if r and r not in GENERICOS and len(r) in (12, 13)]
+
+    def ganador(partes):
+        mayor = max(veces.get(r, 0) for r in partes)
+        arriba = [r for r in partes if veces.get(r, 0) == mayor]
+        if len(arriba) > 1:
+            arriba = [r for r in arriba if r == elegido] or [r for r in arriba if r == actual] or arriba
+        return arriba
+
+    # 1ª vuelta: quiénes son dueños en esta carpeta (los que ganan algún CFDI), además de los RFC que ya son tuyos
+    dueños_carpeta = set(mios)
+    for _n, _c, de, para in cfdis:
+        partes = partes_de(de, para)
+        if partes and len(g := ganador(partes)) == 1:
+            dueños_carpeta.add(g[0])
+
+    destinos: dict[str, list] = {}
+    dudosos: set[str] = set()
+    sin_dueno = 0
+    for nombre, contenido, de, para in cfdis:
+        partes = partes_de(de, para)
+        if not partes:
+            continue
+        arriba = ganador(partes)
+        # el dueño del CFDI, y también la otra parte si es dueña de algo en la carpeta o ya es tuya
+        # (A le factura a B, los dos clientes del despacho: es emitido de A y recibido de B)
+        dueños = list(dict.fromkeys((arriba if len(arriba) == 1 else []) + [r for r in partes if r in dueños_carpeta]))
+        if not dueños:
+            dudosos.update(arriba)
+            sin_dueno += 1
+            continue
+        for r in dueños:
+            destinos.setdefault(r, []).append((nombre, contenido, de))
+    if dudosos and not destinos:  # no hay ni un CFDI con dueño claro: se pregunta en lugar de adivinar
+        return {"elegir": [{"rfc": r, "nombre": datos[r]["nombre"], "veces": datos[r]["veces"]}
+                           for r in sorted(dudosos, key=lambda r: -veces.get(r, 0))]}
+
+    contribuyentes, otra_cuenta = [], 0
+    for r, piezas in sorted(destinos.items(), key=lambda kv: -len(kv[1])):
+        d = datos.get(r, {"nombre": "", "regimen": "", "cp": ""})
+        try:
+            e, creado = contribuyente(r, d["nombre"], d["regimen"], d["cp"])
+        except HTTPException:  # ese RFC es de otra cuenta de Timbra: no se toca
+            otra_cuenta += len(piezas)
+            continue
+        res = {"nuevos": 0, "repetidos": 0}
+        _guardar_en(db, e, piezas, res)
+        db.commit()
+        contribuyentes.append({"emisor_id": e.id, "rfc": e.rfc, "nombre": e.nombre, "creado": creado, **res})
+    return {"contribuyentes": contribuyentes, "invalidos": invalidos, "otra_cuenta": otra_cuenta, "sin_dueno": sin_dueno}
+
+
+def candidatos_a_dueno(archivos: list[tuple[str, bytes]], limite: int | None = 6) -> list[dict]:
     """De quién puede ser una carpeta de XML, del más al menos probable: el contribuyente aparece en todos sus
     comprobantes; sus clientes y proveedores, sólo en algunos. Cada candidato trae sus datos tal como vienen en los XML."""
     veces: dict[str, int] = {}
@@ -224,7 +322,7 @@ def candidatos_a_dueno(archivos: list[tuple[str, bytes]]) -> list[dict]:
             d["nombre"] = d["nombre"] or (nodo.get("Nombre") or nodo.get("nombre") or "").strip()
             d["regimen"] = d["regimen"] or (nodo.get(regimen) or "").strip()
             d["cp"] = d["cp"] or (cp or "").strip()
-    return [{**datos[rfc], "veces": n} for rfc, n in sorted(veces.items(), key=lambda kv: -kv[1])][:6]
+    return [{**datos[rfc], "veces": n} for rfc, n in sorted(veces.items(), key=lambda kv: -kv[1])][:limite]
 
 
 def importar_heredados(db: Session) -> int:

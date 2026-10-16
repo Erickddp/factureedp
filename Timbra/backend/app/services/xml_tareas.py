@@ -29,6 +29,7 @@ from .xml_trabajos import Trabajo
 fabrica_cliente: Callable | None = None
 POLL_SEG = 30          # el flujo espera 30 s, luego 60 y 120 entre verificaciones
 POLL_INTENTOS = 40
+LIMITE_ESPERA_SEG = 150 * 60  # cuánto se espera al SAT en una corrida (la e.firma vive 3 h en memoria)
 REVISAR_ESTATUS_CADA = timedelta(hours=24)  # la lista de cancelados de un periodo se vuelve a pedir pasado este tiempo
 PIE_PDF = "Generado con Timbra"
 
@@ -192,27 +193,27 @@ def descargar_sat(t: Trabajo, emisor_id: int, rfc: str, nombre: str, desde: date
     d = _Descargador(perfil, op, cliente, bit, dormir=lambda s: t.cancelar.wait(s), clasificar=al_guardar, cancelado=t.cancelar.is_set)
     d.al_metadata = al_metadata
     tipos = ["emitidos", "recibidos"] if tipo == "ambos" else [tipo]
-    total = Resumen(rfc=rfc, nombre=nombre)
-    avisos: list[str] = []
-    for i, tp in enumerate(tipos + ([f"meta_{x}" for x in tipos] if con_estatus else [])):
-        if t.cancelar.is_set() or cliente.rechazo:
-            break
-        es_lista = tp.startswith("meta_")
-        t.avance(nuevos[0], 0, ("Revisando cancelados de " if es_lista else "Bajando ") + tp.replace("meta_", ""))
-        r = d.ejecutar(desde, hasta, tp)
-        total.tramos += r.tramos
-        total.solicitudes_nuevas += r.solicitudes_nuevas
-        total.paquetes += r.paquetes
-        total.xml_nuevos += r.xml_nuevos
-        total.xml_duplicados += r.xml_duplicados
-        (avisos if es_lista else total.errores).extend(r.errores)
+    todos = tipos + ([f"meta_{x}" for x in tipos] if con_estatus else [])
+    t.avance(0, 0, "Pidiendo al SAT todos los meses a la vez…")
+
+    def avance(listos: int, total_pedidos: int) -> None:
+        t.avance(nuevos[0], 0, f"El SAT tiene listos {listos} de {total_pedidos} pedidos · {nuevos[0]} XML nuevos"
+                 if total_pedidos else f"{nuevos[0]} XML nuevos")
+    # todos los meses y tipos se piden de una vez y se bajan conforme el SAT los tiene listos (antes era uno por uno)
+    total = d.ejecutar_paralelo(desde, hasta, todos, limite_seg=LIMITE_ESPERA_SEG, avance=avance)
+    avisos: list[str] = [e for e in total.errores if e.startswith("meta_")]
+    total.errores = [e for e in total.errores if not e.startswith("meta_")]
+    if total.pendientes:
+        avisos.insert(0, f"El SAT sigue preparando {len(total.pendientes)} pedido(s) ({', '.join(total.pendientes[:6])}"
+                         f"{'…' if len(total.pendientes) > 6 else ''}). Ya quedaron pedidos: vuelve en un rato, pon tu e.firma y pide "
+                         "el mismo periodo; se bajan sin volver a pedirlos.")
     if cliente.rechazo:  # un solo mensaje claro, no uno por mes; y la e.firma que no sirve se olvida
         t.cancelar.clear()
         xml_firma.olvidar(emisor_id)
         return {"tramos": total.tramos, "solicitudes": total.solicitudes_nuevas, "paquetes": total.paquetes, "nuevos": total.xml_nuevos,
                 "repetidos": total.xml_duplicados, "errores": [cliente.rechazo], "avisos": [], "estatus": None}
     return {"tramos": total.tramos, "solicitudes": total.solicitudes_nuevas, "paquetes": total.paquetes, "nuevos": total.xml_nuevos,
-            "repetidos": total.xml_duplicados, "errores": total.errores, "avisos": avisos[:20],
+            "repetidos": total.xml_duplicados, "errores": total.errores, "avisos": avisos[:20], "pendientes": total.pendientes,
             "estatus": estatus if con_estatus else None}
 
 

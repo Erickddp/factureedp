@@ -26,9 +26,9 @@ DEFAULT = {
     "campos": {},
     "modos": ["I", "G", "E", "T"],
     "defaults": {"modo": "I", "metodo": "PUE", "forma": "03", "impuesto": None, "clave_prod_serv": "84111506",
-                 "clave_unidad": "E48", "enviar_email": True},
+                 "clave_unidad": "E48", "enviar_email": False},
     "perfiles": [],
-    "tras_timbrar": "quedarse",  # quedarse (ver resultado) | nueva (limpia al instante para la siguiente)
+    "tras_timbrar": "nueva",  # nueva (limpia al instante: un segundo clic no repite la factura) | quedarse (ver resultado)
     "avanzado_abierto": False,
     "claves_bloqueadas": [],  # claves SAT que NO se pueden timbrar en este emisor (medicamentos, etc.)
 }

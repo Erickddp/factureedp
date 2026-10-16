@@ -239,7 +239,7 @@ function Resultado({ t }: { t: TrabajoXml }) {
     <section className={cx("rounded-3xl p-6 ring-1 sm:p-7", bien ? "bg-hoja ring-linea" : "bg-alerta-suave ring-alerta/30")}>
       <p className="flex flex-wrap items-center gap-2 font-semibold">
         {bien ? <CheckCircle2 className="size-5 text-sello" /> : <XCircle className="size-5 text-alerta" />}
-        {{ listo: "Última descarga: terminó bien", error: "La última descarga no terminó", cancelado: "Detuviste la última descarga", interrumpido: "La última descarga se interrumpió", curso: "" }[t.estado]}
+        {bien && r.pendientes?.length ? `Bajó lo que el SAT ya tenía listo; faltan ${r.pendientes.length} pedido(s) que el SAT sigue preparando` : { listo: "Última descarga: terminó bien", error: "La última descarga no terminó", cancelado: "Detuviste la última descarga", interrumpido: "La última descarga se interrumpió", curso: "" }[t.estado]}
         <span className="text-sm font-normal text-grafito">· {dia(t.params.desde)} al {dia(t.params.hasta)}</span>
       </p>
       {bien && (
@@ -264,6 +264,9 @@ function LeerCarpeta({ emisor, alTerminar }: { emisor: Emisor; alTerminar: () =>
   const sueltos = useRef<HTMLInputElement>(null);
   const [avance, setAvance] = useState<{ h: number; t: number } | null>(null);
   useEffect(() => { carpeta.current?.setAttribute("webkitdirectory", ""); }, []);
+  // Teléfonos y tabletas: el navegador no deja elegir carpetas (sólo archivos)
+  const [celular, setCelular] = useState(false);
+  useEffect(() => { setCelular(window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(pointer: fine)").matches); }, []);
 
   const leer = async (lista: FileList | File[] | null) => {
     const archivos = [...(lista ?? [])];
@@ -276,9 +279,15 @@ function LeerCarpeta({ emisor, alTerminar }: { emisor: Emisor; alTerminar: () =>
         const n = Number(window.prompt(`En esos XML aparecen igual de veces estos RFC.\n¿De quién es la carpeta? Escribe el número:\n\n${texto}`, "1"));
         return cand[n - 1]?.rfc ?? null;
       });
-      toast.success(`${r.nuevos.toLocaleString("es-MX")} XML nuevos de ${r.rfc}`, { duration: 9000, description: [r.nombre, r.creado && "contribuyente dado de alta en tu cuenta",
-        r.repetidos && `${r.repetidos} ya estaban`, r.ajenos && `${r.ajenos} son de otro contribuyente (léelos aparte)`, r.invalidos && `${r.invalidos} no son CFDI`].filter(Boolean).join(" · ") });
-      if (r.emisor_id && r.emisor_id !== emisor.id) { recargarEmisores(); setEmisorId(r.emisor_id); }  // la carpeta era de otro RFC: se abre ése
+      const varios = r.contribuyentes.length > 1;
+      toast.success(varios ? `${r.nuevos.toLocaleString("es-MX")} XML nuevos, repartidos en ${r.contribuyentes.length} contribuyentes`
+        : `${r.nuevos.toLocaleString("es-MX")} XML nuevos de ${r.rfc}`, { duration: 15000, description: [
+        ...(varios ? r.contribuyentes.map((c) => `${c.rfc} ${c.nombre}: ${c.nuevos} nuevos${c.creado ? " (dado de alta)" : ""}`)
+          : [r.nombre, r.creado && "contribuyente dado de alta en tu cuenta"]),
+        r.repetidos && `${r.repetidos} ya estaban`, r.ajenos && `${r.ajenos} no se pudo saber de quién son o son de otra cuenta`,
+        r.invalidos && `${r.invalidos} no son CFDI`].filter(Boolean).join(" · ") + (varios ? ". Cámbialos arriba a la izquierda." : "") });
+      if (r.emisor_id && r.emisor_id !== emisor.id) { recargarEmisores(); setEmisorId(r.emisor_id); }  // se abre el que más trajo
+      else if (r.contribuyentes.some((c) => c.creado)) recargarEmisores();
       alTerminar();
     } catch (e) { mostrarError(e); } finally { setAvance(null); }
   };
@@ -289,16 +298,20 @@ function LeerCarpeta({ emisor, alTerminar }: { emisor: Emisor; alTerminar: () =>
       <FolderOpen className="size-8 shrink-0 text-grafito" />
       <div className="min-w-0 flex-1">
         <p className="font-semibold">¿Ya tienes los XML? Léelos sin pedirle nada al SAT</p>
-        <p className="text-sm text-grafito">Elige una carpeta, o arrastra aquí tus XML o un ZIP, de cualquier contribuyente: Timbra reconoce de quién son, lo abre y los acomoda en emitidos y recibidos.</p>
+        <p className="text-sm text-grafito">
+          {celular
+            ? "En el celular no se pueden elegir carpetas: toca «XML o ZIP» y selecciona varios XML a la vez, o un ZIP con la carpeta completa."
+            : "Elige una carpeta (con todas sus subcarpetas), o arrastra aquí tus XML o un ZIP, de uno o varios contribuyentes: Timbra reconoce de quién es cada CFDI, da de alta al que falte y los acomoda en emitidos y recibidos."}
+        </p>
       </div>
       <input ref={carpeta} type="file" multiple hidden onChange={(e) => { leer(e.target.files); e.target.value = ""; }} />
-      <input ref={sueltos} type="file" multiple accept=".xml,.zip" hidden onChange={(e) => { leer(e.target.files); e.target.value = ""; }} />
+      <input ref={sueltos} type="file" multiple accept=".xml,.zip,text/xml,application/xml,application/zip,application/x-zip-compressed" hidden onChange={(e) => { leer(e.target.files); e.target.value = ""; }} />
       {avance ? (
         <span className="flex items-center gap-2 text-sm text-cobalto"><Loader2 className="size-4 animate-spin" /> Leyendo {avance.h.toLocaleString("es-MX")} de {avance.t.toLocaleString("es-MX")}…</span>
       ) : (
         <span className="flex gap-2">
-          <Button onClick={() => carpeta.current?.click()}><FolderOpen className="size-4" /> Elegir carpeta</Button>
-          <Button variant="fantasma" onClick={() => sueltos.current?.click()}><Upload className="size-4" /> XML o ZIP</Button>
+          {!celular && <Button onClick={() => carpeta.current?.click()}><FolderOpen className="size-4" /> Elegir carpeta</Button>}
+          <Button variant={celular ? "primario" : "fantasma"} onClick={() => sueltos.current?.click()}><Upload className="size-4" /> XML o ZIP</Button>
         </span>
       )}
     </section>

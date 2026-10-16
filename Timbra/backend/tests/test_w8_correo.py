@@ -37,11 +37,26 @@ def test_con_llave_sale_por_resend_con_el_nombre_del_emisor(monkeypatch):
     monkeypatch.setattr(requests, "post", lambda *a, **k: Resp(403, {"message": "The erickddp.com domain is not verified"}))
     with pytest.raises(mailer.CorreoError, match="no está verificado"):
         mailer.enviar(["cliente@prueba.mx"], "x", "y", [])
+    monkeypatch.setattr(requests, "post", lambda *a, **k: Resp(403, {"message": "You can only send testing emails to your own email address "
+                                                                              "(yo@prueba.mx). To send emails to other recipients, please verify a domain"}))
+    with pytest.raises(mailer.CorreoError, match="sólo deja enviar a yo@prueba.mx"):
+        mailer.enviar(["cliente@prueba.mx"], "x", "y", [])
     monkeypatch.setattr(requests, "post", lambda *a, **k: Resp(401, {"message": "API key is invalid"}))
     with pytest.raises(mailer.CorreoError, match="RESEND_API_KEY"):
         mailer.enviar(["cliente@prueba.mx"], "x", "y", [])
     with pytest.raises(mailer.CorreoError, match="destino válido"):
         mailer.enviar(["sin-arroba"], "x", "y", [])
+    with pytest.raises(mailer.CorreoError, match="no tiene la forma"):
+        mailer.enviar(["cliente@gmail"], "x", "y", [])
+    for falso in ("destino@ejemplo.mx", "a@example.com", "b@correo.ejemplo.com.mx", "c@algo.test", "d@midominio.com"):
+        with pytest.raises(mailer.CorreoError, match="de ejemplo"):
+            mailer.enviar([falso], "x", "y", [])
+    for real in ("ana@gmail.com", "pagos@empresa.com.mx", "x@ejemplos-reales.mx"):
+        assert mailer._validos([real]) == [real]
+    # el punto que se cuela al final al copiar de un texto se quita solo
+    monkeypatch.setattr(requests, "post", lambda url, json=None, headers=None, timeout=None: enviados.append((url, json, headers)) or Resp(200, {"id": "x"}))
+    mailer.enviar(["cperickd@gmail.com."], "x", "y", [])
+    assert enviados[-1][1]["to"] == ["cperickd@gmail.com"]
 
 
 def test_respaldo_diario_sale_del_servidor_cifrado(monkeypatch, tmp_path):
@@ -113,6 +128,17 @@ def test_tope_de_descargas_del_sat_a_la_vez(monkeypatch):
                 db.query(XmlTrabajo).filter(XmlTrabajo.id.in_(ids)).delete()
                 db.query(Emisor).filter(Emisor.id.in_(otros_ids)).delete()
                 db.commit()
+
+
+def test_comprobantes_de_pruebas_nunca_van_al_cliente(monkeypatch):
+    from types import SimpleNamespace as NS
+    real = NS(pac=NS(proveedor="finkok", pruebas=False))
+    assert mailer.destinatarios(real, ["cliente@empresa.mx"]) == ["cliente@empresa.mx"]
+    for emisor in (NS(pac=None), NS(pac=NS(proveedor="demo", pruebas=True)), NS(pac=NS(proveedor="finkok", pruebas=True))):
+        with pytest.raises(mailer.CorreoError, match="PRUEBAS"):
+            mailer.destinatarios(emisor, ["cliente@empresa.mx"])
+    monkeypatch.setattr(settings, "correo_pruebas", "yo@despacho.mx")
+    assert mailer.destinatarios(NS(pac=None), ["cliente@empresa.mx"]) == ["yo@despacho.mx"]
 
 
 def test_sin_llave_sigue_por_smtp(monkeypatch):

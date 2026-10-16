@@ -7,7 +7,7 @@ import { mostrarError } from "@/lib/errores";
 import { dinero, fecha } from "@/lib/format";
 import { evaluarMonto } from "@/lib/sat";
 import type { Cliente, Factura } from "@/lib/types";
-import { useEmisor } from "@/components/emisor-context";
+import { EtiquetaAmbiente, ambienteDe, useEmisor } from "@/components/emisor-context";
 import { CatSelect } from "@/components/catalogo";
 import { Button, Field, Input, PageHeader, Select, Vacio } from "@/components/ui";
 
@@ -18,12 +18,12 @@ const ahoraLocal = () => {
 };
 
 export default function Pagos() {
-  const { emisor } = useEmisor();
+  const { emisor, confirmarTimbre } = useEmisor();
   const [clienteId, setClienteId] = useState<number | "">("");
   const [fechaPago, setFechaPago] = useState(ahoraLocal());
   const [forma, setForma] = useState("03");
   const [montos, setMontos] = useState<Record<number, string>>({});
-  const [enviar, setEnviar] = useState(true);
+  const [enviar, setEnviar] = useState(false);  // igual que en Facturar: nunca se manda correo sin que se pida
   const [cargando, setCargando] = useState(false);
   const lista = useRef<HTMLDivElement>(null);
 
@@ -38,6 +38,7 @@ export default function Pagos() {
 
   const timbrar = async () => {
     if (!emisor || !clienteId || total <= 0 || excedidos.length) return;
+    if (!(await confirmarTimbre())) return;
     setCargando(true);
     try {
       const documentos = pendientes.filter((f) => monto(f.id) > 0).map((f) => ({ factura_id: f.id, imp_pagado: monto(f.id).toFixed(2) }));
@@ -119,7 +120,7 @@ export default function Pagos() {
                 <input type="checkbox" checked={enviar} onChange={(e) => setEnviar(e.target.checked)} className="accent-cobalto" /> Mandar por correo
               </label>
               <span className="text-lg font-semibold tabular-nums">{dinero(total)}</span>
-              <Button variant="primario" onClick={timbrar} loading={cargando} disabled={total <= 0 || excedidos.length > 0} title="Ctrl + Enter">Timbrar complemento</Button>
+              <Button variant="primario" onClick={timbrar} loading={cargando} disabled={total <= 0 || excedidos.length > 0} title="Ctrl + Enter">Timbrar complemento <EtiquetaAmbiente ambiente={ambienteDe(emisor)} enBoton /></Button>
             </div>
           </div>
         )}

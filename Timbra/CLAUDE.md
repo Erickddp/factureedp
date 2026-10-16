@@ -150,6 +150,11 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   si el reloj de la PC va hasta 2 h atrás del huso oficial se usa el de la PC (nunca queda en el futuro: el PAC la rechazaría).
 - Facturas de práctica: `POST /emisores/{id}/practica/borrar` quita SÓLO las del PAC demo (`pdf.es_demo`), mueve sus XML a
   `datos/practica_xml` y regresa cada serie al folio siguiente a la última factura real. tests/test_v9_produccion.py.
+- **Ambiente del emisor:** `Emisor.ambiente` (demo | pruebas | produccion) llega en EmisorOut. En pruebas o demo el selector de
+  emisor va en ámbar con su distintivo; todo botón de timbrar lleva la pastilla del ambiente; `useEmisor().confirmarTimbre()`
+  pide confirmar el emisor la primera vez que se timbra en producción después de cambiar de emisor (sessionStorage
+  `timbra_prod_ok`). Toda pantalla nueva que timbre lo llama ANTES de la petición. Sin el campo (servidor viejo) no hay
+  distintivo ni confirmación: nunca se adivina «producción».
 - `ClaveSearch` (catalogo.tsx): el blur corre 150 ms tarde; usa refs y la bandera `elegido` para no pisar la clave recién elegida.
   En la descripción del concepto, Enter sólo elige una sugerencia si la marcaste con flechas (`act` empieza en -1).
 
@@ -208,7 +213,7 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 ## Términos y privacidad (2.13.4, no lo rompas)
 - Páginas públicas `frontend/src/app/legal/{terminos,privacidad}` (marco en `components/legal.tsx`, datos del responsable en
   `lib/legal.ts`; lo marcado con ⟨…⟩ sale resaltado hasta que Rick lo llene). Ligadas desde entrada, inicio y autofactura.
-- Constancia por cuenta: `Usuario.terminos_{version,aceptados,ip}` (migración 0011), `POST /auth/terminos` sólo acepta la versión
+- Constancia por cuenta: `Usuario.terminos_{version,aceptados,ip}` (migración 0012), `POST /auth/terminos` sólo acepta la versión
   vigente (`app/legal.py`). `/auth/yo` trae `terminos.pendiente`; el `Shell` muestra `AceptarTerminos` (no se cierra: aceptar o salir).
   El administrador no acepta; en modo soporte no aparece. Si cambian los textos de fondo: sube la versión en `app/legal.py` Y en
   `lib/legal.ts` (tests/test_w9_terminos.py vigila que sean iguales) y todos los aceptan otra vez.
@@ -344,6 +349,19 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   PDF con navegador: máximo `PDF_SIMULTANEOS` (3) a la vez y caché de 64 en memoria (cada Chromium pesa cientos de MB).
 - **Respaldo fuera del servidor:** `programador.respaldo_fuera` manda cada día el zip cifrado con la SECRET_KEY a
   `RESPALDO_CORREO` (vía Resend); >25 MB va sólo la base. Se abre con `backend/restaurar_respaldo.py`. Guía en DESPLEGAR.md.
+- **Compra de timbres (2.14, `services/pagos.py`, `routers/pagos.py`):** Mercado Pago Checkout Pro. `POST /pagos` crea el
+  `Pago` y la preferencia (external_reference = id del pago); `POST /pagos/aviso` (webhook, sin sesión, firma opcional con
+  `MP_WEBHOOK_SECRET`) y `POST /pagos/regreso` CONSULTAN el pago en la API de Mercado Pago y abonan una sola vez (UPDATE
+  condicional a «aprobado»; monto y moneda deben coincidir). Sin `MP_ACCESS_TOKEN` no se activa. Precios en `PAQUETES` o
+  `PAQUETES_TIMBRES` (JSON). `Pago` no tiene emisor_id: el filtro por cuenta es manual (usuario_id).
+- **Vencimiento de timbres:** cada recarga (`MovimientoTimbres` con `vence`/`restantes`) dura 12 meses; `consumir` gasta
+  primero el lote que vence antes; `timbres.vencer` corre una vez al día en el programador. Los 3 de regalo no vencen.
+  tests/test_w9_pagos.py. Guía para Rick de todas las conexiones externas: CONECTAR.md. Borradores legales: legal/.
+- **Leer carpetas con VARIOS contribuyentes (`xml_indice.repartir`):** cada CFDI va con el RFC que más aparece en la tanda
+  (empates: `rfc` elegido, luego `actual`), y además con la otra parte si es dueña de algo en la carpeta o ya es de la
+  cuenta (A factura a B: emitido de A y recibido de B). Sin dueño claro → `sin_dueno`; si ninguno lo tiene → `elegir`.
+  Todas las tandas van a `/xml/leer` (ya no a `/xml/subir`). En celular no se ofrece «Elegir carpeta» (los navegadores
+  móviles no la soportan): XML sueltos o ZIP. Probado con las carpetas reales revueltas: 231 + 66, sin altas de más.
 - Guía del día del arranque: DESPLEGAR.md. Lista de pendientes compartida con Rick: PENDIENTES.md.
 - En el SAT real un periodo sin comprobantes termina en estado 5 con CodigoEstadoSolicitud 5004: no es error.
 - tests/test_w7_terceros.py.

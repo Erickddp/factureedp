@@ -109,6 +109,7 @@ class EmisorOut(ORM):
     activo: bool
     series: list[SerieOut] = []
     modo_demo: bool = False  # sin PAC real asignado: lo que timbre NO vale ante el SAT
+    ambiente: str = "produccion"  # demo | pruebas | produccion (models.Emisor.ambiente)
 
 
 # ---------- Cliente ----------

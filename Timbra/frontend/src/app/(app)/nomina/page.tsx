@@ -4,7 +4,7 @@ import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from "r
 import useSWR from "swr";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Download, Plus, UserPlus, Wand2 } from "lucide-react";
-import { useEmisor } from "@/components/emisor-context";
+import { EtiquetaAmbiente, ambienteDe, useEmisor } from "@/components/emisor-context";
 import { Badge, Button, Field, Input, Kbd, Modal, PageHeader, Select, Tabs, Vacio, cx, tabla } from "@/components/ui";
 import { api, descargar, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
@@ -70,6 +70,7 @@ function Periodo({ emisorId, irEmpleados }: { emisorId: number; irEmpleados: () 
   const [recibos, setRecibos] = useState<(Recibo & { sel: boolean; abierto?: boolean; res?: { ok: boolean; error?: string; folio?: string } })[]>([]);
   const [cargando, setCargando] = useState(false);
   const [timbrando, setTimbrando] = useState(false);
+  const { emisor, confirmarTimbre } = useEmisor();
   const { data: emps = [] } = useSWR<Empleado[]>(`/nomina/empleados?emisor_id=${emisorId}`, fetcher);
   const nombre = (id: number) => emps.find((e) => e.id === id);
 
@@ -85,6 +86,7 @@ function Periodo({ emisorId, irEmpleados }: { emisorId: number; irEmpleados: () 
   const timbrar = useCallback(async () => {
     const sel = recibos.filter((r) => r.sel && !r.res?.ok);
     if (!sel.length) return toast.message("Marca al menos un recibo.");
+    if (!(await confirmarTimbre())) return;
     setTimbrando(true);
     try {
       const limpio = sel.map(({ sel: _s, abierto: _a, res: _r, ...r }) => r);
@@ -93,7 +95,7 @@ function Periodo({ emisorId, irEmpleados }: { emisorId: number; irEmpleados: () 
       const ok = out.filter((o) => o.ok).length;
       (ok === out.length ? toast.success : toast.warning)(`Timbrados ${ok} de ${out.length} recibos`);
     } catch (e) { mostrarError(e); } finally { setTimbrando(false); }
-  }, [recibos, emisorId]);
+  }, [recibos, emisorId, confirmarTimbre]);
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -177,7 +179,7 @@ function Periodo({ emisorId, irEmpleados }: { emisorId: number; irEmpleados: () 
           </div>
           <div className="sticky bottom-3 mt-4 flex flex-wrap items-center justify-end gap-4 rounded-2xl bg-hoja/95 p-3 ring-1 ring-linea backdrop-blur">
             <p className="text-sm text-grafito">{recibos.filter((r) => r.sel).length} recibos · neto <b className="text-tinta">{dinero(total)}</b></p>
-            <Button variant="primario" size="lg" onClick={timbrar} loading={timbrando}>Timbrar recibos <Kbd>Ctrl ↵</Kbd></Button>
+            <Button variant="primario" size="lg" onClick={timbrar} loading={timbrando}>Timbrar recibos <EtiquetaAmbiente ambiente={ambienteDe(emisor)} enBoton /> <Kbd>Ctrl ↵</Kbd></Button>
           </div>
         </>
       )}

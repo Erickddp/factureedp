@@ -60,7 +60,7 @@ export default function Privacidad() {
       <ul>
         <li><b>El PAC</b> (hoy Finkok) y <b>el SAT</b>: reciben el CFDI para timbrarlo, validarlo o cancelarlo. Es obligatorio por ley para facturar.</li>
         <li><b>Proveedores que nos dan infraestructura</b>, sólo para operar {r.marca} y bajo obligación de confidencialidad: alojamiento del servidor
-          (Railway), envío de correos (Resend) e inicio de sesión (Google, sólo si lo usas). Algunos tienen sus servidores fuera de México, por ejemplo
+          (Railway), envío de correos (Resend), cobro de timbres (Mercado Pago; Timbra no ve ni guarda los datos de tu tarjeta) e inicio de sesión (Google, sólo si lo usas). Algunos tienen sus servidores fuera de México, por ejemplo
           en Estados Unidos.</li>
         <li><b>Autoridades</b>, cuando lo exija la ley o una orden fundada.</li>
       </ul>

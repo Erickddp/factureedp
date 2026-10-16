@@ -4,8 +4,8 @@
  * y cada cuenta los aceptará otra vez al entrar.
  * Lo marcado con ⟨…⟩ lo llena Rick antes de abrir el registro: la ley pide nombre y domicilio del responsable.
  */
-export const VERSION = "2026-10-14";
-export const VIGENTE_DESDE = "14 de octubre de 2026";
+export const VERSION = "2026-10-16";
+export const VIGENTE_DESDE = "16 de octubre de 2026";
 
 export const RESPONSABLE = {
   marca: "Timbra",

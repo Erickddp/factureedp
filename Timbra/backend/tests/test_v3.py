@@ -29,6 +29,8 @@ def test_diagnostico_de_errores_comunes():
         "CFDI40145 El campo Nombre del receptor no coincide": "nombre_receptor",
         "CFDI40157 RegimenFiscalReceptor": "regimen_receptor",
         "No cuenta con timbres disponibles": "saldo",
+        "718 - Timbres agotados, por favor contacte a su proveedor": "saldo",
+        "CFDI40998 - El código postal no corresponde a Franja Fronteriza": "frontera",
     }
     for texto, clave in casos.items():
         d = errores_pac.diagnosticar(texto)

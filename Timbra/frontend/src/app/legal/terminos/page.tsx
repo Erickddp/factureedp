@@ -46,7 +46,8 @@ export default function Terminos() {
       <ul>
         <li>Cada factura, nota de crédito, complemento de pago o recibo de nómina timbrado consume un timbre de tu saldo. Los precios vigentes están
           en la <Link className="underline" href="/inicio/#precios">página de precios</Link>.</li>
-        <li>Los timbres se pagan por adelantado, no hay renta mensual y tienen vigencia de 12 meses desde la compra.</li>
+        <li>Los timbres se pagan por adelantado a través de Mercado Pago y se abonan cuando el pago se confirma. No hay renta mensual.</li>
+        <li>Los timbres comprados vencen a los 12 meses de la compra; primero se usan los que vencen antes.</li>
         <li>Un timbre usado no se devuelve, aunque después canceles la factura: el PAC y el SAT ya lo procesaron. Los timbres no usados no son reembolsables
           salvo que la ley lo exija o que {r.marca} deje de prestar el servicio.</li>
         <li>Si usas tu propio PAC, el consumo y el pago de timbres son entre tú y ese PAC.</li>

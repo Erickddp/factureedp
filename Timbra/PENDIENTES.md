@@ -117,33 +117,79 @@ Objetivo: que nada se pierda y que aguante a varios clientes a la vez.
 Objetivo: que un cliente se dé de alta, pague y facture sin que intervengas.
 
 ### Aprender
-- [ ] [Claude] Revisar cuánto te cuesta cada timbre con Finkok ($150 + IVA hasta 500 al mes, $0.30 + IVA después) y proponer precios de paquetes
-- [ ] [Rick] Decidir precios de los paquetes de timbres
+- [x] [Claude] Revisar cuánto te cuesta cada timbre y proponer precios (tabla abajo)
+- [ ] [Rick] Decidir precios de los paquetes de timbres (hoy: 30 por $50, 100 por $130, 300 por $330, 1,000 por $900, IVA incluido)
+
+Lo que te queda por paquete, ya sin la comisión aproximada de Mercado Pago (3.49% + $4 + IVA):
+
+| Paquete | Precio | Te queda | Por timbre |
+|---|---|---|---|
+| 30 | $50 | ≈ $43 | ≈ $1.44 |
+| 100 | $130 | ≈ $120 | ≈ $1.20 |
+| 300 | $330 | ≈ $312 | ≈ $1.04 |
+| 1,000 | $900 | ≈ $859 | ≈ $0.86 |
+
+Finkok te cuesta $174 al mes (IVA incluido) hasta 500 timbres en total, contando los tuyos, y $0.35 cada uno después.
+Con unos 120 timbres vendidos al mes en paquetes chicos ya se paga la cuota mínima. Del precio, el 16% es IVA que declaras.
 
 ### Mejorar
-- [ ] [Claude] Panel de inicio y bienvenida para cuentas nuevas (ver nota de memoria «panel de inicio y onboarding»)
+- [ ] [Claude] Panel de inicio y bienvenida para cuentas nuevas: te propongo el plan antes de tocar código (así lo pediste)
 
 ### Hacer
-- [ ] [Rick] Abrir la cuenta de Mercado Pago y darme las llaves (las pones tú en Railway)
-- [x] Aviso de privacidad y términos de uso redactados y conectados (/legal/terminos, /legal/privacidad; cada cuenta los acepta)
+- [ ] [Rick] Abrir la aplicación de Mercado Pago y poner las llaves en Railway (CONECTAR.md, punto 3)
+- [x] Aviso de privacidad y términos de uso dentro de la app (/legal/terminos, /legal/privacidad; cada cuenta los acepta).
+  Los borradores de `legal/*.md` quedan como referencia: lo que se publica y se acepta es lo de las pantallas.
 - [ ] [Rick] Llenar nombre legal, RFC y domicilio del responsable en `frontend/src/lib/legal.ts` (hoy salen resaltados en amarillo)
 - [ ] [Rick] Crear el buzón privacidad@erickddp.com (o cambiarlo en `lib/legal.ts`)
 - [ ] [Rick] Revisar los textos con abogado antes de abrir el registro; confirmar plazo de borrado (90 días) y la política de reembolso
 
 ### Construir
-- [ ] [Claude] Recargas con Mercado Pago (paga y el saldo sube solo)
-- [ ] [Claude] Caducidad de timbres a 12 meses
+- [x] [Claude] Compra de timbres con Mercado Pago: el cliente elige paquete, paga y los timbres se abonan solos, una sola vez, después de confirmar el pago con Mercado Pago (no se activa hasta que pongas la llave)
+- [x] [Claude] Caducidad de timbres a 12 meses: se gastan primero los que vencen antes; los 3 de regalo no vencen
+- [x] [Claude] Pantalla «Mis timbres» para clientes: saldo, cuándo vencen, paquetes, movimientos y compras
+- [x] [Claude] Borradores de aviso de privacidad y términos de uso (`legal/`)
+- [ ] [Claude] Publicar aviso y términos como páginas, con casilla de aceptación al crear cuenta (cuando los revises)
 - [ ] [Claude] Manifiesto de Finkok por emisor (opcional según Finkok)
-- [ ] [Claude] Registro abierto con Google para clientes nuevos
+- [ ] [Claude] Registro abierto con Google para clientes nuevos (ya existe `REGISTRO_ABIERTO`; falta la bienvenida)
 
 ### Guiar
+- [x] [Claude] Guía para conectar todo: `CONECTAR.md`
 - [ ] [Claude] Guía para tus clientes: cómo entrar, dar de alta su CSD y facturar
 - [ ] [Rick] Dar de alta a tu primer cliente de paga
 
 ---
 
+# Fases para conectar (Rick conecta, Claude prueba)
+
+Guía paso a paso de todo en `CONECTAR.md`. Cuando termines un punto, avísame y yo lo pruebo de punta a punta.
+
+## Fase 4: lo básico para operar (esta semana)
+- [ ] [Rick] Mandar a Finkok el borrador con RFC, solicitud y Constancia (CONECTAR.md, punto 1)
+- [ ] [Rick] Resend: cuenta, dominio verificado y `RESEND_API_KEY` + `RESPALDO_CORREO` en Railway (punto 2)
+- [ ] [Claude] Probar el correo: prueba, factura con el nombre del emisor y respaldo del día siguiente
+- [ ] [Rick] Credenciales de Finkok producción → Ajustes → PAC (DESPLEGAR.md, «Día del arranque»)
+- [ ] [Claude] Comprobar el PAC productivo sin gastar timbres y acompañarte en la primera factura real
+- [ ] [Claude] Nómina: cuando Ricardo conteste qué valida «NOM111», corregirla y probarla en Finkok pruebas
+
+## Fase 5: cobrar (siguiente semana)
+- [ ] [Rick] Mercado Pago en modo prueba: aplicación, `MP_ACCESS_TOKEN` (TEST-) y webhook con `MP_WEBHOOK_SECRET` (punto 3)
+- [ ] [Claude] Compra de prueba completa con cuenta de prueba de Mercado Pago: pago, aviso, timbres abonados, sin duplicar
+- [ ] [Rick] Pasar Mercado Pago a producción y comprar tú el paquete de $50
+- [ ] [Claude] Facturar tus ventas de timbres desde Timbra (CFDI a tus clientes por cada compra)
+
+## Fase 6: abrir a clientes (finales de octubre)
+- [ ] [Rick] Variables de Google en Railway y URI de redirección (punto 4)
+- [ ] [Claude] Probar «Entrar con Google» y la carpeta de Drive desde la web
+- [ ] [Rick] Aviso de privacidad y términos revisados
+- [ ] [Claude] Publicarlos, casilla de aceptación y bienvenida para cuentas nuevas
+- [ ] [Rick] `REGISTRO_ABIERTO=true` y tu primer cliente de paga
+- [ ] [Claude] Revisar los registros del servidor de las primeras semanas y lo que vaya saliendo
+
+---
+
 ## Lo que ya está hecho (13 de octubre)
 
+- 2.14.0 (14 de octubre): compra de timbres con Mercado Pago, vencimiento a 12 meses, «Mis timbres», borradores legales y CONECTAR.md
 - Timbrado para terceros (2.13.0, en el servidor): PAC de la plataforma, alta automática del RFC en Finkok, saldo de timbres por cuenta con recarga manual
 - XML del SAT dentro de Timbra, con la e.firma sólo en memoria y el Excel de 65 columnas
 - Modo soporte, endurecimiento de seguridad, persistencia del servidor comprobada

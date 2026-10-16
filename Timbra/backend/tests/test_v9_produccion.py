@@ -75,7 +75,8 @@ def test_correo_de_envio_se_configura_desde_la_app(monkeypatch):
         assert r["configurado"] and r["tiene_password"] and "password" not in r
         guardado = open(mailer._ruta(), encoding="utf-8").read()
         assert "abcd" not in guardado and "abcdefghijklmnop" not in guardado  # cifrada en disco
-        assert c.post("/api/correo/probar", headers=h, json={"para": "destino@ejemplo.mx"}).status_code == 200
+        assert c.post("/api/correo/probar", headers=h, json={"para": "destino@ejemplo.mx"}).status_code == 502   # dominio de relleno: no sale
+        assert c.post("/api/correo/probar", headers=h, json={"para": "destino@despacho-prueba.mx"}).status_code == 200
         assert enviados[-1][0] == ("facturas@ejemplo.mx", "abcdefghijklmnop") and "Facturación de prueba" in enviados[-1][1]
         # cambiar el nombre sin volver a escribir la contraseña la conserva
         c.put("/api/correo", headers=h, json={"host": "smtp.gmail.com", "user": "facturas@ejemplo.mx", "nombre": "Otro"})
@@ -94,3 +95,33 @@ def test_login_se_frena_tras_varios_fallos():
         h, _ = _preparar(c)  # otro correo no se ve afectado
         assert h["Authorization"]
         auth._FALLOS.clear()
+
+
+def test_rfc_de_pruebas_del_sat_no_se_amarra_a_un_pac_de_produccion():
+    """Reporte del tester: EKU9003173C9 con un Finkok de PRODUCCIÓN sólo daba «300 usuario o contraseña inválidos»."""
+    from types import SimpleNamespace as NS
+    from app.services import validacion
+    fake = lambda pruebas: NS(rfc="EKU9003173C9", cer=b"x", csd_vence=None, regimen_fiscal="601", lugar_expedicion="01000",
+                              pac=NS(proveedor="finkok", pruebas=pruebas, nombre="Finkok"))
+    from app.schemas import FacturaIn
+    data = FacturaIn.model_construct(tipo="I", publico_general=False, conceptos=[])
+    for pruebas, esperado in ((False, True), (True, False)):
+        r = validacion.validar(None, fake(pruebas), data, None)
+        assert any(e["campo"] == "emisor.pac" and "PRUEBAS del SAT" in e["mensaje"] for e in r["errores"]) == esperado
+
+
+def test_ambiente_del_emisor_llega_a_las_pantallas():
+    """Propuesta del tester: el emisor de pruebas se marca y timbrar en producción pide confirmar. Las pantallas lo leen
+    de EmisorOut.ambiente; si dijera «produccion» en pruebas, o al revés, la marca y la confirmación mentirían."""
+    from app.models import Emisor, Pac
+    e = Emisor(rfc="AAA010101AAA", nombre="X", regimen_fiscal="601", lugar_expedicion="42501")
+    assert e.ambiente == "demo"
+    for pac, esperado in ((Pac(nombre="Demo", proveedor="demo", pruebas=False), "demo"),
+                          (Pac(nombre="Finkok", proveedor="finkok", pruebas=True), "pruebas"),
+                          (Pac(nombre="Finkok", proveedor="finkok", pruebas=False), "produccion")):
+        e.pac = pac
+        assert e.ambiente == esperado, (pac.proveedor, pac.pruebas)
+    with TestClient(app) as c:
+        h, emisor = _preparar(c)  # EKU9003173C9 con PAC demo
+        assert emisor["ambiente"] == "demo"
+        assert {x["rfc"]: x["ambiente"] for x in c.get("/api/emisores", headers=h).json()}["EKU9003173C9"] == "demo"

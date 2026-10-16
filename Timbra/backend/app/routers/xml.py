@@ -324,21 +324,21 @@ async def leer(rfc: str = "", actual: str = "", archivos: list[UploadFile] = Fil
 
 
 def _leer(db: Session, leidos: list, rfc: str, actual: str) -> dict:
-    cand = xml_indice.candidatos_a_dueno(leidos)
-    if not cand:
+    """Cada CFDI va con su dueño (puede haber varios contribuyentes en una misma carpeta): ver xml_indice.repartir.
+    Devuelve `contribuyentes` (uno por RFC, con sus nuevos y repetidos) y, para la pantalla, el principal arriba."""
+    r = xml_indice.repartir(db, leidos, lambda *a: _contribuyente(db, *a), rfc, actual)
+    if r.get("vacio"):
         raise HTTPException(422, "Ahí no encontré ningún CFDI. Elige la carpeta donde están los XML (o un ZIP con ellos).")
-    empatados = [x for x in cand if x["veces"] == cand[0]["veces"]]
-    d = next((x for x in cand if x["rfc"] == rfc.upper().strip()), None) if rfc else None
-    if d is None and len(empatados) == 1:
-        d = empatados[0]
-    if d is None:  # empate: gana el RFC en el que estás, o el único que ya es tuyo; si no, se pregunta
-        mios = {r for (r,) in db.query(Emisor.rfc).filter(Emisor.rfc.in_([x["rfc"] for x in empatados]))}
-        d = next((x for x in empatados if x["rfc"] == actual.upper().strip()), None) or (
-            next(x for x in empatados if x["rfc"] in mios) if len(mios) == 1 else None)
-    if d is None:
-        return {"elegir": [{"rfc": x["rfc"], "nombre": x["nombre"], "veces": x["veces"]} for x in empatados]}
-    e, creado = _contribuyente(db, d["rfc"], d["nombre"], d["regimen"], d["cp"])
-    return {**xml_indice.guardar_subidos(db, e, leidos), "emisor_id": e.id, "rfc": e.rfc, "nombre": e.nombre, "creado": creado}
+    if "elegir" in r:
+        return r
+    cs = r["contribuyentes"]
+    if not cs and r["otra_cuenta"]:
+        raise HTTPException(409, "Esos XML son de un RFC que está registrado en otra cuenta de Timbra.")
+    p = cs[0] if cs else {"emisor_id": 0, "rfc": "", "nombre": "", "creado": False}
+    return {"emisor_id": p["emisor_id"], "rfc": p["rfc"], "nombre": p["nombre"], "creado": p["creado"],
+            "nuevos": sum(c["nuevos"] for c in cs), "repetidos": sum(c["repetidos"] for c in cs),
+            "ajenos": r["otra_cuenta"] + r["sin_dueno"], "otra_cuenta": r["otra_cuenta"], "sin_dueno": r["sin_dueno"],
+            "invalidos": r["invalidos"], "contribuyentes": cs}
 
 
 @router.post("/borrar")

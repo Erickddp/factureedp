@@ -65,6 +65,14 @@ class Emisor(Base):
     def modo_demo(self) -> bool:
         """Sin PAC real asignado: lo que se timbre es simulado y no vale ante el SAT."""
         return self.pac is None or self.pac.proveedor == "demo"
+
+    @property
+    def ambiente(self) -> str:
+        """demo (sin PAC o PAC demo), pruebas (PAC en ambiente de pruebas) o produccion. Sólo producción vale ante el SAT y
+        gasta timbres reales: las pantallas lo marcan en el selector de emisor y piden confirmar antes de timbrar."""
+        if self.modo_demo:
+            return "demo"
+        return "pruebas" if self.pac.pruebas else "produccion"
     # Estímulo IVA 8% región fronteriza norte/sur (requiere estar en el padrón del SAT)
     region_fronteriza: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # HEREDADO, SIEMPRE VACÍO: la e.firma ya no se guarda (migración 0009 la borró). Para bajar del SAT se pone cada vez
@@ -240,6 +248,27 @@ class MovimientoTimbres(Base):
     motivo: Mapped[str | None] = mapped_column(String(200))
     admin_id: Mapped[int | None] = mapped_column(Integer)
     creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    # Una recarga es un «lote» que vence a los 12 meses: `restantes` baja con cada timbre (se gasta primero lo que vence
+    # antes) y lo que quede al vencer se descuenta. None = movimiento que no es lote (consumo, corrección, vencimiento).
+    vence: Mapped[datetime | None] = mapped_column(DateTime)
+    restantes: Mapped[int | None] = mapped_column(Integer)
+    pago_id: Mapped[int | None] = mapped_column(Integer)
+
+
+class Pago(Base):
+    """Compra de timbres en línea (Mercado Pago). Se acredita UNA sola vez, al confirmarse con la API de Mercado Pago."""
+    __tablename__ = "pagos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    paquete: Mapped[str] = mapped_column(String(20))
+    timbres: Mapped[int] = mapped_column(Integer)
+    monto: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    estado: Mapped[str] = mapped_column(String(20), default="pendiente")  # pendiente | aprobado | rechazado | cancelado
+    preferencia: Mapped[str | None] = mapped_column(String(80))
+    mp_pago: Mapped[str | None] = mapped_column(String(40), unique=True)
+    detalle: Mapped[str | None] = mapped_column(String(200))
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    acreditado: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class AccesoSoporte(Base):

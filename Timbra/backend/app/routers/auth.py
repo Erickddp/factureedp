@@ -189,7 +189,9 @@ def mis_timbres(email: str = Depends(current_user), db: Session = Depends(get_db
     from ..models import MovimientoTimbres
     u = _actual(db, email)
     movs = db.query(MovimientoTimbres).filter_by(usuario_id=u.id).order_by(MovimientoTimbres.id.desc()).limit(30)
-    return {"timbres": None if u.admin else u.timbres, "movimientos": [{"cuando": m.creado, "cantidad": m.cantidad, "saldo": m.saldo, "motivo": m.motivo} for m in movs]}
+    return {"timbres": None if u.admin else u.timbres,
+            "movimientos": [{"cuando": m.creado, "cantidad": m.cantidad, "saldo": m.saldo, "motivo": m.motivo, "vence": m.vence,
+                             "restantes": m.restantes} for m in movs]}
 
 
 # ---------------------------------------------------------------- modo soporte

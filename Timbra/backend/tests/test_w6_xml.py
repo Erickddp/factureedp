@@ -511,6 +511,33 @@ def test_leer_una_carpeta_de_cualquier_contribuyente_lo_abre_solo(sat):
         assert not xml_indice.carpeta_xml(eid).exists()
 
 
+def test_una_carpeta_con_varios_contribuyentes_se_separa_sola(sat):
+    """Una carpeta con XML de dos clientes del despacho: cada CFDI se va con su dueño, y uno entre los dos queda en ambos."""
+    with TestClient(app) as c:
+        h, e = _preparar(c)
+        a, b = "MAAF800101AB1", "SOLB810202CD2"   # RFC inventados
+        for x in c.get("/api/emisores", headers=h).json():
+            if x["rfc"] in (a, b):
+                c.delete(f"/api/emisores/{x['id']}?confirmar={x['rfc']}", headers=h)
+        de_a = [_recibido(a, "CLIENTE A", str(300 + i), receptor=p) for i, p in enumerate(["KIJ0906199R1", "CTE950627K46", "ABC970528UHA", "ICV060329BY0"])]
+        para_b = [_recibido(p, "PROVEEDOR", str(400 + i), receptor=b) for i, p in enumerate(["GCA000415UX7", "HHN0507087N4", "AMO8905171T1"])]
+        entre = _recibido(a, "CLIENTE A", "999", receptor=b)                     # A le factura a B
+        archivos = [("archivos", (f"{i}.xml", x, "text/xml")) for i, x in enumerate(de_a + para_b + [entre])]
+        j = c.post("/api/xml/leer", headers=h, files=archivos).json()
+        por_rfc = {x["rfc"]: x for x in j["contribuyentes"]}
+        assert set(por_rfc) == {a, b} and all(x["creado"] for x in por_rfc.values()), j
+        assert por_rfc[a]["nuevos"] == 5 and por_rfc[b]["nuevos"] == 4 and j["nuevos"] == 9 and j["ajenos"] == 0
+        assert j["rfc"] == a   # el principal (el que más trae) va arriba para abrirlo en pantalla
+        lista_a = c.get(f"/api/xml/cfdi?emisor_id={por_rfc[a]['emisor_id']}", headers=h).json()
+        lista_b = c.get(f"/api/xml/cfdi?emisor_id={por_rfc[b]['emisor_id']}", headers=h).json()
+        assert lista_a["total"] == 5 and lista_b["total"] == 4
+        # otra tanda de la misma carpeta: ya son tuyos, no se duplica nada
+        j2 = c.post("/api/xml/leer", headers=h, files=archivos).json()
+        assert j2["nuevos"] == 0 and j2["repetidos"] == 9
+        for x in por_rfc.values():
+            c.delete(f"/api/emisores/{x['emisor_id']}?confirmar={x['rfc']}", headers=h)
+
+
 def test_la_efirma_de_cualquier_contribuyente_abre_su_rfc(sat):
     with TestClient(app) as c:
         h, e = _preparar(c)

@@ -4,7 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { CalendarClock, Play, Star, Zap } from "lucide-react";
-import { useEmisor } from "@/components/emisor-context";
+import { EtiquetaAmbiente, ambienteDe, useEmisor } from "@/components/emisor-context";
 import { Badge, Button, Field, Input, Interruptor, Kbd, Modal, PageHeader, Select, Vacio, cx, tabla } from "@/components/ui";
 import { api, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
@@ -15,7 +15,7 @@ const hoy = () => new Date();
 const toca = (p: Plantilla) => !!p.recurrente && !!p.proxima && new Date(p.proxima) <= hoy();
 
 export default function Recurrentes() {
-  const { emisor } = useEmisor();
+  const { emisor, confirmarTimbre } = useEmisor();
   const { data = [], mutate } = useSWR<Plantilla[]>(emisor ? `/plantillas?emisor_id=${emisor.id}` : null, fetcher);
   const [edit, setEdit] = useState<Plantilla | null>(null);
   const [timbrando, setTimbrando] = useState<number | "todas" | null>(null);
@@ -25,6 +25,7 @@ export default function Recurrentes() {
   const favoritas = data.filter((p) => p.favorita).sort((a, b) => (a.favorita ?? 0) - (b.favorita ?? 0));
 
   const timbrar = async (p: Plantilla) => {
+    if (!(await confirmarTimbre())) return;
     setTimbrando(p.id);
     try {
       const r = await api<{ folio: string }>(`/plantillas/${p.id}/timbrar`, { method: "POST" });
@@ -32,6 +33,7 @@ export default function Recurrentes() {
     } catch (e) { mostrarError(e); } finally { setTimbrando(null); mutate(); }
   };
   const timbrarTodas = async () => {
+    if (!(await confirmarTimbre())) return;
     setTimbrando("todas");
     let ok = 0;
     for (const p of pendientes) {
@@ -58,7 +60,7 @@ export default function Recurrentes() {
         <section className="mb-8 rounded-2xl bg-hoja p-5 ring-1 ring-linea">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 font-semibold"><CalendarClock className="size-4" /> Por timbrar hoy</h2>
-            <Button variant="primario" onClick={timbrarTodas} loading={timbrando === "todas"}>Timbrar las {pendientes.length}</Button>
+            <Button variant="primario" onClick={timbrarTodas} loading={timbrando === "todas"}>Timbrar las {pendientes.length} <EtiquetaAmbiente ambiente={ambienteDe(emisor)} enBoton /></Button>
           </div>
           <ul className="divide-y divide-linea">
             {pendientes.map((p) => (

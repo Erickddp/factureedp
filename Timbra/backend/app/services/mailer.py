@@ -101,9 +101,44 @@ def _explica(e: Exception, c: dict, paso: str = "") -> str:
     return f"El correo no salió: {t}"
 
 
+CORREO_OK = re.compile(r"^[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
+
+
 def _limpios(correos: list[str]) -> list[str]:
-    # sin comas, espacios ni vacíos (una coma de más hacía que el servidor cortara la conexión)
-    return [x for x in (re.sub(r"[\s,;<>]+", "", p or "") for p in correos) if "@" in x]
+    # sin comas, espacios ni vacíos (una coma de más hacía que el servidor cortara la conexión), y sin el punto o la
+    # coma que se cuela al final al copiar de un texto («cliente@gmail.com.»)
+    return [x for x in (re.sub(r"[\s,;<>]+", "", p or "").strip(".") for p in correos) if "@" in x]
+
+
+def destinatarios(emisor, para: list[str]) -> list[str]:
+    """A quién se manda un comprobante de este emisor. Si timbra en PRUEBAS (PAC demo o ambiente de pruebas), su correo
+    NUNCA llega al cliente: va a CORREO_PRUEBAS, o no sale. Así una prueba no le manda una factura sin validez a un
+    cliente real (ni rebota en direcciones inventadas y daña la reputación del dominio)."""
+    pac = getattr(emisor, "pac", None)
+    if pac is not None and pac.proveedor != "demo" and not pac.pruebas:
+        return para
+    if settings.correo_pruebas:
+        return [settings.correo_pruebas]
+    raise CorreoError("Es un comprobante de PRUEBAS (el emisor timbra en modo demo o con un PAC en ambiente de pruebas): "
+                      "no se manda al cliente. Para probar el correo de envío pon la variable CORREO_PRUEBAS con tu correo "
+                      "(en el .env de tu PC o en Railway) y te llegará a ti.")
+
+
+# Dominios que no existen: los reservados para ejemplos (RFC 2606) y los de relleno en español. Un correo ahí rebota, y
+# cada rebote le baja la reputación a facturas@erickddp.com (con muchos, los correos de verdad empiezan a caer en spam).
+RELLENO = re.compile(r"@(?:[\w-]+\.)*(?:example|ejemplo|dominio|tudominio|midominio)\.[a-z.]+$|\.(?:test|example|invalid|localhost)$", re.I)
+
+
+def _validos(para: list[str]) -> list[str]:
+    malos = [x for x in para if not CORREO_OK.match(x)]
+    if malos:
+        raise CorreoError(f"Revisa {'el correo' if len(malos) == 1 else 'los correos'} {', '.join(malos)}: "
+                          "no tiene la forma nombre@dominio.com.")
+    falsos = [x for x in para if RELLENO.search(x)]
+    if falsos:
+        raise CorreoError(f"{', '.join(falsos)} {'es una dirección' if len(falsos) == 1 else 'son direcciones'} de ejemplo que no "
+                          "existe: el correo rebotaría y eso daña la reputación de tu dominio de envío. Pon el correo real del cliente.")
+    return para
 
 
 def _resend(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, bytes, str]], nombre: str | None, responder_a: str | None):
@@ -126,7 +161,11 @@ def _resend(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str,
             detalle = r.json().get("message") or r.text
         except ValueError:
             detalle = r.text
-        if r.status_code in (401, 403) and "domain" in detalle.lower():
+        propio = re.search(r"own email address \(([^)]+)\)", detalle)
+        if propio:  # cuenta de Resend sin dominio verificado: sólo deja mandar al correo con que se abrió
+            detalle = (f"Resend sigue en modo de prueba y sólo deja enviar a {propio.group(1)}. Verifica tu dominio en "
+                       f"resend.com/domains para enviar a cualquier cliente")
+        elif r.status_code in (401, 403) and "domain" in detalle.lower():
             detalle = f"el dominio de {settings.correo_remitente} aún no está verificado en Resend ({detalle})"
         elif r.status_code in (401, 403):
             detalle = f"la llave RESEND_API_KEY no es válida ({detalle})"
@@ -141,6 +180,7 @@ def enviar(para: list[str], asunto: str, cuerpo: str, adjuntos: list[tuple[str, 
     para = _limpios(para)
     if not para:
         raise CorreoError("No hay un correo de destino válido.")
+    _validos(para)
     if por_api():
         return _resend(para, asunto, cuerpo, adjuntos, nombre, responder_a)
     c = config()
