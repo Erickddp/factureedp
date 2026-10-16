@@ -63,7 +63,7 @@ export default function Portal() {
       <PageHeader title="Autofactura" />
       <div className="mb-8 grid gap-5 lg:grid-cols-2">
         <section className="flex flex-col gap-4 rounded-2xl bg-hoja p-5 ring-1 ring-linea">
-          <Interruptor checked={cfg.activo} onChange={(v) => guardarCfg(v)} label="Portal encendido"
+          <Interruptor checked={cfg.activo} onChange={(v) => guardarCfg(v)} label={cfg.activo ? "Portal encendido" : "Portal apagado"}
             hint="Tus clientes escriben folio y total del ticket, ponen sus datos y se llevan su factura. Cada ticket sólo se factura una vez y sólo dentro del mes." />
           {liga && cfg.activo && (
             <div className="flex items-center gap-2 rounded-xl bg-papel p-2 pl-3">

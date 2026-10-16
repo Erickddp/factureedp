@@ -103,7 +103,7 @@ function Facturar() {
   const [addendaId, setAddendaId] = useState<number | null>(null);
   const [addendaDatos, setAddendaDatos] = useState<Record<string, string>>({});
   const [locales, setLocales] = useState<{ tipo: "traslado" | "retencion"; nombre: string; tasa: string; importe: string }[]>([]);
-  const [enviar, setEnviar] = useState(true);
+  const [enviar, setEnviar] = useState(false);  // nunca se manda correo sin que se pida (lo prende la configuración del emisor o el usuario)
   const [preview, setPreview] = useState<Preview | null>(null);
   const [timbrando, setTimbrando] = useState(false);
   const [resultado, setResultado] = useState<Factura | null>(null);
@@ -539,11 +539,11 @@ function Facturar() {
                 <CatSelect catalogo="forma_pago" data-campo="forma_pago" value={metodo === "PPD" ? "99" : forma} onChange={setForma} disabled={metodo === "PPD"} filtro={(c) => metodo === "PPD" || c.clave !== "99"} />
               </Field>
               {vis.moneda && <Field label="Moneda">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Select value={moneda} onChange={(e) => setMoneda(e.target.value)} className="w-24 shrink-0" aria-label="Moneda">
                     {["MXN", "USD", "EUR"].map((m) => <option key={m}>{m}</option>)}
                   </Select>
-                  {moneda !== "MXN" && <Input data-campo="tipo_cambio" placeholder="Tipo de cambio" value={tc} onChange={(e) => setTc(e.target.value)} inputMode="decimal" />}
+                  {moneda !== "MXN" && <Input data-campo="tipo_cambio" placeholder="Tipo de cambio" aria-label="Tipo de cambio" value={tc} onChange={(e) => setTc(e.target.value)} inputMode="decimal" className="min-w-36 flex-1" />}
                 </div>
               </Field>}
             </section>
@@ -978,7 +978,7 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
         </label>
         {verClave && <label className="flex min-w-0 flex-col gap-1">
           <span className={etiqueta}>Clave SAT</span>
-          <ClaveSearch tipo="prod_serv" value={c.clave_prod_serv} placeholder="84111500" inputProps={{ "data-cell": `${i}-3` }} onChange={(clave) => onChange({ clave_prod_serv: clave })} />
+          <ClaveSearch tipo="prod_serv" value={c.clave_prod_serv} placeholder="Clave SAT" inputProps={{ "data-cell": `${i}-3` }} onChange={(clave) => onChange({ clave_prod_serv: clave })} />
         </label>}
         {verUnidad && <label className="flex min-w-0 flex-col gap-1">
           <span className={etiqueta}>Unidad</span>
@@ -1145,7 +1145,7 @@ function Validaciones({ preview, irA, aplicarSugerencia, nConceptos }: { preview
             <AlertTriangle className="size-4" /> {avisos.length} {avisos.length === 1 ? "aviso" : "avisos"} {verAvisos ? "▴" : "▾"}
           </button>
           {verAvisos && (
-            <ul className="mt-1 flex flex-col gap-1 pl-6 text-alerta">
+            <ul className="mt-1 flex max-h-32 flex-col gap-1 overflow-y-auto pl-6 text-alerta">
               {avisos.map((v, i) => (
                 <li key={i}>
                   {v.mensaje}

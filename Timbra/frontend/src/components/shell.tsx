@@ -445,7 +445,7 @@ function Avisos() {
 
 function Marco({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const { emisor: emisorActivo } = useEmisor();
+  const { emisor: emisorActivo, cargando } = useEmisor();
   const { data: pend } = useSWR<{ total: number; errores: number }>(emisorActivo ? `/pendientes/resumen?emisor_id=${emisorActivo.id}` : null, fetcher, { refreshInterval: 300_000 });
   const { data: yo, mutate: mutYo } = useSWR<Yo>("/auth/yo", fetcher);
   const [cajon, setCajon] = useState(false);
@@ -501,7 +501,8 @@ function Marco({ children }: { children: React.ReactNode }) {
         <main key={path} className="mx-auto w-full min-w-0 max-w-[1280px] flex-1 px-4 py-6 animate-entrar sm:px-6 lg:px-10 lg:py-8">
           <BandaSoporte />
           <Avisos />
-          {children}
+          {/* Mientras llegan los emisores no se pinta la pantalla: así no sale «da de alta un emisor» por un instante */}
+          {cargando ? <div aria-busy className="esqueleto h-9 w-72" /> : children}
         </main>
       </div>
 

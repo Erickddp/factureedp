@@ -94,3 +94,16 @@ def test_login_se_frena_tras_varios_fallos():
         h, _ = _preparar(c)  # otro correo no se ve afectado
         assert h["Authorization"]
         auth._FALLOS.clear()
+
+
+def test_rfc_de_pruebas_del_sat_no_se_amarra_a_un_pac_de_produccion():
+    """Reporte del tester: EKU9003173C9 con un Finkok de PRODUCCIÓN sólo daba «300 usuario o contraseña inválidos»."""
+    from types import SimpleNamespace as NS
+    from app.services import validacion
+    fake = lambda pruebas: NS(rfc="EKU9003173C9", cer=b"x", csd_vence=None, regimen_fiscal="601", lugar_expedicion="01000",
+                              pac=NS(proveedor="finkok", pruebas=pruebas, nombre="Finkok"))
+    from app.schemas import FacturaIn
+    data = FacturaIn.model_construct(tipo="I", publico_general=False, conceptos=[])
+    for pruebas, esperado in ((False, True), (True, False)):
+        r = validacion.validar(None, fake(pruebas), data, None)
+        assert any(e["campo"] == "emisor.pac" and "PRUEBAS del SAT" in e["mensaje"] for e in r["errores"]) == esperado
