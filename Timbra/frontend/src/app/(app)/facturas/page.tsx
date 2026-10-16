@@ -346,6 +346,10 @@ function ModalCancelar({ f, onClose, onOk }: { f: Factura | null; onClose: () =>
                 </Select>
               </Field>
             )}
+            {uuidOk && !sustituibles.some((c) => c.uuid?.toUpperCase() === sust.toUpperCase()) && (
+              <p className="text-xs text-alerta">Ese UUID no es de las facturas vigentes de este cliente en Timbra. Si la hiciste en otro sistema está bien; el SAT verificará que exista.</p>
+            )}
+            {!sustituibles.length && <p className="text-xs text-grafito">Este cliente no tiene otra factura vigente para elegir: timbra primero la que sustituye, o pega su UUID si la hiciste en otro sistema.</p>}
             <Field label={sustituibles.length ? "O pega su UUID" : "UUID de la factura que la sustituye"}
               error={sust && !uuidOk ? "Formato: 8-4-4-4-12 letras y números (A-F, 0-9)" : undefined}>
               <Input value={sust} onChange={(e) => { setSust(e.target.value.trim()); setFalla(""); }} placeholder="5FB2822E-396D-4725-8521-CDC4BDD20CCF" className="font-mono text-xs" />

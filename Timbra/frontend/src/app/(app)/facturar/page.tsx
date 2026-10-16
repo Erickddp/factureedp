@@ -10,10 +10,10 @@ import { dinero, IVA16, IVA8, PRESETS_IMPUESTOS, RFC_RE } from "@/lib/format";
 import { OpcionesImpuestos } from "@/components/impuestos";
 import { CalcPrecio } from "@/components/calculadora";
 import { evaluarMonto, regimenPermitido, usoPermitido, usoSugerido } from "@/lib/sat";
-import type { Addenda, CampoFacturar, Cliente, Concepto, ConfigFacturar, Factura, Impuesto, PerfilFacturar, Plantilla, Producto, Tercero } from "@/lib/types";
+import type { Addenda, CampoFacturar, Cliente, Concepto, ConfigFacturar, Factura, Impuesto, PerfilFacturar, Plantilla, Producto, Tercero, TimbresPac } from "@/lib/types";
 import { ConfigFacturarModal, visiblesDe } from "@/components/config-facturar";
 import { EditorImpuestos, ListaClientes, ListaConceptos, deFacturado, deProducto, type Sugerencias } from "@/components/facturar-listas";
-import { useEmisor } from "@/components/emisor-context";
+import { EtiquetaAmbiente, ambienteDe, useEmisor, type Ambiente } from "@/components/emisor-context";
 import { CatSelect, ClaveSearch } from "@/components/catalogo";
 import { Badge, Button, Field, Input, Kbd, Menu, Select, cx } from "@/components/ui";
 
@@ -65,7 +65,7 @@ export default function FacturarPage() {
 }
 
 function Facturar() {
-  const { emisor } = useEmisor();
+  const { emisor, confirmarTimbre } = useEmisor();
   const frontera = !!emisor?.region_fronteriza;
   const { data: cfg, mutate: mutCfg } = useSWR<ConfigFacturar>(emisor ? `/emisores/${emisor.id}/config-facturar` : null, fetcher);
   const cfgRef = useRef(cfg);
@@ -87,6 +87,8 @@ function Facturar() {
   const [forma, setForma] = useState("03");
   const [moneda, setMoneda] = useState("MXN");
   const [tc, setTc] = useState("");
+  // Último tipo de cambio timbrado por moneda (en este equipo): se sugiere y se avisa si el nuevo se aleja mucho (error de dedo)
+  const tcPrevio = (m: string) => { try { return localStorage.getItem(`timbra_tc_${m}`) ?? ""; } catch { return ""; } };
   const [conceptos, setConceptos] = useState<Concepto[]>([nuevoConcepto()]);
   // Al cargar o cambiar de emisor: si no has capturado nada, los conceptos toman su IVA (8% frontera o 16%)
   const defectoDe = useRef("");
@@ -212,7 +214,9 @@ function Facturar() {
   const repetirUltima = useCallback(() => {
     if (!ultima || !cliente || !emisor) return;
     cargarPayload({ ...ultima.payload, cliente_id: cliente.id, emisor_id: emisor.id, conceptos: ultima.payload.conceptos.map((c: any) => ({ ...c, descripcion: c.descripcion })) })
-      .then(() => toast.message(`Cargada la última (${ultima.folio}). Ajusta lo que cambie y timbra.`));
+      .then(() => ultima.payload.metodo_pago === "PPD"
+        ? toast.warning(`Cargada la última (${ultima.folio}) con método PPD (pago en parcialidades). Si esta se paga de contado, cámbialo a PUE.`)
+        : toast.message(`Cargada la última (${ultima.folio}). Ajusta lo que cambie y timbra.`));
     setUltima(null);
   }, [ultima, cliente, emisor, cargarPayload]);
 
@@ -307,11 +311,13 @@ function Facturar() {
     if (!payload || timbrando || resultado) return;
     if (!nConceptos) return toast.error("Agrega al menos un concepto.");
     if (errores.length) return toast.error(`Corrige ${errores.length} ${errores.length === 1 ? "detalle" : "detalles"} antes de timbrar: ${errores[0].mensaje}`);
+    if (!(await confirmarTimbre())) return;  // producción: la primera vez tras cambiar de emisor pregunta con cuál
     setTimbrando(true);
     try {
       const f = await api<Factura>("/facturas", { method: "POST", json: payload, headers: { "Idempotency-Key": llave.current } });
       llave.current = crypto.randomUUID();
       if (f.error) toast.warning(f.error);
+      if (f.moneda && f.moneda !== "MXN" && tc) { try { localStorage.setItem(`timbra_tc_${f.moneda}`, tc); } catch {} }
       if (cfg?.tras_timbrar === "nueva") {
         toast.success(`Timbrada ${f.serie ?? ""}${f.folio ?? ""} · ${dinero(f.total, f.moneda)}`, {
           duration: 10000, action: { label: "PDF", onClick: () => descargar(`/facturas/${f.id}/pdf`, `${f.uuid}.pdf`).catch(mostrarError) },
@@ -320,13 +326,14 @@ function Facturar() {
       } else {
         setResultado(f);
         toast.success(`Timbrada ${f.serie ?? ""}${f.folio ?? ""}`);
+        window.scrollTo({ top: 0, behavior: "smooth" });  // la tarjeta del resultado está arriba: que no quede fuera de vista
       }
     } catch (e) {
       mostrarError(e);
     } finally {
       setTimbrando(false);
     }
-  }, [payload, timbrando, resultado, nConceptos, errores, cfg]);
+  }, [payload, timbrando, resultado, nConceptos, errores, cfg, confirmarTimbre]);
   const reiniciarRef = useRef(() => {});
 
   const guardarPlantilla = useCallback(async () => {
@@ -450,16 +457,21 @@ function Facturar() {
     return base > 0 && t > 0 ? (Math.round(base * t) / 100).toFixed(2) : "";
   };
   const receptorNombre = modo === "G" ? "PÚBLICO EN GENERAL" : cliente?.nombre ?? nuevo?.nombre ?? "";
-  const ticketProps = { emisor, preview, moneda, receptorNombre, resultado, listo, timbrando, enviar, setEnviar, timbrar, guardarPlantilla, reiniciar, irA, aplicarSugerencia, nConceptos };
+  // Timbres que le quedan al PAC de este emisor (si se conocen): se ven junto a Timbrar, no hasta el rechazo del PAC
+  const { data: timbresPacs } = useSWR<TimbresPac[]>("/pacs/timbres", fetcher, { refreshInterval: 300_000 });
+  const timbresPac = timbresPacs?.find((t) => t.pac_id === emisor?.pac_id && t.restantes !== null);
+  const ticketProps = { metodo: modo === "T" ? "" : metodo, timbresPac, emisor, preview, moneda, receptorNombre, resultado, listo, timbrando, enviar, setEnviar, timbrar, guardarPlantilla, reiniciar, irA, aplicarSugerencia, nConceptos };
 
   return (
     <div className="@container">
       <div className="grid gap-6 @min-[940px]:grid-cols-[minmax(0,1fr)_300px] @min-[1100px]:grid-cols-[minmax(0,1fr)_330px]">
         <div className="flex min-w-0 flex-col gap-5">
-          {emisor.modo_demo && (
+          {(ambienteDe(emisor) === "demo" || ambienteDe(emisor) === "pruebas") && (
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-alerta-suave px-4 py-2.5 text-sm text-alerta">
-              <FlaskConical className="size-4 shrink-0" /> <span className="min-w-0 flex-1"><b>Modo demo.</b> Lo que timbres con {emisor.rfc} es de práctica: no llega al SAT ni tiene validez fiscal.</span>
-              <a href="/ajustes/" className="font-medium underline">Asignar un PAC real</a>
+              <FlaskConical className="size-4 shrink-0" /> {ambienteDe(emisor) === "demo"
+                ? <span className="min-w-0 flex-1"><b>Modo demo.</b> Lo que timbres con {emisor.rfc} es de práctica: no llega al SAT ni tiene validez fiscal.</span>
+                : <span className="min-w-0 flex-1"><b>Pruebas.</b> {emisor.rfc} timbra en el ambiente de pruebas del PAC: no tiene validez fiscal ni gasta timbres reales.</span>}
+              <a href="/ajustes/" className="font-medium underline">{ambienteDe(emisor) === "demo" ? "Asignar un PAC real" : "PAC y usuarios"}</a>
             </p>
           )}
           {resultado && <div className="@min-[940px]:hidden"><Resultado f={resultado} reiniciar={reiniciar} /></div>}
@@ -551,8 +563,14 @@ function Facturar() {
                   <Select value={moneda} onChange={(e) => setMoneda(e.target.value)} className="w-24 shrink-0" aria-label="Moneda">
                     {["MXN", "USD", "EUR"].map((m) => <option key={m}>{m}</option>)}
                   </Select>
-                  {moneda !== "MXN" && <Input data-campo="tipo_cambio" placeholder="Tipo de cambio" aria-label="Tipo de cambio" value={tc} onChange={(e) => setTc(e.target.value)} inputMode="decimal" className="min-w-36 flex-1" />}
+                  {moneda !== "MXN" && <Input data-campo="tipo_cambio" placeholder={tcPrevio(moneda) ? `Tipo de cambio (último: ${tcPrevio(moneda)})` : "Tipo de cambio del DOF"} aria-label="Tipo de cambio" value={tc} onChange={(e) => setTc(e.target.value)} inputMode="decimal" className="min-w-36 flex-1" />}
                 </div>
+                {moneda !== "MXN" && (() => {
+                  const ant = Number(tcPrevio(moneda)), n = Number(tc);
+                  if (!tc && ant) return <button type="button" onClick={() => setTc(tcPrevio(moneda))} className="mt-1 text-left text-xs text-cobalto hover:underline">Usar el último ({tcPrevio(moneda)}). Confírmalo con el DOF del día.</button>;
+                  if (ant && n > 0 && Math.abs(n - ant) / ant > 0.1) return <p className="mt-1 text-xs text-alerta">Se aleja más de 10% del último que usaste ({ant}). Revisa que no sea un error de captura.</p>;
+                  return null;
+                })()}
               </Field>}
             </section>
           )}
@@ -1105,7 +1123,9 @@ function ExtrasConcepto({ c, vis, terceros, onChange }: { c: Concepto; vis: Reco
 // ======================= Ticket / barra / resultado =======================
 
 type TicketProps = {
-  emisor: { nombre: string; rfc: string; modo_demo?: boolean };
+  metodo: string;
+  timbresPac?: TimbresPac;
+  emisor: { nombre: string; rfc: string; modo_demo?: boolean; ambiente?: Ambiente };
   preview: Preview | null;
   moneda: string;
   receptorNombre: string;
@@ -1239,18 +1259,25 @@ function Ticket(p: TicketProps) {
           <p className="text-sm text-grafito">Total</p>
           <p className="break-all text-[40px] font-semibold leading-none tracking-tight tabular-nums">{preview ? dinero(preview.total, moneda) : "—"}</p>
           <p className="mt-2 break-words text-xs text-grafito">{receptorNombre || "Sin receptor"}</p>
+          {p.metodo && <p className={cx("mt-1 text-xs font-medium", p.metodo === "PPD" ? "text-alerta" : "text-grafito")}>{p.metodo === "PPD" ? "PPD · pago en parcialidades (lleva complemento de pago)" : "PUE · pago en una sola exhibición"}</p>}
         </div>
         {!resultado && <div className="mt-4 border-t border-linea pt-4"><Validaciones {...p} /></div>}
         <div className="mt-5 flex flex-col gap-2">
           {!resultado ? (
             <>
-              <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} title={!listo ? preview?.errores[0]?.mensaje : undefined}>Timbrar</Button>
+              <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} title={!listo ? preview?.errores[0]?.mensaje : undefined}>Timbrar <EtiquetaAmbiente ambiente={ambienteDe(emisor)} enBoton /></Button>
+              {p.timbresPac && (
+                <p className={cx("text-xs", p.timbresPac.nivel === "error" ? "font-medium text-rojo" : p.timbresPac.nivel === "aviso" ? "text-alerta" : "text-grafito")}>
+                  {p.timbresPac.restantes === 0 ? "Sin timbres disponibles: recarga tu PAC antes de timbrar" : `Quedan ${p.timbresPac.restantes} timbres en ${p.timbresPac.nombre}`}
+                </p>
+              )}
               <label className="flex items-center gap-2 text-sm text-grafito">
                 <input type="checkbox" checked={enviar} onChange={(e) => setEnviar(e.target.checked)} className="accent-cobalto" /> Mandar por correo al cliente
               </label>
               <Button variant="fantasma" size="sm" onClick={guardarPlantilla}><BookmarkPlus className="size-4" /> Guardar como plantilla</Button>
               <p className="text-xs text-grafito/80"><Kbd>Ctrl + Enter</Kbd> timbra · <Kbd>F1</Kbd> atajos</p>
-              {emisor.modo_demo && <p className="rounded-lg bg-alerta-suave px-3 py-2 text-xs text-alerta">Modo demo: no llega al SAT ni gasta timbres.</p>}
+              {ambienteDe(emisor) === "demo" && <p className="rounded-lg bg-alerta-suave px-3 py-2 text-xs text-alerta">Modo demo: no llega al SAT ni gasta timbres.</p>}
+              {ambienteDe(emisor) === "pruebas" && <p className="rounded-lg bg-alerta-suave px-3 py-2 text-xs text-alerta">Pruebas: sin validez fiscal ni timbres reales.</p>}
             </>
           ) : (
             <>
@@ -1295,7 +1322,7 @@ function BarraMovil(p: TicketProps) {
         </button>
         {/* Deshabilitado no recibe clic: el envoltorio lo recoge y abre el panel con lo que falta */}
         <div onClick={() => !listo && !abierta && setAbierta(true)} title={!listo ? preview?.errores[0]?.mensaje : undefined}>
-          <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} className="px-5">Timbrar</Button>
+          <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} className="px-5">Timbrar <EtiquetaAmbiente ambiente={ambienteDe(p.emisor)} enBoton /></Button>
         </div>
       </div>
     </div>

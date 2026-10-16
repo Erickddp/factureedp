@@ -295,13 +295,14 @@ def test_frontera_iva_8_honorarios_y_suplemento():
                     {"clave_prod_serv": "51191900", "clave_unidad": "H87", "descripcion": "Suplemento", "valor_unitario": "500",
                      "impuestos": [IVA8]},
                 ]}
-        # Sin marcar frontera: se deja timbrar pero avisa
+        # CP de expedición fuera de la franja: el PAC lo rechazaría (CFDI40998), así que se bloquea antes de timbrar
         pv = c.post("/api/facturas/preview", headers=h, json=body).json()
         assert float(pv["total"]) == 9806.67, pv
-        assert "fronteriza" in str(pv)
-        # Marcar el emisor como región fronteriza y convertir su catálogo
+        assert any("franja fronteriza" in x["mensaje"] for x in pv["errores"]), pv
+        assert c.post("/api/facturas", headers=h, json=body).status_code == 422
+        # Marcar el emisor como región fronteriza (CP de Tijuana) y convertir su catálogo
         ed = {k: e[k] for k in ("rfc", "nombre", "regimen_fiscal", "lugar_expedicion", "email", "color", "pac_id")}
-        assert c.put(f"/api/emisores/{e['id']}", headers=h, json={**ed, "region_fronteriza": True}).json()["region_fronteriza"]
+        assert c.put(f"/api/emisores/{e['id']}", headers=h, json={**ed, "lugar_expedicion": "22000", "region_fronteriza": True}).json()["region_fronteriza"]
         assert c.post(f"/api/emisores/{e['id']}/productos-a-frontera", headers=h).json()["actualizados"] > 0
         prods = c.get(f"/api/productos?emisor_id={e['id']}", headers=h).json()
         assert not any(i.get("tasa") in ("0.16", "0.106667") for p in prods for i in p["impuestos"])
@@ -334,6 +335,8 @@ def test_frontera_iva_8_honorarios_y_suplemento():
         pr = c.post(f"/api/pacs/{pac['id']}/probar?emisor_id={e['id']}&ciclo=true", headers=h).json()
         assert pr["ok"] and pr["cancelacion"]["codigo"] == "201", pr
         assert pr["estatus"]["Estado"] == "Cancelado", pr
+        # Regresa el emisor como estaba para las pruebas que siguen
+        c.put(f"/api/emisores/{e['id']}", headers=h, json={**ed, "region_fronteriza": False})
 
 
 def test_cancelacion_codigos_sat():

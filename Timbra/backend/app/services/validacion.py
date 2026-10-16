@@ -339,7 +339,13 @@ def validar(db, emisor: Emisor, data: FacturaIn, cliente: Cliente | None) -> dic
             r.aviso(cp, f"Concepto {i}: 01010101 (no existe en catálogo) sólo se recomienda en factura global.")
 
     if usa_8:
-        if not getattr(emisor, "region_fronteriza", False):
+        # El catálogo c_CodigoPostal marca qué CP están en la franja (columna EstimuloFranjaFronteriza). Fuera de ella el
+        # PAC rechaza con CFDI40998: se dice antes de gastar el intento.
+        fila_cp = select("C756_c_CodigoPostal", emisor.lugar_expedicion)
+        if fila_cp is not None and len(fila_cp) > 3 and str(fila_cp[3]) != "1":
+            r.error("impuestos", f"IVA 8%: el CP de expedición {emisor.lugar_expedicion} no está en la franja fronteriza "
+                                 "(el SAT lo rechaza con CFDI40998). Usa IVA 16% o corrige el CP del emisor.")
+        elif not getattr(emisor, "region_fronteriza", False):
             r.aviso("impuestos", "IVA 8%: sólo si estás en el padrón del estímulo de región fronteriza. "
                                  "Si aplica, márcalo en Emisores y CSD.")
         if (data.fecha or datetime.now()).replace(tzinfo=None) > FIN_ESTIMULO_FRONTERA:

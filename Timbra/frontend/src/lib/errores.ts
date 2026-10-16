@@ -12,7 +12,7 @@ export function mostrarError(e: unknown) {
   const m = msg.match(/^(.*?)\. Qué hacer: (.*?)(?: \[Detalle del PAC: .*\])?$/s);
   toast.error(m ? m[1] : msg, {
     description: m ? `Qué hacer: ${m[2]}` : undefined,
-    duration: m ? 20000 : 12000,
+    duration: m ? 10000 : 8000,  // el detalle sigue en la consola; un aviso largo tapaba los botones del ticket
     action: { label: "Ver detalle", onClick: () => consola.abrir({ req: err?.requestId ?? null }) },
   });
 }

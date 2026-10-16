@@ -66,8 +66,12 @@ REGLAS: list[tuple[str, Diagnostico]] = [
     (r"tasaocuota|cfdi40(2|3)\d\d.{0,40}tasa",
      Diagnostico("tasa", "Una tasa de impuesto no es válida para el SAT",
                  "Usa las combinaciones del menú Impuestos (16%, 8% frontera, 0%, exento y retenciones 2/3).", None, "impuestos")),
+    (r"franja fronteriza|cfdi40998",
+     Diagnostico("frontera", "El código postal del emisor no está en la franja fronteriza",
+                 "El IVA 8% sólo aplica con CP de expedición en la región fronteriza. Usa IVA 16% o corrige el CP del emisor.",
+                 None, "impuestos")),
     # Ojo: "saldo" a secas también aparece en errores del complemento de pago (ImpSaldoAnt): por eso se piden frases completas
-    (r"saldo insuficiente|sin saldo|no tiene saldo|cr[eé]ditos? insuficiente|sin timbres|no cuenta con timbres|paquete agotado|\b708\b",
+    (r"saldo insuficiente|sin saldo|no tiene saldo|cr[eé]ditos? insuficiente|sin timbres|no cuenta con timbres|paquete agotado|timbres agotados|\b708\b|\b718\b",
      Diagnostico("saldo", "Tu cuenta del PAC no tiene timbres disponibles",
                  "Compra timbres en tu PAC y regístralos en Timbres para que Timbra te avise antes.")),
     (r"usuario|contrase[ñn]a|password|autentica|unauthorized|\b401\b|token",
