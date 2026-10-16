@@ -1,4 +1,5 @@
 """Flujo completo: armar -> sellar -> timbrar -> addenda -> guardar -> (correo)."""
+import re
 from decimal import Decimal
 
 from satcfdi.cfdi import CFDI
@@ -332,11 +333,41 @@ def emitir_nomina(db: Session, data: NominaIn) -> list[dict]:
     return out
 
 
+_UUID = re.compile(r"[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}")
+
+
+def _liberar_pago(db: Session, rep: Factura):
+    """Un REP cancelado ya no cuenta: cada factura que pagaba recupera el saldo y la parcialidad (sin esto, la factura
+    quedaba «con complementos vivos» para siempre y no se podía cancelar). Se llama al pasar a «cancelada», una sola vez."""
+    if rep.tipo != "P":
+        return
+    for d in (rep.payload or {}).get("documentos", []):
+        f = db.get(Factura, d.get("factura_id"))
+        if f and f.tipo == "I":
+            f.saldo = f.saldo + Decimal(str(d.get("imp_pagado") or 0))
+            f.parcialidades = max(0, f.parcialidades - 1)
+
+
 def cancelar(db: Session, f: Factura, motivo: str, sustitucion: str | None) -> Factura:
     if f.estado not in ("timbrada", "cancelacion_pendiente"):
         raise FacturacionError(f"No se puede cancelar una factura en estado '{f.estado}'.")
-    if motivo == "01" and not sustitucion:
-        raise FacturacionError("Motivo 01 requiere el UUID de la factura que sustituye.")
+    if motivo == "01":
+        if not sustitucion:
+            raise FacturacionError("Motivo 01 requiere el UUID de la factura que sustituye.")
+        sustitucion = sustitucion.strip().upper()
+        if not _UUID.fullmatch(sustitucion):
+            raise FacturacionError("El UUID de la factura que sustituye no tiene formato válido (8-4-4-4-12 letras y números, "
+                                   "por ejemplo 5FB2822E-396D-4725-8521-CDC4BDD20CCF).")
+        if sustitucion == (f.uuid or "").upper():
+            raise FacturacionError("La factura no puede sustituirse a sí misma: pon el UUID de la factura nueva.")
+        local = db.query(Factura).filter(Factura.uuid == sustitucion).first()
+        if local is not None:  # si es de este sistema se revisa; si la timbró otro sistema, el SAT es quien dice
+            if local.emisor_id != f.emisor_id:
+                raise FacturacionError("Ese UUID es de otro emisor: la factura que sustituye debe ser del mismo emisor.")
+            if local.estado == "cancelada":
+                raise FacturacionError("Ese UUID está cancelado: la factura que sustituye debe estar vigente.")
+    else:
+        sustitucion = None  # sólo el motivo 01 lleva sustitución
     if f.tipo == "I" and f.parcialidades > 0:
         raise FacturacionError("Tiene complementos de pago vivos. Cancela primero los REP.")
     emisor = f.emisor
@@ -354,6 +385,7 @@ def cancelar(db: Session, f: Factura, motivo: str, sustitucion: str | None) -> F
     f.estado = "cancelada" if nuevo == "cancelada" else "cancelacion_pendiente"
     if f.estado == "cancelada":
         f.saldo = Decimal(0)
+        _liberar_pago(db, f)
     db.commit()
     return f
 
@@ -369,6 +401,7 @@ def actualizar_estatus(db: Session, f: Factura) -> dict:
         f.estado = nuevo
         if nuevo == "cancelada":
             f.saldo = Decimal(0)
+            _liberar_pago(db, f)
         elif "rechaz" in proceso.lower():
             f.error = "El receptor rechazó la cancelación."
         else:
@@ -376,6 +409,7 @@ def actualizar_estatus(db: Session, f: Factura) -> dict:
         db.commit()
     elif f.estado == "timbrada" and nuevo == "cancelada":  # cancelada desde el portal del SAT u otro sistema
         f.estado, f.saldo = "cancelada", Decimal(0)
+        _liberar_pago(db, f)
         db.commit()
     return st
 

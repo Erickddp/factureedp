@@ -91,11 +91,25 @@ def test_todo():
         assert nc.status_code == 200, nc.text
         assert nc.json()["serie"] == "NC"
 
+        # Motivo 01: el UUID sustituto debe tener formato de UUID (antes aceptaba «123-no-es-uuid»)
+        for malo in ("123-no-es-uuid", g.json()["uuid"]):  # formato inválido y ella misma
+            r = c.post(f"/api/facturas/{g.json()['id']}/cancelar", headers=h, json={"motivo": "01", "uuid_sustitucion": malo})
+            assert r.status_code == 422, (malo, r.text)
+
         # Cancelar la global
         cn = c.post(f"/api/facturas/{g.json()['id']}/cancelar", headers=h, json={"motivo": "02"})
         assert cn.json()["estado"] == "cancelada"
         # No se cancela con REP vivos
         assert c.post(f"/api/facturas/{f['id']}/cancelar", headers=h, json={"motivo": "02"}).status_code == 422
+        # Cancelar el REP devuelve el saldo y la parcialidad; la factura vuelve a poder cancelarse (reporte del tester: A37)
+        assert c.post(f"/api/facturas/{p1.json()['id']}/cancelar", headers=h, json={"motivo": "02"}).json()["estado"] == "cancelada"
+        fx = c.get(f"/api/facturas/{f['id']}", headers=h).json()
+        assert float(fx["saldo"]) == 9533.33 and fx["parcialidades"] == 0
+        # Se vuelve a registrar el pago para que el resto del flujo siga igual
+        assert c.post("/api/facturas/pagos", headers=h, json={
+            "emisor_id": e["id"], "cliente_id": cli["id"], "fecha_pago": "2026-09-10T12:00:00",
+            "forma_pago": "03", "documentos": [{"factura_id": f["id"], "imp_pagado": "5000"}]}).status_code == 200
+        assert float(c.get(f"/api/facturas/{f['id']}", headers=h).json()["saldo"]) == 4533.33
 
         # Plantillas
         pl = c.post("/api/plantillas", headers=h, json={"emisor_id": e["id"], "nombre": "Iguala mensual", "payload": body}).json()

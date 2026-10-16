@@ -299,7 +299,14 @@ function ModalCancelar({ f, onClose, onOk }: { f: Factura | null; onClose: () =>
   const [motivo, setMotivo] = useState("02");
   const [sust, setSust] = useState("");
   const [cargando, setCargando] = useState(false);
+  // Motivo 01: se ofrecen las facturas vigentes del mismo cliente para elegir la que sustituye (menos riesgo que teclear el UUID)
+  const { data: candidatas = [] } = useSWR<Factura[]>(
+    f && motivo === "01" && f.cliente_id ? `/facturas?emisor_id=${f.emisor_id}&cliente_id=${f.cliente_id}&estado=timbrada&limit=50` : null, fetcher);
   if (!f) return null;
+  const uuidOk = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(sust);
+  const sustituibles = candidatas.filter((c) => c.id !== f.id && c.uuid && c.tipo === "I");
+  // El SAT no deja cancelar un ingreso con complementos de pago vivos: se avisa al abrir, no al confirmar
+  const conRep = f.tipo === "I" && f.parcialidades > 0;
   const ir = async () => {
     setCargando(true);
     try {
@@ -317,19 +324,31 @@ function ModalCancelar({ f, onClose, onOk }: { f: Factura | null; onClose: () =>
       open
       onClose={onClose}
       title={`Cancelar ${f.serie ?? ""}${f.folio ?? ""}`}
-      footer={<><Button onClick={onClose}>No cancelar</Button><Button variant="peligro" onClick={ir} loading={cargando}>Cancelar ante el SAT</Button></>}
+      footer={<><Button onClick={onClose}>No cancelar</Button><Button variant="peligro" onClick={ir} loading={cargando} disabled={conRep || (motivo === "01" && !uuidOk)}>Cancelar ante el SAT</Button></>}
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-grafito">{f.receptor_nombre} · {dinero(f.total)}</p>
+        {conRep && <p className="rounded-lg bg-alerta-suave px-3 py-2 text-sm text-alerta">Esta factura tiene complementos de pago vivos. Cancela primero sus REP (Pagos) y luego vuelve a cancelarla.</p>}
         <Field label="Motivo">
           <Select value={motivo} onChange={(e) => setMotivo(e.target.value)}>
             {Object.entries(MOTIVOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
         </Field>
         {motivo === "01" && (
-          <Field label="UUID de la factura que la sustituye">
-            <Input value={sust} onChange={(e) => setSust(e.target.value.trim())} />
-          </Field>
+          <>
+            {sustituibles.length > 0 && (
+              <Field label="Factura que la sustituye (de este cliente)">
+                <Select value={sustituibles.find((c) => c.uuid === sust.toUpperCase())?.uuid ?? ""} onChange={(e) => setSust(e.target.value)}>
+                  <option value="">Elige una…</option>
+                  {sustituibles.map((c) => <option key={c.id} value={c.uuid!}>{c.serie}{c.folio} · {fecha(c.fecha)} · {dinero(c.total, c.moneda)}</option>)}
+                </Select>
+              </Field>
+            )}
+            <Field label={sustituibles.length ? "O pega su UUID" : "UUID de la factura que la sustituye"}
+              error={sust && !uuidOk ? "Formato: 8-4-4-4-12 letras y números (A-F, 0-9)" : undefined}>
+              <Input value={sust} onChange={(e) => setSust(e.target.value.trim())} placeholder="5FB2822E-396D-4725-8521-CDC4BDD20CCF" className="font-mono text-xs" />
+            </Field>
+          </>
         )}
       </div>
     </Modal>

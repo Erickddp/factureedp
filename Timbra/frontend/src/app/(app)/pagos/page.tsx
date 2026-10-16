@@ -23,7 +23,7 @@ export default function Pagos() {
   const [fechaPago, setFechaPago] = useState(ahoraLocal());
   const [forma, setForma] = useState("03");
   const [montos, setMontos] = useState<Record<number, string>>({});
-  const [enviar, setEnviar] = useState(true);
+  const [enviar, setEnviar] = useState(false);  // igual que en Facturar: nunca se manda correo sin que se pida
   const [cargando, setCargando] = useState(false);
   const lista = useRef<HTMLDivElement>(null);
 
