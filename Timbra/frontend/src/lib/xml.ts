@@ -22,7 +22,7 @@ export type TrabajoXml = {
   mensaje: string; creado: string; terminado: string | null; descargable: boolean; registro?: string;
   params: { desde?: string; hasta?: string; tipo?: string; nombre?: string; n?: number; incluir?: string };
   resumen: {
-    nuevos?: number; repetidos?: number; solicitudes?: number; errores?: string[]; avisos?: string[]; comprobantes?: number;
+    nuevos?: number; repetidos?: number; solicitudes?: number; errores?: string[]; avisos?: string[]; comprobantes?: number; pendientes?: string[];
     estatus?: { revisados: number; cancelados: number; nuevos_cancelados: number; sin_xml: number } | null;
   };
 };
@@ -155,9 +155,18 @@ export async function subirXml(archivos: File[], paso: (hechos: number, total: n
     // Todas las tandas van a /xml/leer; tras la primera, el RFC principal desempata a su favor en las siguientes.
     const mandar = async () => {
       const ruta = `/xml/leer?actual=${encodeURIComponent(res.rfc || actual)}&rfc=${encodeURIComponent(elegido)}`;
-      const r = await fetch(`${API}${ruta}`, { method: "POST", headers: cabeceras(), body: fd });
-      if (!r.ok) await fallo(r);
-      return r.json();
+      // nunca se queda «leyendo» para siempre: si el servidor no contesta en 3 minutos, se dice
+      const corte = new AbortController();
+      const reloj = setTimeout(() => corte.abort(), 180_000);
+      try {
+        const r = await fetch(`${API}${ruta}`, { method: "POST", headers: cabeceras(), body: fd, signal: corte.signal });
+        if (!r.ok) await fallo(r);
+        return await r.json();
+      } catch (e) {
+        if ((e as Error).name === "AbortError" || e instanceof TypeError)
+          throw new ApiError(0, `El servidor no contestó al leer los XML ${hechos + 1} a ${hechos + tanda.length}. Lo anterior ya quedó guardado: vuelve a elegir la carpeta (lo repetido se ignora).`);
+        throw e;
+      } finally { clearTimeout(reloj); }
     };
     let j = await mandar();
     if (j.elegir) {  // ningún CFDI de esta tanda tiene dueño claro: se pregunta de quién son
@@ -178,7 +187,7 @@ export async function subirXml(archivos: File[], paso: (hechos: number, total: n
     tanda = []; peso = 0;
   };
   for (const a of utiles) {
-    if (tanda.length >= 300 || peso + a.size > 12 * 1024 * 1024) await enviar();
+    if (tanda.length >= 150 || peso + a.size > 6 * 1024 * 1024) await enviar();  // tandas chicas: cada una contesta rápido
     tanda.push(a);
     peso += a.size;
   }

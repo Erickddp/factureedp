@@ -239,7 +239,7 @@ function Resultado({ t }: { t: TrabajoXml }) {
     <section className={cx("rounded-3xl p-6 ring-1 sm:p-7", bien ? "bg-hoja ring-linea" : "bg-alerta-suave ring-alerta/30")}>
       <p className="flex flex-wrap items-center gap-2 font-semibold">
         {bien ? <CheckCircle2 className="size-5 text-sello" /> : <XCircle className="size-5 text-alerta" />}
-        {{ listo: "Última descarga: terminó bien", error: "La última descarga no terminó", cancelado: "Detuviste la última descarga", interrumpido: "La última descarga se interrumpió", curso: "" }[t.estado]}
+        {bien && r.pendientes?.length ? `Bajó lo que el SAT ya tenía listo; faltan ${r.pendientes.length} pedido(s) que el SAT sigue preparando` : { listo: "Última descarga: terminó bien", error: "La última descarga no terminó", cancelado: "Detuviste la última descarga", interrumpido: "La última descarga se interrumpió", curso: "" }[t.estado]}
         <span className="text-sm font-normal text-grafito">· {dia(t.params.desde)} al {dia(t.params.hasta)}</span>
       </p>
       {bien && (

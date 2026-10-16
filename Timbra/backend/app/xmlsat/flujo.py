@@ -38,6 +38,7 @@ class Resumen:
     xml_duplicados: int = 0
     paquetes: int = 0
     errores: List[str] = field(default_factory=list)
+    pendientes: List[str] = field(default_factory=list)  # pedidos al SAT que aún no estaban listos al terminar el tiempo
 
     def texto(self) -> str:
         s = (f"{self.nombre or self.rfc}: Tramos: {self.tramos} | Solicitudes nuevas: {self.solicitudes_nuevas} | "
@@ -93,6 +94,91 @@ class Descargador:
                     msg = f"{t} {ini:%Y-%m-%d}..{fin:%Y-%m-%d}: {e}"
                     self.log.error(msg)
                     res.errores.append(msg)
+        self.log.info("RESUMEN -> %s", res.texto())
+        return res
+
+    def ejecutar_paralelo(self, desde: datetime, hasta: datetime, tipos: List[str], limite_seg: float,
+                          reloj: Callable[[], float] = time.monotonic,
+                          avance: Callable[[int, int], None] = lambda listos, total: None) -> Resumen:
+        """Como `ejecutar`, pero PRIMERO pide todos los meses y tipos al SAT y LUEGO revisa todos en rondas, bajando cada
+        uno en cuanto está listo. El SAT tarda de minutos a horas por solicitud: uno por uno, un año eran horas de espera
+        sumadas; así es la espera del más lento. Al pasar `limite_seg` (la e.firma no vive para siempre) se detiene y deja
+        lo que falta en `pendientes`: quedó pedido, y la próxima vez se retoma sin volver a pedirlo."""
+        tramos = list(partir_por_mes(desde, hasta)) if self.op.dividir_por_mes else [
+            (desde.replace(hour=0, minute=0, second=0), hasta.replace(hour=23, minute=59, second=59))]
+        res = Resumen(rfc=self.rfc, nombre=self.perfil.nombre)
+        fin_limite = reloj() + limite_seg
+
+        # 1) pedir todo
+        espera: list[tuple] = []  # (tipo, ini, fin, id_sol, etiqueta)
+        for t in tipos:
+            for ini, fin in tramos:
+                if self.cancelado():
+                    return res
+                res.tramos += 1
+                etiqueta = f"[{t} {ini:%Y-%m-%d}..{fin:%Y-%m-%d}]"
+                st = self.estado.obtener(t, ini, fin)
+                if st.get("completado"):
+                    continue
+                try:
+                    id_sol = st.get("id_solicitud") or self._solicitar(t, ini, fin, etiqueta, res)
+                except Exception as e:  # noqa: BLE001
+                    res.errores.append(f"{t} {ini:%Y-%m-%d}..{fin:%Y-%m-%d}: {e}")
+                    self.log.error("%s %s", etiqueta, e)
+                    continue
+                if id_sol:
+                    espera.append((t, ini, fin, id_sol, etiqueta))
+        total = len(espera)
+        avance(0, total)
+
+        # 2) revisar todos en rondas hasta que terminen o se acabe el tiempo
+        ronda = 0
+        raras: dict[str, int] = {}
+        while espera:
+            ronda += 1
+            siguen = []
+            for t, ini, fin, id_sol, etiqueta in espera:
+                if self.cancelado():
+                    return res
+                try:
+                    v = con_reintentos(lambda: self.cli.verificar(self.rfc, id_sol), self.op.reintentos,
+                                       self.op.backoff_base_seg, self.log, f"{etiqueta} verificar", self.dormir)
+                    est, cod, n = v.get("estado_solicitud"), v.get("cod_estatus"), v.get("numero_cfdis")
+                    self.log.info("%s ronda %d -> estado=%s cod=%s cfdis=%s paquetes=%d", etiqueta, ronda, est, cod, n,
+                                  len(v.get("paquetes", [])))
+                    if est == EST_TERMINADA or cod == COD_SIN_INFO:
+                        paquetes = v.get("paquetes") or []
+                        if paquetes:
+                            self.estado.marcar(t, ini, fin, numero_cfdis=n, paquetes=paquetes)
+                        ya = set(self.estado.obtener(t, ini, fin).get("paquetes_descargados", []))
+                        for idp in paquetes:
+                            if idp not in ya:
+                                self._descargar_y_guardar(t, idp, etiqueta, res)
+                                ya.add(idp)
+                                self.estado.marcar(t, ini, fin, paquetes_descargados=sorted(ya))
+                        self.estado.marcar(t, ini, fin, completado=True, numero_cfdis=n or 0)
+                        continue
+                    if est in (EST_ERROR, EST_RECHAZADA, EST_VENCIDA):
+                        self.estado.marcar(t, ini, fin, id_solicitud=None, error=f"estado={est} cod={cod} {v.get('mensaje')}")
+                        raise RuntimeError(f"el SAT terminó la solicitud en estado {est} ({v.get('mensaje')}); vuelve a pedir ese periodo")
+                    if est not in ESTADOS_CONOCIDOS:
+                        raras[id_sol] = raras.get(id_sol, 0) + 1
+                        if raras[id_sol] >= MAX_RESPUESTAS_RARAS:
+                            raise RuntimeError(f"el SAT lleva {raras[id_sol]} respuestas no documentadas (estado={est} cod={cod}); "
+                                               "vuelve más tarde, se retoma sola")
+                    siguen.append((t, ini, fin, id_sol, etiqueta))
+                except Exception as e:  # noqa: BLE001 - un mes que falla no detiene a los demás
+                    res.errores.append(f"{t} {ini:%Y-%m-%d}..{fin:%Y-%m-%d}: {e}")
+                    self.log.error("%s %s", etiqueta, e)
+            espera = siguen
+            avance(total - len(espera), total)
+            if not espera:
+                break
+            if reloj() >= fin_limite:
+                res.pendientes = [f"{t} {ini:%Y-%m}" for t, ini, _f, _i, _e in espera]
+                self.log.info("Tiempo agotado: %d solicitudes siguen en preparación en el SAT", len(espera))
+                break
+            self.dormir(self._espera_polling(ronda))
         self.log.info("RESUMEN -> %s", res.texto())
         return res
 
