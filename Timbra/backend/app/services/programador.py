@@ -24,8 +24,10 @@ def respaldo_diario(destino: Path | None = None, conservar: int = 14) -> Path | 
     zip_path = destino / f"timbra_{hoy}.zip"
     if zip_path.exists():
         return None
-    armar_respaldo(zip_path)
-    viejos = sorted(destino.glob("timbra_*.zip"))[:-(7 if EN_WEB else conservar)]
+    # En web el respaldo vive en el MISMO disco: sin los XML bajados del SAT (se pueden volver a bajar) y sólo 3 días,
+    # o los respaldos solos llenarían el volumen y el servidor dejaría de arrancar
+    armar_respaldo(zip_path, sin_xml_sat=EN_WEB)
+    viejos = sorted(destino.glob("timbra_*.zip"))[:-(3 if EN_WEB else conservar)]
     for v in viejos:
         v.unlink(missing_ok=True)
     log.info("Respaldo diario: %s", zip_path)
@@ -64,13 +66,16 @@ def respaldo_fuera(zip_path: Path) -> str | None:
     return para
 
 
-def armar_respaldo(zip_path: Path, solo_base: bool = False) -> Path:
-    """Escribe en `zip_path` todo lo que hace falta para levantar Timbra en otra máquina: base, XML, correo y .env."""
+def armar_respaldo(zip_path: Path, solo_base: bool = False, sin_xml_sat: bool = False) -> Path:
+    """Escribe en `zip_path` todo lo que hace falta para levantar Timbra en otra máquina: base, XML, correo y .env.
+    sin_xml_sat: deja fuera los XML bajados del SAT (carpeta xml/; los timbrados por Timbra van en la base y respaldo_xml)."""
     datos = Path(settings.data_dir).resolve()
     copia = _copia_bd()  # copia consistente aunque la app esté escribiendo (modo WAL)
+    fuera = {"logs", "Respaldos", "tmp", "eliminados"} | ({"xml"} if sin_xml_sat else set())
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for root, dirs, files in ([] if solo_base else os.walk(datos)):
-            dirs[:] = [d for d in dirs if d not in ("logs", "Respaldos", "tmp")]  # ni registros, ni temporales, ni respaldos dentro de respaldos
+            if Path(root) == datos:  # ni registros, ni temporales, ni respaldos dentro de respaldos
+                dirs[:] = [d for d in dirs if d not in fuera]
             for f in files:
                 p = Path(root) / f
                 if copia and p.name.startswith(copia[1].name):  # .db, -wal, -shm: va la copia

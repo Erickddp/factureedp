@@ -46,28 +46,39 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import func
 
         from .models import Usuario
-        almacen.registrar_arranque(app.version, db.query(func.min(Usuario.creado)).scalar())
+        try:  # es sólo un indicador: si el disco está lleno o falla, Timbra igual debe arrancar
+            almacen.registrar_arranque(app.version, db.query(func.min(Usuario.creado)).scalar())
+        except Exception:
+            log.exception("No se pudo anotar el arranque en almacen.json (¿disco lleno?)")
         from .services import lotes as lotes_svc
         if lotes_svc.recuperar_interrumpidas(db):
             log.warning("Había filas de lote a medio timbrar: quedaron marcadas para revisión")
         from .services import xml_indice, xml_trabajos
         xml_trabajos.recuperar_interrumpidos()  # la e.firma vive en memoria: tras reiniciar hay que volver a ponerla
-        try:
-            pasados = xml_indice.importar_heredados(db)
-            if pasados:
-                log.info("XML del módulo SAT anterior pasados al nuevo: %s", pasados)
-            completos = xml_indice.completar_nomina(db)
-            if completos:
-                log.info("Recibos de nómina con su detalle leído: %s", completos)
-        except Exception:
-            db.rollback()
-            log.exception("No se pudieron pasar los XML del módulo SAT anterior")
         auth.asegurar_admin(db)
         ya = {n for (n,) in db.query(Addenda.nombre)}  # las básicas que falten (sin tocar las que editaste)
         faltan = [Addenda(**s) for s in SEMILLAS if s["nombre"] not in ya]
         if faltan:
             db.add_all(faltan)
             db.commit()
+    # Trabajos de mantenimiento de los XML: en segundo plano. Con miles de XML tardan, y si se hacen antes de abrir,
+    # el servidor no contesta a tiempo la revisión de salud del despliegue (Railway da 120 s) y nunca arranca.
+    import threading
+
+    def _mantenimiento_xml():
+        from .services import xml_indice
+        with SessionLocal() as db2:
+            try:
+                pasados = xml_indice.importar_heredados(db2)
+                if pasados:
+                    log.info("XML del módulo SAT anterior pasados al nuevo: %s", pasados)
+                completos = xml_indice.completar_nomina(db2)
+                if completos:
+                    log.info("Recibos de nómina con su detalle leído: %s", completos)
+            except Exception:
+                db2.rollback()
+                log.exception("Mantenimiento de XML al arrancar falló")
+    threading.Thread(target=_mantenimiento_xml, name="mantenimiento-xml", daemon=True).start()
     log.info("Timbra listo en http://localhost:8000")
     tarea = None
     if settings.programador:
