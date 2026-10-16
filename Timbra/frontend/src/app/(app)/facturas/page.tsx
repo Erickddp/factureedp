@@ -299,6 +299,7 @@ function ModalCancelar({ f, onClose, onOk }: { f: Factura | null; onClose: () =>
   const [motivo, setMotivo] = useState("02");
   const [sust, setSust] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [falla, setFalla] = useState("");  // lo que contestó el servidor, dentro del diálogo (un aviso flotante se pierde de vista)
   // Motivo 01: se ofrecen las facturas vigentes del mismo cliente para elegir la que sustituye (menos riesgo que teclear el UUID)
   const { data: candidatas = [] } = useSWR<Factura[]>(
     f && motivo === "01" && f.cliente_id ? `/facturas?emisor_id=${f.emisor_id}&cliente_id=${f.cliente_id}&estado=timbrada&limit=50` : null, fetcher);
@@ -309,12 +310,13 @@ function ModalCancelar({ f, onClose, onOk }: { f: Factura | null; onClose: () =>
   const conRep = f.tipo === "I" && f.parcialidades > 0;
   const ir = async () => {
     setCargando(true);
+    setFalla("");
     try {
       const r = await api<Factura>(`/facturas/${f.id}/cancelar`, { method: "POST", json: { motivo, uuid_sustitucion: sust || null } });
       toast.success(r.estado === "cancelada" ? "Cancelada" : "Solicitud enviada; el receptor debe aceptar");
       onOk();
     } catch (e) {
-      mostrarError(e);
+      setFalla((e as Error).message);
     } finally {
       setCargando(false);
     }
@@ -346,10 +348,11 @@ function ModalCancelar({ f, onClose, onOk }: { f: Factura | null; onClose: () =>
             )}
             <Field label={sustituibles.length ? "O pega su UUID" : "UUID de la factura que la sustituye"}
               error={sust && !uuidOk ? "Formato: 8-4-4-4-12 letras y números (A-F, 0-9)" : undefined}>
-              <Input value={sust} onChange={(e) => setSust(e.target.value.trim())} placeholder="5FB2822E-396D-4725-8521-CDC4BDD20CCF" className="font-mono text-xs" />
+              <Input value={sust} onChange={(e) => { setSust(e.target.value.trim()); setFalla(""); }} placeholder="5FB2822E-396D-4725-8521-CDC4BDD20CCF" className="font-mono text-xs" />
             </Field>
           </>
         )}
+        {falla && <p role="alert" className="rounded-lg bg-rojo-suave px-3 py-2 text-sm text-rojo">{falla}</p>}
       </div>
     </Modal>
   );

@@ -68,6 +68,8 @@ function Facturar() {
   const { emisor } = useEmisor();
   const frontera = !!emisor?.region_fronteriza;
   const { data: cfg, mutate: mutCfg } = useSWR<ConfigFacturar>(emisor ? `/emisores/${emisor.id}/config-facturar` : null, fetcher);
+  const cfgRef = useRef(cfg);
+  cfgRef.current = cfg;
   const vis = visiblesDe(cfg);
   const presetCfg = cfg?.defaults.impuesto ? PRESETS_IMPUESTOS[cfg.defaults.impuesto as keyof typeof PRESETS_IMPUESTOS] : undefined;
   defecto.imps = presetCfg ? ([...presetCfg] as Impuesto[]) : [(frontera ? IVA8 : IVA16) as Impuesto];
@@ -354,6 +356,12 @@ function Facturar() {
     setAddendaId(null);
     setAddendaDatos({});
     setPreview(null);
+    // método, forma, moneda y condiciones vuelven a los de siempre: nada se arrastra de la factura anterior (p. ej. PPD/99)
+    setMetodo(cfgRef.current?.defaults.metodo ?? "PUE");
+    setForma(cfgRef.current?.defaults.forma ?? "03");
+    setMoneda("MXN");
+    setTc("");
+    setCondiciones("");
     setTimeout(() => clienteRef.current?.focus(), 50);
   }, []);
   reiniciarRef.current = reiniciar;
@@ -607,6 +615,7 @@ function Facturar() {
                   c={c}
                   emisorId={emisor.id}
                   tipo={modo}
+                  moneda={moneda}
                   onChange={(p) => upd(i, p)}
                   onDuplicar={() => { duplicar(i); setFoco([i + 1, 0]); }}
                   onBorrar={() => borrar(i)}
@@ -757,9 +766,11 @@ const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: 
     const [q, setQ] = useState("");
     const [open, setOpen] = useState(false);
     const [act, setAct] = useState(0);
-    const { data = [] } = useSWR<Cliente[]>(q.length >= 2 ? `/clientes?emisor_id=${emisorId}&q=${encodeURIComponent(q)}&limit=8` : null, fetcher);
+    const { data = [], isLoading } = useSWR<Cliente[]>(q.length >= 2 ? `/clientes?emisor_id=${emisorId}&q=${encodeURIComponent(q)}&limit=8` : null, fetcher);
     const rfcTecleado = RFC_RE.test(q.toUpperCase().trim()) ? q.toUpperCase().trim() : "";
     const opciones = data.length + 1; // + "nuevo receptor"
+    // Parece un RFC (sin espacios, letras y números) pero no pasa el formato: se dice por qué no se acepta
+    const pareceRfc = !rfcTecleado && /^[A-ZÑ&0-9]{6,14}$/i.test(q.trim()) && /\d/.test(q) && /[A-Z]/i.test(q);
     useEffect(() => setAct(0), [q]);
 
     const elegir = (i: number) => {
@@ -814,6 +825,13 @@ const BuscarCliente = forwardRef<HTMLInputElement, { emisorId: number; cliente: 
         />
         {open && q.length >= 2 && (
           <ul role="listbox" className="absolute z-30 mt-1 w-full rounded-xl border border-linea bg-hoja p-1 shadow-xl">
+            {!isLoading && !data.length && (
+              <li role="presentation" className="px-3 py-2 text-sm text-grafito">
+                {pareceRfc
+                  ? <>«{q.trim().toUpperCase()}» no tiene formato de RFC válido (12 caracteres para moral, 13 para persona física). Revísalo o captúralo como cliente nuevo.</>
+                  : <>No encontré «{q.trim()}» entre tus clientes. Puedes capturarlo como cliente nuevo.</>}
+              </li>
+            )}
             {data.map((c, i) => (
               <li key={c.id} role="option" aria-selected={i === act}>
                 <button tabIndex={-1} onMouseDown={() => elegir(i)} onMouseEnter={() => setAct(i)} className={cx("flex w-full flex-wrap justify-between gap-x-3 rounded-lg px-3 py-2 text-left text-sm", i === act && "bg-cobalto-suave")}>
@@ -866,8 +884,8 @@ const COLS: Record<string, string> = {
   "00": "@min-[560px]:grid-cols-[72px_minmax(110px,160px)_minmax(160px,1fr)]",
 };
 
-function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBorrar, onMover, onElegido, frontera, vis, terceros }: {
-  i: number; total: number; c: Concepto; emisorId: number; tipo: Modo; frontera?: boolean;
+function FilaConcepto({ i, total, c, emisorId, tipo, moneda, onChange, onDuplicar, onBorrar, onMover, onElegido, frontera, vis, terceros }: {
+  i: number; total: number; c: Concepto; emisorId: number; tipo: Modo; moneda: string; frontera?: boolean;
   vis: Record<CampoFacturar, boolean>; terceros: Tercero[];
   onChange: (p: Partial<Concepto>) => void; onDuplicar: () => void; onBorrar: () => void; onMover: (d: number) => void; onElegido: () => void;
 }) {
@@ -880,18 +898,27 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
   const opciones = useMemo(() => [
     ...(sugs?.productos ?? []).map((p) => ({ k: `p${p.id}`, grupo: "Mi catálogo", texto: p.descripcion, dato: Number(p.precio) ? dinero(p.precio) : p.clave_prod_serv, patch: deProducto(p, c.valor_unitario) })),
     ...(sugs?.facturados ?? []).map((f) => ({ k: `f${f.descripcion}${f.clave_prod_serv}`, grupo: "Ya facturado", texto: f.descripcion, dato: Number(f.valor_unitario) ? dinero(f.valor_unitario) : f.clave_prod_serv, patch: deFacturado(f, c.valor_unitario) })),
-    ...(sugs?.sat ?? []).map((x) => ({ k: `s${x.clave}`, grupo: "Catálogo del SAT · pone descripción y clave", texto: x.descripcion, dato: x.clave, patch: { descripcion: x.descripcion, clave_prod_serv: x.clave, producto_id: null } as Partial<Concepto> })),
-  ], [sugs, c.valor_unitario]);
+    // Del catálogo del SAT sólo se toma la CLAVE: lo que se factura es lo que tú escribiste, nunca el texto del catálogo
+    ...(sugs?.sat ?? []).map((x) => ({ k: `s${x.clave}`, grupo: "Catálogo del SAT · sólo pone la clave, tu descripción se queda", texto: x.descripcion, dato: x.clave,
+      patch: (c.descripcion.trim().length >= 3 ? { clave_prod_serv: x.clave } : { descripcion: x.descripcion, clave_prod_serv: x.clave, producto_id: null }) as Partial<Concepto> })),
+  ], [sugs, c.valor_unitario, c.descripcion]);
+  const [teclado, setTeclado] = useState(false);  // Enter sólo usa la opción marcada con las flechas, no la que tocó el ratón al pasar
   const abierto = sug && opciones.length > 0 && c.descripcion.trim().length >= 2 && !c.producto_id;
-  useEffect(() => setAct(-1), [c.descripcion]);
+  useEffect(() => { setAct(-1); setTeclado(false); }, [c.descripcion]);
   const cant = Number(evaluarMonto(c.cantidad) || 0);
   const pu = Number(evaluarMonto(c.valor_unitario) || 0);
   const importe = cant * pu - Number(evaluarMonto(c.descuento ?? "") || 0);
 
   const usarOpcion = (o: (typeof opciones)[number]) => {
+    const antes: Partial<Concepto> = { descripcion: c.descripcion, clave_prod_serv: c.clave_prod_serv, clave_unidad: c.clave_unidad,
+      valor_unitario: c.valor_unitario, producto_id: c.producto_id, impuestos: c.impuestos, objeto_imp: c.objeto_imp };
     onChange(o.patch);
     setSug(false);
     onElegido();
+    // Si la sugerencia cambió lo que escribiste (texto o precio), se dice y se puede deshacer: nada cambia sin que lo notes
+    const cambios = [o.patch.descripcion !== undefined && o.patch.descripcion !== c.descripcion && c.descripcion.trim() && "la descripción",
+      o.patch.valor_unitario !== undefined && c.valor_unitario && o.patch.valor_unitario !== c.valor_unitario && "el precio"].filter(Boolean);
+    if (cambios.length) toast.message(`Se cambió ${cambios.join(" y ")} del concepto ${i + 1}`, { duration: 9000, action: { label: "Deshacer", onClick: () => onChange(antes) } });
   };
   const resolver = (campo: "cantidad" | "valor_unitario" | "descuento") => {
     const v = evaluarMonto((c[campo] as string) ?? "");
@@ -922,9 +949,9 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
             onBlur={() => setTimeout(() => setSug(false), 150)}
             onKeyDown={(e) => {
               if (!abierto) return;
-              if (e.key === "ArrowDown") { e.preventDefault(); setAct((a) => Math.min(a + 1, opciones.length - 1)); }
-              else if (e.key === "ArrowUp") { e.preventDefault(); setAct((a) => Math.max(a - 1, -1)); }
-              else if (e.key === "Enter" && !e.ctrlKey && act >= 0 && opciones[act]) { e.preventDefault(); usarOpcion(opciones[act]); }
+              if (e.key === "ArrowDown") { e.preventDefault(); setTeclado(true); setAct((a) => Math.min(a + 1, opciones.length - 1)); }
+              else if (e.key === "ArrowUp") { e.preventDefault(); setTeclado(true); setAct((a) => Math.max(a - 1, -1)); }
+              else if (e.key === "Enter" && !e.ctrlKey && teclado && act >= 0 && opciones[act]) { e.preventDefault(); usarOpcion(opciones[act]); }
               else if (e.key === "Enter") setSug(false); // sin elegir: se queda lo que escribiste y Enter avanza de campo
               else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setSug(false); }
             }}
@@ -934,7 +961,7 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
               {opciones.map((o, j) => (
                 <li key={o.k} role="option" aria-selected={j === act}>
                   {(j === 0 || opciones[j - 1].grupo !== o.grupo) && <p className="px-3 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-[.08em] text-grafito/70">{o.grupo}</p>}
-                  <button tabIndex={-1} onMouseDown={() => usarOpcion(o)} onMouseEnter={() => setAct(j)} className={cx("flex w-full justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm", j === act && "bg-cobalto-suave")}>
+                  <button tabIndex={-1} onMouseDown={() => usarOpcion(o)} onMouseEnter={() => { setAct(j); setTeclado(false); }} className={cx("flex w-full justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm", j === act && "bg-cobalto-suave")}>
                     <span className="min-w-0">{o.texto}</span>
                     <span className="shrink-0 tabular-nums text-grafito">{o.dato}</span>
                   </button>
@@ -943,9 +970,9 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
             </ul>
           )}
         </label>
-        <div className="hidden w-28 shrink-0 flex-col items-end gap-1 @min-[560px]:flex">
+        <div className="hidden w-32 shrink-0 flex-col items-end gap-1 @min-[560px]:flex">
           <span className={etiqueta}>Importe</span>
-          <span className="flex h-10 items-center font-semibold tabular-nums">{dinero(importe)}</span>
+          <span className="flex h-10 items-center font-semibold tabular-nums">{dinero(importe, moneda)}</span>
         </div>
         <div className="mt-5 shrink-0">
           <Menu
@@ -1012,7 +1039,7 @@ function FilaConcepto({ i, total, c, emisorId, tipo, onChange, onDuplicar, onBor
       )}
       <div className="mt-2 flex justify-end text-sm @min-[560px]:hidden">
         <span className="text-grafito">Importe&nbsp;</span>
-        <span className="font-semibold tabular-nums">{dinero(importe)}</span>
+        <span className="font-semibold tabular-nums">{dinero(importe, moneda)}</span>
       </div>
     </div>
   );
@@ -1217,7 +1244,7 @@ function Ticket(p: TicketProps) {
         <div className="mt-5 flex flex-col gap-2">
           {!resultado ? (
             <>
-              <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo}>Timbrar</Button>
+              <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} title={!listo ? preview?.errores[0]?.mensaje : undefined}>Timbrar</Button>
               <label className="flex items-center gap-2 text-sm text-grafito">
                 <input type="checkbox" checked={enviar} onChange={(e) => setEnviar(e.target.checked)} className="accent-cobalto" /> Mandar por correo al cliente
               </label>
@@ -1266,7 +1293,10 @@ function BarraMovil(p: TicketProps) {
             </span>
           </span>
         </button>
-        <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} className="px-5">Timbrar</Button>
+        {/* Deshabilitado no recibe clic: el envoltorio lo recoge y abre el panel con lo que falta */}
+        <div onClick={() => !listo && !abierta && setAbierta(true)} title={!listo ? preview?.errores[0]?.mensaje : undefined}>
+          <Button variant="acento" size="lg" onClick={timbrar} loading={timbrando} disabled={!listo} className="px-5">Timbrar</Button>
+        </div>
       </div>
     </div>
   );
