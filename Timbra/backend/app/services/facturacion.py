@@ -125,7 +125,13 @@ def _timbrar(db: Session, emisor: Emisor, comp):
     if msg:
         raise FacturacionError(msg)
     db.commit()
-    uuid, xml = pac_svc.timbrar(emisor.pac, comp)
+    try:
+        uuid, xml = pac_svc.timbrar(emisor.pac, comp)
+    except pac_svc.PacError as e:
+        if e.diag and e.diag.clave == "saldo":  # p. ej. Finkok 718 «Timbres agotados»: la pantalla de Timbres lo dirá
+            timbres.marcar_sin_timbres(emisor.pac_id, True)
+        raise
+    timbres.marcar_sin_timbres(emisor.pac_id, False)
     timbres.consumir(db, emisor)
     return uuid, xml
 

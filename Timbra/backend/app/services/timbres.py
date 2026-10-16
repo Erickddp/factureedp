@@ -35,6 +35,27 @@ def saldo_sw(pac: Pac) -> dict | None:
             "ilimitado": d.get("isUnlimited"), "vence": d.get("expirationDate")}
 
 
+SIN_TIMBRES = "sin_timbres_desde"  # en Pac.extra: cuándo el PAC contestó que ya no hay timbres (Finkok 718)
+
+
+def marcar_sin_timbres(pac_id: int | None, sin: bool) -> None:
+    """El PAC dijo que no hay timbres (sin=True) o volvió a timbrar bien (sin=False). Se guarda en su propia sesión:
+    quien llama puede deshacer su transacción (regresa el folio) y la marca no debe perderse."""
+    if not pac_id:
+        return
+    from ..db import SessionLocal
+    from .cfdi import ahora_mx
+    with SessionLocal() as s:
+        p = s.get(Pac, pac_id)
+        if p is None or bool((p.extra or {}).get(SIN_TIMBRES)) == sin:
+            return  # nada que cambiar: no se escribe en cada timbrado
+        extra = {k: v for k, v in (p.extra or {}).items() if k != SIN_TIMBRES}
+        if sin:
+            extra[SIN_TIMBRES] = ahora_mx().replace(tzinfo=None).isoformat(timespec="minutes")
+        p.extra = extra
+        s.commit()
+
+
 def resumen(db: Session, en_vivo: bool = False) -> list[dict]:
     hoy = ahora_mx()
     ini_mes = datetime(hoy.year, hoy.month, 1)
@@ -48,6 +69,12 @@ def resumen(db: Session, en_vivo: bool = False) -> list[dict]:
         r = {"pac_id": p.id, "nombre": p.nombre, "proveedor": p.proveedor, "pruebas": p.pruebas,
              "usados_mes": _usados(db, p.id, ini_mes), "contratados": p.timbres_contratados,
              "desde": p.timbres_desde, "alerta": p.timbres_alerta, "restantes": None, "nivel": "ok", "texto": None, "nota": None}
+        agotado = (p.extra or {}).get(SIN_TIMBRES)
+        if agotado:  # lo que dijo el PAC manda sobre cualquier conteo de Timbra, hasta que vuelva a timbrar bien
+            r["nivel"], r["restantes"] = "error", 0
+            r["texto"] = (f"{p.nombre}: el PAC respondió que ya no hay timbres disponibles ({agotado.replace('T', ' ')}). "
+                          + ("En la cuenta gratuita de pruebas se renuevan el siguiente mes." if p.pruebas
+                             else "Compra timbres en tu PAC; el aviso se quita solo con el siguiente timbrado."))
         if p.pruebas:
             # En pruebas no hay paquete que contar: la cuenta gratuita del PAC tiene su propio tope, que Timbra no ve.
             # Mostrar «restantes» de un paquete capturado a mano engañaba (decía 876 mientras Finkok contestaba 718).

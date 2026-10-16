@@ -128,8 +128,10 @@ export default function Inicio() {
             </p>
           )) : enPruebas.length ? (
             <>
-              <p className="mt-1 text-[28px] font-semibold leading-tight tracking-tight tabular-nums">{enPruebas[0].usados_mes}</p>
-              <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-grafito"><span className="size-1.5 rounded-full bg-cobalto" />en pruebas este mes · no se cobran</p>
+              <p className={cx("mt-1 text-[28px] font-semibold leading-tight tracking-tight tabular-nums", enPruebas[0].nivel === "error" && "text-rojo")}>{enPruebas[0].usados_mes}</p>
+              {enPruebas[0].nivel === "error"
+                ? <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-rojo"><span className="size-1.5 rounded-full bg-rojo" />el PAC de pruebas ya no tiene timbres</p>
+                : <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-grafito"><span className="size-1.5 rounded-full bg-cobalto" />en pruebas este mes · no se cobran</p>}
             </>
           ) : (
             <>
