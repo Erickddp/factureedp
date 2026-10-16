@@ -150,6 +150,11 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   si el reloj de la PC va hasta 2 h atrás del huso oficial se usa el de la PC (nunca queda en el futuro: el PAC la rechazaría).
 - Facturas de práctica: `POST /emisores/{id}/practica/borrar` quita SÓLO las del PAC demo (`pdf.es_demo`), mueve sus XML a
   `datos/practica_xml` y regresa cada serie al folio siguiente a la última factura real. tests/test_v9_produccion.py.
+- **Ambiente del emisor:** `Emisor.ambiente` (demo | pruebas | produccion) llega en EmisorOut. En pruebas o demo el selector de
+  emisor va en ámbar con su distintivo; todo botón de timbrar lleva la pastilla del ambiente; `useEmisor().confirmarTimbre()`
+  pide confirmar el emisor la primera vez que se timbra en producción después de cambiar de emisor (sessionStorage
+  `timbra_prod_ok`). Toda pantalla nueva que timbre lo llama ANTES de la petición. Sin el campo (servidor viejo) no hay
+  distintivo ni confirmación: nunca se adivina «producción».
 - `ClaveSearch` (catalogo.tsx): el blur corre 150 ms tarde; usa refs y la bandera `elegido` para no pisar la clave recién elegida.
   En la descripción del concepto, Enter sólo elige una sugerencia si la marcaste con flechas (`act` empieza en -1).
 

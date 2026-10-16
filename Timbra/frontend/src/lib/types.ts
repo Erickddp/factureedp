@@ -30,6 +30,7 @@ export type Emisor = {
   activo: boolean;
   series: Serie[];
   modo_demo?: boolean;
+  ambiente?: "produccion" | "pruebas" | "demo";  // sólo producción vale ante el SAT (models.Emisor.ambiente)
 };
 
 export type Cliente = {

@@ -65,6 +65,14 @@ class Emisor(Base):
     def modo_demo(self) -> bool:
         """Sin PAC real asignado: lo que se timbre es simulado y no vale ante el SAT."""
         return self.pac is None or self.pac.proveedor == "demo"
+
+    @property
+    def ambiente(self) -> str:
+        """demo (sin PAC o PAC demo), pruebas (PAC en ambiente de pruebas) o produccion. Sólo producción vale ante el SAT y
+        gasta timbres reales: las pantallas lo marcan en el selector de emisor y piden confirmar antes de timbrar."""
+        if self.modo_demo:
+            return "demo"
+        return "pruebas" if self.pac.pruebas else "produccion"
     # Estímulo IVA 8% región fronteriza norte/sur (requiere estar en el padrón del SAT)
     region_fronteriza: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # HEREDADO, SIEMPRE VACÍO: la e.firma ya no se guarda (migración 0009 la borró). Para bajar del SAT se pone cada vez

@@ -107,3 +107,20 @@ def test_rfc_de_pruebas_del_sat_no_se_amarra_a_un_pac_de_produccion():
     for pruebas, esperado in ((False, True), (True, False)):
         r = validacion.validar(None, fake(pruebas), data, None)
         assert any(e["campo"] == "emisor.pac" and "PRUEBAS del SAT" in e["mensaje"] for e in r["errores"]) == esperado
+
+
+def test_ambiente_del_emisor_llega_a_las_pantallas():
+    """Propuesta del tester: el emisor de pruebas se marca y timbrar en producción pide confirmar. Las pantallas lo leen
+    de EmisorOut.ambiente; si dijera «produccion» en pruebas, o al revés, la marca y la confirmación mentirían."""
+    from app.models import Emisor, Pac
+    e = Emisor(rfc="AAA010101AAA", nombre="X", regimen_fiscal="601", lugar_expedicion="42501")
+    assert e.ambiente == "demo"
+    for pac, esperado in ((Pac(nombre="Demo", proveedor="demo", pruebas=False), "demo"),
+                          (Pac(nombre="Finkok", proveedor="finkok", pruebas=True), "pruebas"),
+                          (Pac(nombre="Finkok", proveedor="finkok", pruebas=False), "produccion")):
+        e.pac = pac
+        assert e.ambiente == esperado, (pac.proveedor, pac.pruebas)
+    with TestClient(app) as c:
+        h, emisor = _preparar(c)  # EKU9003173C9 con PAC demo
+        assert emisor["ambiente"] == "demo"
+        assert {x["rfc"]: x["ambiente"] for x in c.get("/api/emisores", headers=h).json()}["EKU9003173C9"] == "demo"

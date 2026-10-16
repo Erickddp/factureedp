@@ -16,7 +16,7 @@ import { tema, useTema } from "@/lib/tema";
 import type { TimbresPac } from "@/lib/types";
 import { AtajosProvider, useAtajos } from "./atajos";
 import { Consola } from "./consola";
-import { EmisorProvider, useEmisor } from "./emisor-context";
+import { EmisorProvider, EtiquetaAmbiente, ambienteDe, useEmisor } from "./emisor-context";
 import { Badge, Button, Field, Input, Modal, cx } from "./ui";
 
 type Item = { href: string; label: string; icon: typeof Zap; k?: string; cta?: boolean; gratis?: boolean };
@@ -76,13 +76,16 @@ function SelectorEmisor() {
   }, [abierto]);
   if (!emisores.length || !emisor)
     return <Link href="/emisores" className="block truncate rounded-lg bg-cobalto-suave px-3 py-2 text-sm text-cobalto">Da de alta tu primer RFC</Link>;
+  const amb = ambienteDe(emisor);
+  // En pruebas o demo el selector se pinta de ámbar con su distintivo: el cambio de emisor es global y se olvida fácil
+  const prueba = amb === "pruebas" || amb === "demo";
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setAbierto((a) => !a)} aria-label="Emisor activo" aria-haspopup="menu" aria-expanded={abierto} title={`${emisor.rfc} · ${emisor.nombre}`}
-        className={cx("flex h-11 w-full min-w-0 items-center gap-2 rounded-lg border bg-hoja px-2.5 text-left transition-[border-color,box-shadow] duration-150 hover:border-acento/50", abierto ? "border-acento/50 shadow-[0_0_0_3px_var(--color-acento-suave)]" : "border-linea")}>
+      <button onClick={() => setAbierto((a) => !a)} aria-label="Emisor activo" aria-haspopup="menu" aria-expanded={abierto} title={`${emisor.rfc} · ${emisor.nombre}${prueba ? " · timbra en pruebas, sin validez fiscal" : ""}`}
+        className={cx("flex h-11 w-full min-w-0 items-center gap-2 rounded-lg border px-2.5 text-left transition-[border-color,box-shadow] duration-150 hover:border-acento/50", prueba ? "bg-alerta-suave" : "bg-hoja", abierto ? "border-acento/50 shadow-[0_0_0_3px_var(--color-acento-suave)]" : prueba ? "border-alerta/60" : "border-linea")}>
         <span className="min-w-0 flex-1 leading-tight">
           <span className="block truncate text-[13px] font-medium">{emisor.nombre}</span>
-          <span className="block text-[11px] tabular-nums text-grafito">{emisor.rfc}</span>
+          <span className="flex items-center gap-1.5 text-[11px] tabular-nums text-grafito">{emisor.rfc}<EtiquetaAmbiente ambiente={amb} /></span>
         </span>
         <ChevronDown className={cx("size-4 shrink-0 text-grafito transition-transform duration-150", abierto && "rotate-180")} />
       </button>
@@ -93,6 +96,7 @@ function SelectorEmisor() {
             <button key={e.id} role="menuitemradio" aria-checked={e.id === emisor.id} onClick={() => { setEmisorId(e.id); setAbierto(false); }}
               className={cx("flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors", e.id === emisor.id ? "bg-primario text-sobre-primario" : "hover:bg-tinta/5")}>
               <span className="min-w-0 flex-1"><span className="block truncate font-medium">{e.nombre}</span><span className="block text-[11px] tabular-nums opacity-70">{e.rfc}</span></span>
+              <EtiquetaAmbiente ambiente={ambienteDe(e)} />
               {e.id === emisor.id && <Check className="size-4 shrink-0" />}
             </button>
           ))}
@@ -195,7 +199,7 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
           {dato("Emisor activo", emisor ? `${emisor.rfc} · ${emisor.nombre}` : "Ninguno")}
           {dato("Emisores dados de alta", emisores.length)}
           {typeof yo?.timbres === "number" && dato("Timbres disponibles", <b className={yo.timbres <= 0 ? "text-rojo" : undefined}>{yo.timbres}</b>)}
-          {emisor && dato("Timbrado", emisor.modo_demo ? <span className="text-alerta">Modo demo (sin PAC)</span> : "Con PAC")}
+          {emisor && dato("Timbrado", { demo: <span className="text-alerta">Modo demo (sin PAC)</span>, pruebas: <span className="text-alerta">PAC en ambiente de pruebas</span>, produccion: "Producción", "": "Con PAC" }[ambienteDe(emisor) ?? ""])}
           {dato("Tema", <button className="underline" onClick={() => tema.siguiente()}>{t === "oscuro" ? "Oscuro" : t === "claro" ? "Claro" : "Como el sistema"}</button>)}
         </dl>
         {accesos.length > 0 && (
@@ -236,12 +240,15 @@ function EmisorRiel() {
   }, [abierto]);
   if (!emisor) return <Link href="/emisores" title="Da de alta tu primer RFC" className="mx-auto grid size-12 place-items-center rounded-xl border border-dashed border-linea text-grafito hover:text-tinta"><Building2 className="size-5" /></Link>;
   const letras = (rfc: string) => rfc.slice(0, rfc.length === 12 ? 3 : 4);
+  const amb = ambienteDe(emisor);
+  const prueba = amb === "pruebas" || amb === "demo";
   return (
     <div ref={ref} className="relative mx-auto">
-      <button onClick={() => setAbierto((a) => !a)} aria-haspopup="menu" aria-expanded={abierto} title={`Trabajas con ${emisor.rfc} · ${emisor.nombre}`}
-        className={cx("flex h-[52px] w-[60px] flex-col items-center justify-center rounded-xl border bg-papel leading-none shadow-[0_1px_2px_rgb(12_22_41/.06)] transition-[border-color,box-shadow] duration-150 hover:border-acento/50 hover:shadow-[0_0_0_3px_var(--color-acento-suave)]", abierto ? "border-acento/50 shadow-[0_0_0_3px_var(--color-acento-suave)]" : "border-linea")}>
+      <button onClick={() => setAbierto((a) => !a)} aria-haspopup="menu" aria-expanded={abierto} title={`Trabajas con ${emisor.rfc} · ${emisor.nombre}${prueba ? " · timbra en pruebas, sin validez fiscal" : ""}`}
+        className={cx("relative flex h-[52px] w-[60px] flex-col items-center justify-center rounded-xl border leading-none shadow-[0_1px_2px_rgb(12_22_41/.06)] transition-[border-color,box-shadow] duration-150 hover:border-acento/50 hover:shadow-[0_0_0_3px_var(--color-acento-suave)]", prueba ? "bg-alerta-suave" : "bg-papel", abierto ? "border-acento/50 shadow-[0_0_0_3px_var(--color-acento-suave)]" : prueba ? "border-alerta/60" : "border-linea")}>
         <b className="text-[15px] tracking-tight">{letras(emisor.rfc)}</b>
         <span className="mt-1 text-[9px] tabular-nums tracking-wide text-grafito">{emisor.rfc.slice(letras(emisor.rfc).length, letras(emisor.rfc).length + 6)}</span>
+        <EtiquetaAmbiente ambiente={amb} className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1 text-[8px] leading-3" />
       </button>
       {abierto && (
         <div role="menu" className="absolute left-full top-0 z-[60] ml-3 w-72 origin-top-left rounded-xl border border-linea bg-hoja p-1.5 shadow-flotante animate-aparecer">
@@ -250,7 +257,8 @@ function EmisorRiel() {
             <button key={e.id} role="menuitemradio" aria-checked={e.id === emisor.id} onClick={() => { setEmisorId(e.id); setAbierto(false); }}
               className={cx("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors", e.id === emisor.id ? "bg-primario text-sobre-primario" : "hover:bg-tinta/5")}>
               <b className="w-11 shrink-0 text-[13px]">{letras(e.rfc)}</b>
-              <span className="min-w-0"><span className="block truncate font-medium">{e.nombre}</span><span className="block text-[11px] tabular-nums opacity-70">{e.rfc}</span></span>
+              <span className="min-w-0 flex-1"><span className="block truncate font-medium">{e.nombre}</span><span className="block text-[11px] tabular-nums opacity-70">{e.rfc}</span></span>
+              <EtiquetaAmbiente ambiente={ambienteDe(e)} />
             </button>
           ))}
           <Link href="/emisores" onClick={() => setAbierto(false)} className="mt-1 block rounded-lg px-3 py-2 text-sm text-grafito hover:bg-tinta/5 hover:text-tinta">Administrar emisores…</Link>

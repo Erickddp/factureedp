@@ -119,7 +119,7 @@ function Favoritas() {
 
 function Paleta({ abierta, cerrar, ayuda }: { abierta: boolean; cerrar: () => void; ayuda: () => void }) {
   const router = useRouter();
-  const { emisores, emisor, setEmisorId } = useEmisor();
+  const { emisores, emisor, setEmisorId, confirmarTimbre } = useEmisor();
   const { data: plantillas = [] } = useSWR<Plantilla[]>(abierta && emisor ? `/plantillas?emisor_id=${emisor.id}` : null, fetcher);
   const [q, setQ] = useState("");
   const [act, setAct] = useState(0);
@@ -168,11 +168,13 @@ function Paleta({ abierta, cerrar, ayuda }: { abierta: boolean; cerrar: () => vo
     }));
     const timbrar = plantillas.filter((p) => p.recurrente && p.proxima && new Date(p.proxima) <= new Date()).map((p) => ({
       t: `Timbrar ya la recurrente: ${p.nombre}`,
-      f: () => api<{ folio: string }>(`/plantillas/${p.id}/timbrar`, { method: "POST" })
-        .then((r) => toast.success(`Timbrada ${r.folio}`)).catch(mostrarError),
+      f: async () => {
+        if (!(await confirmarTimbre())) return;
+        api<{ folio: string }>(`/plantillas/${p.id}/timbrar`, { method: "POST" }).then((r) => toast.success(`Timbrada ${r.folio}`)).catch(mostrarError);
+      },
     }));
     return [...timbrar, ...base, ...usar, ...cambios] as { t: string; f: () => void; k?: string }[];
-  }, [router, emisores, setEmisorId, ayuda, plantillas]);
+  }, [router, emisores, setEmisorId, ayuda, plantillas, confirmarTimbre]);
 
   const filtrados = comandos.filter((c) => q.split(" ").every((p) => c.t.toLowerCase().includes(p.toLowerCase())));
   useEffect(() => { setAct(0); }, [q]);

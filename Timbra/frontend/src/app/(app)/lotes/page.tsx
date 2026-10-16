@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, FileArchive, FileSpreadsheet, FileUp, FolderCheck, FolderDown, Info, Pencil, Play, RotateCcw, Square, Trash2, XCircle } from "lucide-react";
-import { useEmisor } from "@/components/emisor-context";
+import { EtiquetaAmbiente, ambienteDe, useEmisor } from "@/components/emisor-context";
 import { PerfilModal } from "@/components/perfil-lote";
 import { Badge, Button, Cifra, Input, Kbd, Modal, PageHeader, Tabs, Vacio, cx, tabla } from "@/components/ui";
 import { api, descargar, fetcher } from "@/lib/api";
@@ -151,6 +151,8 @@ function Lotes() {
 }
 
 function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
+  const { emisor, confirmarTimbre } = useEmisor();
+  const amb = ambienteDe(emisor);
   const [ejecutando, setEjecutando] = useState(false);
   const { data: l, mutate } = useSWR<LoteDetalle>(`/lotes/${loteId}`, fetcher, { refreshInterval: (d) => (d?.ejecutando || ejecutando ? 1200 : 0) });
   const [filtro, setFiltro] = useState<Filtro>("todas");
@@ -168,13 +170,15 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
   const lista = filas.filter((f) => filtro === "todas" || (filtro === "listas" && f.estado === "listo") || (filtro === "pendientes" && f.estado === "error") || (filtro === "timbradas" && f.estado === "timbrada"));
   const sumaListas = listas.reduce((s, f) => s + Number(f.resumen.monto || 0), 0);
 
-  const ejecutar = useCallback(async (body: { ids?: number[]; primeras?: number }) => {
+  // visto: la confirmación de «Timbrar todas» ya mostró el emisor y su ambiente; no se pregunta dos veces
+  const ejecutar = useCallback(async (body: { ids?: number[]; primeras?: number }, visto = false) => {
+    if (!(await confirmarTimbre({ visto }))) return;
     try {
       const r = await api<{ iniciadas: number }>(`/lotes/${loteId}/ejecutar`, { method: "POST", json: { ...body, detener_en_error: detenerEnError } });
       if (!r.iniciadas) toast.message("No hay filas listas para timbrar.");
       else { setEjecutando(true); mutate(); }
     } catch (e) { mostrarError(e); }
-  }, [loteId, detenerEnError, mutate]);
+  }, [loteId, detenerEnError, mutate, confirmarTimbre]);
 
   const reintentar = async (ids: number[]) => {
     const listos: number[] = [];
@@ -241,7 +245,7 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
             {listas.length > 0 && !yaHayTimbradas && (
               <Button onClick={() => ejecutar({ primeras: 1 })} title="Timbra sólo la primera para que la revises antes de seguir"><Play className="size-4" /> Timbrar la primera y revisar</Button>
             )}
-            {listas.length > 0 && <Button variant="primario" onClick={() => setConfirmar(true)}><Play className="size-4" /> Timbrar {yaHayTimbradas ? "las demás" : "todas"} ({listas.length}) <Kbd>Ctrl ↵</Kbd></Button>}
+            {listas.length > 0 && <Button variant="primario" onClick={() => setConfirmar(true)}><Play className="size-4" /> Timbrar {yaHayTimbradas ? "las demás" : "todas"} ({listas.length}) <EtiquetaAmbiente ambiente={amb} enBoton /> <Kbd>Ctrl ↵</Kbd></Button>}
             {pendientes.length > 0 && <Button onClick={() => reintentar(pendientes.map((f) => f.id))}><RotateCcw className="size-4" /> Reintentar pendientes ({pendientes.length})</Button>}
             <label className="ml-1 flex items-center gap-2 text-sm text-grafito"><input type="checkbox" checked={detenerEnError} onChange={(e) => setDetenerEnError(e.target.checked)} /> Detener al primer error</label>
           </>
@@ -339,8 +343,14 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
 
       {/* Confirmación antes de timbrar de verdad */}
       <Modal open={confirmar} onClose={() => setConfirmar(false)} title="Timbrar facturas"
-        footer={<><Button onClick={() => setConfirmar(false)}>Cancelar</Button><Button variant="primario" data-autofocus onClick={() => { setConfirmar(false); ejecutar({}); }}>Timbrar {listas.length}</Button></>}>
+        footer={<><Button onClick={() => setConfirmar(false)}>Cancelar</Button><Button variant="primario" data-autofocus onClick={() => { setConfirmar(false); ejecutar({}, true); }}>Timbrar {listas.length} <EtiquetaAmbiente ambiente={amb} enBoton /></Button></>}>
         <div className="grid gap-3 text-sm">
+          {emisor && (
+            <div className={cx("rounded-xl px-4 py-3 ring-1", amb === "pruebas" || amb === "demo" ? "bg-alerta-suave ring-alerta/40" : "bg-papel ring-linea")}>
+              <p className="flex flex-wrap items-center gap-2 font-semibold">{emisor.nombre} <EtiquetaAmbiente ambiente={amb} /></p>
+              <p className="tabular-nums text-grafito">{emisor.rfc}{amb === "produccion" ? " · producción: tienen validez ante el SAT" : amb ? " · pruebas: sin validez fiscal" : ""}</p>
+            </div>
+          )}
           <p>Se van a timbrar <b>{listas.length} factura(s)</b> por <b>{dinero(sumaListas)}</b>, con el folio de tu tabla. Cada una gasta un timbre.</p>
           {listas.some((f) => f.avisos.some((a) => a.nivel === "aviso")) && <p className="flex gap-2 rounded-lg bg-alerta-suave px-3 py-2 text-alerta"><AlertTriangle className="size-4 shrink-0" /> {listas.filter((f) => f.avisos.some((a) => a.nivel === "aviso")).length} tienen avisos. Revisa los marcados "Lista · revisar".</p>}
           {pendientes.length > 0 && <p className="text-grafito">Las {pendientes.length} que tienen error no se timbran; quedan aparte con su folio apartado.</p>}
