@@ -124,11 +124,20 @@ def destinatarios(emisor, para: list[str]) -> list[str]:
                       "(en el .env de tu PC o en Railway) y te llegará a ti.")
 
 
+# Dominios que no existen: los reservados para ejemplos (RFC 2606) y los de relleno en español. Un correo ahí rebota, y
+# cada rebote le baja la reputación a facturas@erickddp.com (con muchos, los correos de verdad empiezan a caer en spam).
+RELLENO = re.compile(r"@(?:[\w-]+\.)*(?:example|ejemplo|dominio|tudominio|midominio)\.[a-z.]+$|\.(?:test|example|invalid|localhost)$", re.I)
+
+
 def _validos(para: list[str]) -> list[str]:
     malos = [x for x in para if not CORREO_OK.match(x)]
     if malos:
         raise CorreoError(f"Revisa {'el correo' if len(malos) == 1 else 'los correos'} {', '.join(malos)}: "
                           "no tiene la forma nombre@dominio.com.")
+    falsos = [x for x in para if RELLENO.search(x)]
+    if falsos:
+        raise CorreoError(f"{', '.join(falsos)} {'es una dirección' if len(falsos) == 1 else 'son direcciones'} de ejemplo que no "
+                          "existe: el correo rebotaría y eso daña la reputación de tu dominio de envío. Pon el correo real del cliente.")
     return para
 
 

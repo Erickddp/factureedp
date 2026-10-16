@@ -75,7 +75,8 @@ def test_correo_de_envio_se_configura_desde_la_app(monkeypatch):
         assert r["configurado"] and r["tiene_password"] and "password" not in r
         guardado = open(mailer._ruta(), encoding="utf-8").read()
         assert "abcd" not in guardado and "abcdefghijklmnop" not in guardado  # cifrada en disco
-        assert c.post("/api/correo/probar", headers=h, json={"para": "destino@ejemplo.mx"}).status_code == 200
+        assert c.post("/api/correo/probar", headers=h, json={"para": "destino@ejemplo.mx"}).status_code == 502   # dominio de relleno: no sale
+        assert c.post("/api/correo/probar", headers=h, json={"para": "destino@despacho-prueba.mx"}).status_code == 200
         assert enviados[-1][0] == ("facturas@ejemplo.mx", "abcdefghijklmnop") and "Facturación de prueba" in enviados[-1][1]
         # cambiar el nombre sin volver a escribir la contraseña la conserva
         c.put("/api/correo", headers=h, json={"host": "smtp.gmail.com", "user": "facturas@ejemplo.mx", "nombre": "Otro"})

@@ -48,6 +48,11 @@ def test_con_llave_sale_por_resend_con_el_nombre_del_emisor(monkeypatch):
         mailer.enviar(["sin-arroba"], "x", "y", [])
     with pytest.raises(mailer.CorreoError, match="no tiene la forma"):
         mailer.enviar(["cliente@gmail"], "x", "y", [])
+    for falso in ("destino@ejemplo.mx", "a@example.com", "b@correo.ejemplo.com.mx", "c@algo.test", "d@midominio.com"):
+        with pytest.raises(mailer.CorreoError, match="de ejemplo"):
+            mailer.enviar([falso], "x", "y", [])
+    for real in ("ana@gmail.com", "pagos@empresa.com.mx", "x@ejemplos-reales.mx"):
+        assert mailer._validos([real]) == [real]
     # el punto que se cuela al final al copiar de un texto se quita solo
     monkeypatch.setattr(requests, "post", lambda url, json=None, headers=None, timeout=None: enviados.append((url, json, headers)) or Resp(200, {"id": "x"}))
     mailer.enviar(["cperickd@gmail.com."], "x", "y", [])
