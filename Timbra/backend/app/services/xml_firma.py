@@ -12,7 +12,7 @@ from cryptography import x509
 
 from ..xmlsat.certificado import RE_RFC
 
-ESPERA = 20 * 60        # puesta y sin usar: 20 minutos y se olvida
+ESPERA = 2 * 60 * 60    # puesta y sin usar: 2 horas y se olvida
 MAXIMO = 3 * 60 * 60    # ni con una descarga larga vive más de 3 horas
 
 _candado = threading.Lock()
@@ -74,7 +74,7 @@ def poner(emisor_id: int, usuario_id: int | None, datos: dict) -> dict:
 
 
 def tomar(emisor_id: int):
-    """La firma abierta (o None si no hay o ya se olvidó). Usarla le da otros 20 minutos."""
+    """La firma abierta (o None si no hay o ya se olvidó). Usarla le da otras 2 horas (nunca más allá del tope)."""
     ahora = time.time()
     with _candado:
         _limpiar(ahora)

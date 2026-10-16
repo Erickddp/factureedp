@@ -119,7 +119,7 @@ function PasoFirma({ emisor, firma, recargar, ocupada }: { emisor: Emisor; firma
           <div className="min-w-0 text-sm">
             <p className="text-base font-semibold">{firma.nombre || firma.rfc}</p>
             <p className="tabular-nums text-grafito">{firma.rfc} · vigente hasta el {dia(firma.vence)}</p>
-            <p className="mt-2 text-grafito">{ocupada ? "En uso por la descarga." : `Se olvida sola en ${firma.minutos} min.`} No se guardó en ningún lado.</p>
+            <p className="mt-2 text-grafito">{ocupada ? "En uso por la descarga." : `Se olvida sola en ${duracion(firma.minutos ?? 0)}.`} No se guardó en ningún lado.</p>
             {prueba && <p className={cx("mt-2 flex items-center gap-1.5 font-medium", prueba.ok ? "text-sello" : "text-rojo")}>
               {prueba.ok ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />} {prueba.mensaje}</p>}
           </div>
@@ -316,4 +316,10 @@ function LeerCarpeta({ emisor, alTerminar }: { emisor: Emisor; alTerminar: () =>
       )}
     </section>
   );
+}
+
+/** 125 → «2 h 5 min»; 40 → «40 min». */
+function duracion(min: number) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
 }

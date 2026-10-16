@@ -306,7 +306,7 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 ## XML del SAT (2.11, no lo rompas)
 - Sustituye al módulo SAT anterior (`routers/sat.py`, `services/descarga_sat.py`: borrados). Pantalla `/sat` con dos pestañas:
   Descargar (e.firma → periodo → avance → tabla) y Datos (gráficas). Rutas en `routers/xml.py`, prefijo `/api/xml`.
-- **La e.firma NO se guarda. Nunca.** `services/xml_firma.py` la valida y la deja abierta sólo en memoria (20 min sin usar,
+- **La e.firma NO se guarda. Nunca.** `services/xml_firma.py` la valida y la deja abierta sólo en memoria (2 h sin usar,
   3 h máximo); se pide cada vez. La migración 0009 borró lo que hubiera guardado. Las columnas `Emisor.fiel_*` quedan vacías.
   No agregues «recordar e.firma», ni la escribas a disco, base, registro o respaldo. tests/test_w6_xml.py lo vigila.
 - `app/xmlsat/` es el núcleo de la app de escritorio DESCARGA XML EDDP (lector, flujo con el SAT, PDF de una hoja, Excel),

@@ -207,7 +207,7 @@ def test_la_efirma_se_pone_cada_vez_y_nunca_se_guarda(sat, monkeypatch):
         r = poner(cer, key)
         assert r.status_code == 200, r.text
         est = r.json()
-        assert est["puesta"] and est["rfc"] == e["rfc"] and est["minutos"] >= 19 and "fiel" not in est and "key" not in str(est).lower()
+        assert est["puesta"] and est["rfc"] == e["rfc"] and est["minutos"] >= 119 and "fiel" not in est and "key" not in str(est).lower()
         # NO se guardó: ni en la base ni en ningún archivo de la carpeta de datos
         with SessionLocal() as db:
             em = db.get(Emisor, e["id"])

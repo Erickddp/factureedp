@@ -31,6 +31,11 @@ Las mismas tareas siguen en su fase abajo, con su contexto.
 - [ ] Hacer una restauración de prueba siguiendo la guía
 - [ ] Poner las variables de Google en Railway y probar «Entrar con Google» en factura.erickddp.com
 
+**Constancia fiscal y deducibles (PLAN_DEDUCIBLES.md)**
+- [ ] Mandarme una constancia de situación fiscal real en PDF (sin ella no construyo el lector)
+- [ ] Revisar las reglas de deducibilidad (sección 5 del plan) como contador
+- [ ] Decidir «Mis facturas» sin cuenta: ¿borrado a las 24 h? ¿abierto a cualquiera o sólo con liga tuya?
+
 **Antes de vender (fase 3)**
 - [ ] Llenar nombre legal, RFC y domicilio en `frontend/src/lib/legal.ts` (hoy salen en amarillo en los avisos)
 - [ ] Crear el buzón privacidad@erickddp.com (o cambiarlo en `lib/legal.ts`)
