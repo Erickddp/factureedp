@@ -99,6 +99,15 @@ function Facturar() {
     setConceptos((cs) => (cs.every(vacio) ? cs.map((c) => ({ ...c, impuestos: [...defecto.imps], objeto_imp: defecto.imps.length ? "02" : "01",
       clave_prod_serv: c.clave_prod_serv || defecto.clave, clave_unidad: c.clave_unidad || defecto.unidad })) : cs));
   }, [frontera, cfg, emisor?.id]);
+  // Cambiar de emisor quita al cliente del anterior: el servidor lo rechazaría («Ese cliente no es de este emisor»).
+  // Los conceptos se quedan: casi siempre sirven igual.
+  useEffect(() => {
+    if (!emisor || !cliente || cliente.emisor_id === emisor.id) return;
+    setCliente(null);
+    setUso(null);
+    toast.warning(`${cliente.nombre} es cliente de otro emisor. Elige el cliente de ${emisor.rfc}.`);
+    setTimeout(() => clienteRef.current?.focus(), 50);
+  }, [emisor, cliente]);
   const [avanzado, setAvanzado] = useState(false);
   const [condiciones, setCondiciones] = useState("");
   const [relTipo, setRelTipo] = useState("01");
@@ -304,8 +313,13 @@ function Facturar() {
     return () => clearTimeout(t);
   }, [payload, nConceptos]);
 
-  const errores = preview?.errores ?? [];
-  const listo = nConceptos > 0 && !!preview && errores.length === 0;
+  // Un cliente de otro emisor (p. ej. de una plantilla) se marca aquí, en el campo, antes de que el servidor lo rechace
+  const ajeno = !!(cliente && emisor && cliente.emisor_id !== emisor.id);
+  const previewV = useMemo(() => (preview && ajeno
+    ? { ...preview, errores: [{ campo: "receptor", mensaje: `${cliente!.nombre} es cliente de otro emisor: elige el cliente de ${emisor!.rfc}.`, sugerencia: null }, ...preview.errores] }
+    : preview), [preview, ajeno, cliente, emisor]);
+  const errores = previewV?.errores ?? [];
+  const listo = nConceptos > 0 && !!previewV && errores.length === 0;
 
   const timbrar = useCallback(async () => {
     if (!payload || timbrando || resultado) return;
@@ -460,7 +474,7 @@ function Facturar() {
   // Timbres que le quedan al PAC de este emisor (si se conocen): se ven junto a Timbrar, no hasta el rechazo del PAC
   const { data: timbresPacs } = useSWR<TimbresPac[]>("/pacs/timbres", fetcher, { refreshInterval: 300_000 });
   const timbresPac = timbresPacs?.find((t) => t.pac_id === emisor?.pac_id && t.restantes !== null);
-  const ticketProps = { metodo: modo === "T" ? "" : metodo, timbresPac, emisor, preview, moneda, receptorNombre, resultado, listo, timbrando, enviar, setEnviar, timbrar, guardarPlantilla, reiniciar, irA, aplicarSugerencia, nConceptos };
+  const ticketProps = { metodo: modo === "T" ? "" : metodo, timbresPac, emisor, preview: previewV, moneda, receptorNombre, resultado, listo, timbrando, enviar, setEnviar, timbrar, guardarPlantilla, reiniciar, irA, aplicarSugerencia, nConceptos };
 
   return (
     <div className="@container">
