@@ -39,12 +39,22 @@ def resumen(db: Session, en_vivo: bool = False) -> list[dict]:
     hoy = ahora_mx()
     ini_mes = datetime(hoy.year, hoy.month, 1)
     out = []
+    uid, admin = db.info.get("uid_real"), db.info.get("es_admin")
     for p in db.query(Pac).order_by(Pac.nombre):
         if p.proveedor == "demo":
             continue
+        if uid is not None and not (p.usuario_id == uid or (p.usuario_id is None and admin)):
+            continue  # el PAC de la plataforma no es de esta cuenta: ella ve su saldo de timbres, no el paquete del PAC
         r = {"pac_id": p.id, "nombre": p.nombre, "proveedor": p.proveedor, "pruebas": p.pruebas,
              "usados_mes": _usados(db, p.id, ini_mes), "contratados": p.timbres_contratados,
-             "desde": p.timbres_desde, "alerta": p.timbres_alerta, "restantes": None, "nivel": "ok", "texto": None}
+             "desde": p.timbres_desde, "alerta": p.timbres_alerta, "restantes": None, "nivel": "ok", "texto": None, "nota": None}
+        if p.pruebas:
+            # En pruebas no hay paquete que contar: la cuenta gratuita del PAC tiene su propio tope, que Timbra no ve.
+            # Mostrar «restantes» de un paquete capturado a mano engañaba (decía 876 mientras Finkok contestaba 718).
+            r["nota"] = ("Ambiente de pruebas: no se cobran ni tienen validez. La cuenta gratuita del PAC tiene su propio "
+                         "tope; si contesta «718 timbres agotados», se acabaron las pruebas de este mes.")
+            out.append(r)
+            continue
         if p.timbres_contratados is not None:
             r["usados_paquete"] = _usados(db, p.id, p.timbres_desde)
             r["restantes"] = p.timbres_contratados - r["usados_paquete"]

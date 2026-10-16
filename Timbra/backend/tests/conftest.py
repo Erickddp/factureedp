@@ -6,5 +6,6 @@ import pytest
 @pytest.fixture(autouse=True)
 def _sin_servicios_reales(monkeypatch):
     from app.config import settings
-    for llave in ("resend_api_key", "respaldo_correo", "mp_access_token", "mp_webhook_secret", "paquetes_timbres"):
+    for llave in ("resend_api_key", "respaldo_correo", "correo_pruebas", "mp_access_token", "mp_webhook_secret", "paquetes_timbres",
+                  "smtp_host", "smtp_user", "smtp_password", "smtp_from"):
         monkeypatch.setattr(settings, llave, None)

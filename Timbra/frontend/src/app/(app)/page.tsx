@@ -48,6 +48,8 @@ export default function Inicio() {
   const hoy = new Date();
   const mes = hoy.toLocaleDateString("es-MX", { month: "long" });
   const timbres = (data?.timbres ?? []).filter((t) => !t.pruebas);
+  const enPruebas = (data?.timbres ?? []).filter((t) => t.pruebas);
+  const { data: yo } = useSWR<{ timbres: number | null }>("/auth/yo", fetcher);  // cuentas de clientes: su saldo
   const vencido = Number(data?.vencido ?? 0);
   const facturado = Number(data?.facturado_mes ?? 0);
   const cobrado = Number(data?.cobrado_mes ?? 0);
@@ -115,11 +117,21 @@ export default function Inicio() {
           <ArrowUpRight className={flecha} />
           <span className={ficha}><Coins className="size-[18px]" /></span>
           <p className="mt-4 text-[13px] text-grafito">Timbres</p>
-          {timbres.length ? timbres.slice(0, 2).map((t, i) => (
+          {typeof yo?.timbres === "number" ? (
+            <>
+              <p className={cx("mt-1 text-[28px] font-semibold leading-tight tracking-tight tabular-nums", yo.timbres <= 0 ? "text-rojo" : yo.timbres <= 5 ? "text-alerta" : "")}>{yo.timbres}</p>
+              <p className="mt-1.5 text-[13px] text-grafito">disponibles en tu cuenta</p>
+            </>
+          ) : timbres.length ? timbres.slice(0, 2).map((t, i) => (
             <p key={t.pac_id} className={cx("truncate text-[13px] text-grafito", i ? "mt-1" : "mt-1", t.nivel === "error" ? "text-rojo" : t.nivel === "aviso" ? "text-alerta" : "")}>
               <b className={cx("font-semibold tracking-tight tabular-nums", i ? "text-lg" : "text-[28px] leading-tight", t.nivel === "ok" && "text-tinta")}>{t.restantes ?? t.usados_mes}</b> {t.restantes !== null ? "restantes" : "usados este mes"} · {t.nombre}
             </p>
-          )) : (
+          )) : enPruebas.length ? (
+            <>
+              <p className="mt-1 text-[28px] font-semibold leading-tight tracking-tight tabular-nums">{enPruebas[0].usados_mes}</p>
+              <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-grafito"><span className="size-1.5 rounded-full bg-cobalto" />en pruebas este mes · no se cobran</p>
+            </>
+          ) : (
             <>
               <p className="mt-1 text-[28px] font-semibold leading-tight tracking-tight text-grafito/50">—</p>
               <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-grafito"><span className="size-1.5 rounded-full bg-alerta" />Sin PAC de producción</p>

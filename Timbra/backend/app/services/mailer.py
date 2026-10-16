@@ -110,6 +110,20 @@ def _limpios(correos: list[str]) -> list[str]:
     return [x for x in (re.sub(r"[\s,;<>]+", "", p or "").strip(".") for p in correos) if "@" in x]
 
 
+def destinatarios(emisor, para: list[str]) -> list[str]:
+    """A quién se manda un comprobante de este emisor. Si timbra en PRUEBAS (PAC demo o ambiente de pruebas), su correo
+    NUNCA llega al cliente: va a CORREO_PRUEBAS, o no sale. Así una prueba no le manda una factura sin validez a un
+    cliente real (ni rebota en direcciones inventadas y daña la reputación del dominio)."""
+    pac = getattr(emisor, "pac", None)
+    if pac is not None and pac.proveedor != "demo" and not pac.pruebas:
+        return para
+    if settings.correo_pruebas:
+        return [settings.correo_pruebas]
+    raise CorreoError("Es un comprobante de PRUEBAS (el emisor timbra en modo demo o con un PAC en ambiente de pruebas): "
+                      "no se manda al cliente. Para probar el correo de envío pon la variable CORREO_PRUEBAS con tu correo "
+                      "(en el .env de tu PC o en Railway) y te llegará a ti.")
+
+
 def _validos(para: list[str]) -> list[str]:
     malos = [x for x in para if not CORREO_OK.match(x)]
     if malos:

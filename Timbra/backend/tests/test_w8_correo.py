@@ -120,6 +120,17 @@ def test_tope_de_descargas_del_sat_a_la_vez(monkeypatch):
                 db.commit()
 
 
+def test_comprobantes_de_pruebas_nunca_van_al_cliente(monkeypatch):
+    from types import SimpleNamespace as NS
+    real = NS(pac=NS(proveedor="finkok", pruebas=False))
+    assert mailer.destinatarios(real, ["cliente@empresa.mx"]) == ["cliente@empresa.mx"]
+    for emisor in (NS(pac=None), NS(pac=NS(proveedor="demo", pruebas=True)), NS(pac=NS(proveedor="finkok", pruebas=True))):
+        with pytest.raises(mailer.CorreoError, match="PRUEBAS"):
+            mailer.destinatarios(emisor, ["cliente@empresa.mx"])
+    monkeypatch.setattr(settings, "correo_pruebas", "yo@despacho.mx")
+    assert mailer.destinatarios(NS(pac=None), ["cliente@empresa.mx"]) == ["yo@despacho.mx"]
+
+
 def test_sin_llave_sigue_por_smtp(monkeypatch):
     monkeypatch.setattr(settings, "resend_api_key", None)
     assert mailer.publica()["origen"] != "resend"

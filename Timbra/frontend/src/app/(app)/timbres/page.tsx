@@ -153,7 +153,7 @@ function TimbresAdmin() {
                 <div className="grid grid-cols-3 gap-3">
                   <Dato titulo="Este mes" valor={t.usados_mes} />
                   <Dato titulo="Restantes" valor={t.restantes ?? "—"} tono={t.nivel} />
-                  <Dato titulo="Paquete" valor={t.contratados ?? "Pospago"} />
+                  <Dato titulo="Paquete" valor={t.pruebas ? "Pruebas" : t.contratados ?? "Pospago"} />
                 </div>
                 {pct !== null && (
                   <div>
@@ -166,7 +166,8 @@ function TimbresAdmin() {
                 {t.pac && <p className="text-xs text-grafito">Saldo en {t.proveedor}: <b className="text-tinta">{t.pac.ilimitado ? "ilimitado" : t.pac.saldo}</b>{t.pac.vence && ` · vence ${fecha(t.pac.vence)}`}</p>}
                 {t.pac_error && <p className="text-xs text-rojo">No se pudo consultar el saldo: {t.pac_error}</p>}
                 {t.texto && <p className={cx("text-sm", t.nivel === "error" ? "text-rojo" : t.nivel === "aviso" ? "text-alerta" : "text-grafito")}>{t.texto}</p>}
-                {pac && <Button className="self-start" onClick={() => setCompra(pac)}><Coins className="size-4" /> Registrar compra de timbres</Button>}
+                {t.nota && <p className="text-sm text-grafito">{t.nota}</p>}
+                {pac && !t.pruebas && <Button className="self-start" onClick={() => setCompra(pac)}><Coins className="size-4" /> Registrar compra de timbres</Button>}
               </div>
             );
           })}

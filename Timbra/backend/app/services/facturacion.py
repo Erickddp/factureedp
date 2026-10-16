@@ -415,6 +415,7 @@ def actualizar_estatus(db: Session, f: Factura) -> dict:
 
 
 def enviar(f: Factura, para: list[str], mensaje: str | None = None):
+    para = mailer.destinatarios(f.emisor, para)  # en pruebas nunca al cliente
     nombre = f"{f.emisor.rfc}_{f.serie or ''}{f.folio or ''}_{f.uuid}"
     adj = [(f"{nombre}.xml", f.xml, "application/xml")]
     try:
