@@ -35,7 +35,10 @@ export default function Terminos() {
         <li><b>La información fiscal es tuya.</b> Tú decides qué facturar, a quién, por cuánto y con qué datos. {r.marca} valida muchas reglas del
           SAT antes de timbrar, pero esa validación es una ayuda y no sustituye tu revisión ni la de tu contador.</li>
         <li><b>No es asesoría fiscal.</b> Las notas y sugerencias de claves, impuestos o regímenes son orientación general.</li>
-        <li><b>Tu CSD y tu e.firma.</b> Eres responsable de que estén vigentes y de que quien los sube tenga derecho a usarlos.</li>
+        <li><b>Tu CSD y tu e.firma.</b> Eres responsable de que estén vigentes y de que quien los sube tenga derecho a usarlos. La e.firma es personal e
+          intransferible: si la usas para descargar los XML de un cliente, debes contar con su autorización por escrito. {r.marca} la usa sólo en memoria durante la
+          descarga y no la guarda, pero el uso que le des es tu responsabilidad y la de su titular.</li>
+        <li><b>Modo de pruebas.</b> Los comprobantes que se generan con el PAC «Demo» o en ambiente de pruebas no tienen validez fiscal.</li>
         <li><b>Datos de terceros.</b> Si capturas datos de tus clientes o empleados, te toca tener su consentimiento cuando la ley lo pida (ver el{" "}
           <Link className="underline" href="/legal/privacidad/">Aviso de privacidad</Link>).</li>
         <li><b>Uso lícito.</b> Prohibido usar {r.marca} para emitir comprobantes de operaciones inexistentes o simuladas, para suplantar a otra persona,
@@ -91,6 +94,7 @@ export default function Terminos() {
       <p>
         Estos términos se rigen por las leyes federales de México. Para cualquier controversia, las partes se someten a los tribunales competentes
         del domicilio del titular de {r.marca}, sin perjuicio de que como consumidor puedas acudir a la Procuraduría Federal del Consumidor (PROFECO).
+        Para avisos y notificaciones escríbenos a {r.correo}; a ti te avisamos al correo de tu cuenta.
       </p>
     </PaginaLegal>
   );

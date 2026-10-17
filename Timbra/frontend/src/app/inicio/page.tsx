@@ -36,7 +36,7 @@ const FILAS = [
 
 // Precios de lanzamiento. Cámbialos aquí: `porTimbre` se calcula solo.
 const PLANES = [
-  { nombre: "Prueba", precio: 0, timbres: 3, nota: "Para conocer Timbra", puntos: ["3 facturas gratis", "Todas las funciones", "Sin tarjeta"], destacado: false },
+  { nombre: "Prueba", precio: 0, timbres: 3, nota: "Para conocer Timbra", puntos: ["3 facturas gratis", "Todas las funciones", "Sin tarjeta · al confirmar tu correo"], destacado: false },
   { nombre: "Recarga 30", precio: 50, timbres: 30, nota: "Para empezar", puntos: ["30 timbres", "Vigencia de 12 meses", "Sin renta mensual"], destacado: false },
   { nombre: "Recarga 65", precio: 100, timbres: 65, nota: "Para despachos y negocios con movimiento", puntos: ["65 timbres", "Vigencia de 12 meses", "Sin renta mensual"], destacado: true },
   { nombre: "Recarga 140", precio: 200, timbres: 140, nota: "Mejor precio por factura", puntos: ["140 timbres", "Vigencia de 12 meses", "Sin renta mensual"], destacado: false },
@@ -214,11 +214,11 @@ export default function Inicio() {
               <ul>{p.puntos.map((x) => <li key={x}><Check className="size-4" /> {x}</li>)}</ul>
               {p.precio
                 ? <span className="lp-boton mediano hueco desactivado" aria-disabled="true" title="Las recargas en línea se activan en breve">Próximamente</span>
-                : <Link href={entrar} className="lp-boton mediano hueco">{dentro ? "Abrir Timbra" : "Entrar con mi invitación"}</Link>}
+                : <Link href={entrar} className="lp-boton mediano hueco">{dentro ? "Abrir Timbra" : "Entrar o crear mi cuenta"}</Link>}
             </article>
           ))}
         </div>
-        <p className="lp-aviso aparece">Precios en pesos mexicanos, IVA incluido. Los timbres vencen a los 12 meses de la recarga. El acceso es por invitación mientras terminamos el lanzamiento; las recargas en línea se activan en breve.</p>
+        <p className="lp-aviso aparece">Precios en pesos mexicanos, IVA incluido. Los timbres vencen a los 12 meses de la recarga. Crea tu cuenta gratis: recibes 3 timbres de regalo al confirmar tu correo. Las recargas en línea se activan en breve.</p>
       </section>
 
       {/* ---------------- Cierre ---------------- */}

@@ -4,8 +4,8 @@
  * y cada cuenta los aceptará otra vez al entrar.
  * Datos del responsable tomados de la Constancia de Situación Fiscal (16-mar-2026): la ley pide nombre y domicilio.
  */
-export const VERSION = "2026-10-16";
-export const VIGENTE_DESDE = "16 de octubre de 2026";
+export const VERSION = "2026-10-17";
+export const VIGENTE_DESDE = "17 de octubre de 2026";
 
 export const RESPONSABLE = {
   marca: "Timbra",

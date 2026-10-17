@@ -45,7 +45,7 @@ export function FacturaViva({ chica }: { chica?: boolean }) {
         <div className="lp-f-total"><span>Total</span><b>$11,600.00</b></div>
         <div className="lp-sello">TIMBRADA</div>
       </div>
-      <div className="lp-ficha f1"><Check className="size-4" /> Cumple CFDI 4.0</div>
+      <div className="lp-ficha f1"><Check className="size-4" /> CFDI 4.0</div>
       <div className="lp-ficha f2"><FileText className="size-4" /> PDF + XML</div>
       <div className="lp-ficha f3"><Table2 className="size-4" /> Folio de tu hoja</div>
     </div>

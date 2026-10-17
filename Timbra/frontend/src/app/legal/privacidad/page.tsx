@@ -70,8 +70,9 @@ export default function Privacidad() {
 
       <p>
         <b>Inicio de sesión con Google.</b> Si eliges «Continuar con Google», {r.marca} pide sólo los permisos básicos de identidad (openid, correo y perfil) y
-        recibe tu correo, tu nombre y un identificador de tu cuenta de Google, únicamente para reconocerte y abrir o crear tu cuenta. {r.marca} no accede a tu
-        Gmail, Drive, Calendario, contactos ni a ningún otro dato de tu cuenta de Google, y no usa esta información para publicidad ni la vende o transfiere a
+        recibe tu correo, tu nombre, tu foto de perfil y un identificador de tu cuenta de Google, únicamente para reconocerte, abrir o crear tu cuenta y mostrar tu avatar.
+        Con ese inicio de sesión {r.marca} no accede a tu Gmail, Drive, Calendario, contactos ni a ningún otro dato de tu cuenta de Google (el único acceso a Drive es la
+        copia opcional de tus XML que se describe abajo, y sólo si tú la activas con su propio permiso). No usa esta información para publicidad ni la vende o transfiere a
         terceros. El uso de la información recibida de las API de Google se apega a la Política de datos de usuario de los servicios de API de Google, incluidos
         sus requisitos de uso limitado. Puedes desconectar tu cuenta de Google en Mi perfil, o revocar el acceso desde la configuración de seguridad de tu cuenta de Google.
       </p>
@@ -116,7 +117,7 @@ export default function Privacidad() {
       <h2>9. Almacenamiento en tu navegador</h2>
       <p>
         {r.marca} no usa cookies de publicidad ni de rastreo. Guarda en tu navegador sólo lo necesario para funcionar: tu sesión, el tema (claro u
-        oscuro) y cómo dejaste el menú.
+        oscuro), cómo dejaste el menú y, mientras dura la pestaña, el resumen de la última carpeta de XML que leíste.
       </p>
 
       <h2>10. Cambios a este aviso</h2>
