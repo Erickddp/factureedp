@@ -67,7 +67,7 @@ export function Datos({ emisor, version }: { emisor: Emisor; version: number }) 
       {haySueldos && <Nomina n={sueldos} titulo="Nómina recibida" sub="Lo que le pagaron a este contribuyente como trabajador" quien="Quién le paga" />}
       {pagada.recibos > 0 && <Nomina n={pagada} titulo="Nómina pagada" sub="Lo que este contribuyente pagó a sus trabajadores" quien="A quién le paga" />}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
         <Panel titulo="Impuestos de sus facturas">
           <dl className="divide-y divide-linea text-sm">
             <Linea k="IVA trasladado (lo que cobró)" v={i.iva_trasladado} />
@@ -106,7 +106,7 @@ export function Datos({ emisor, version }: { emisor: Emisor; version: number }) 
         </Panel>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
         <Ranking titulo="A quién más le vende" datos={r.clientes} color={CLASES.I.color} />
         <Ranking titulo="A quién más le compra" datos={r.proveedores} color={CLASES.G.color} />
       </div>
@@ -266,7 +266,7 @@ function Ranking({ titulo, datos, color }: { titulo: string; datos: { rfc: strin
         {datos.map((d) => (
           <li key={d.rfc}>
             <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate">{d.nombre || d.rfc} <span className="text-xs text-grafito">· {d.n}</span></span>
+              <span className="min-w-0 truncate" title={d.nombre || d.rfc}>{d.nombre || d.rfc} <span className="text-xs text-grafito">· {d.n}</span></span>
               <b className="shrink-0 tabular-nums">{dinero(d.total)}</b>
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-tinta/[.07]"><i className="block h-full rounded-full" style={{ width: `${(d.total / max) * 100}%`, background: color }} /></div>
