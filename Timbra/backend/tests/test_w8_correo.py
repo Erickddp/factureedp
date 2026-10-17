@@ -165,6 +165,33 @@ def test_resumen_diario_de_errores_por_correo(monkeypatch, tmp_path):
     assert programador.enviar_resumen_errores() is False and len(enviados) == 1   # una vez al día, aunque reinicie
 
 
+def test_el_estado_de_cuenta_va_en_pdf(monkeypatch):
+    import requests
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from test_v2 import _cliente, _factura, _preparar
+    enviados = []
+    monkeypatch.setattr(requests, "post", lambda url, json=None, headers=None, timeout=None: enviados.append(json) or Resp(200, {"id": "x"}))
+    monkeypatch.setattr(settings, "resend_api_key", "re_prueba")
+    monkeypatch.setattr(mailer, "destinatarios", lambda emisor, para: para)   # como si el emisor timbrara en producción
+    with TestClient(app) as c:
+        h, e = _preparar(c)
+        from test_v5_clientes import rfc_moral
+        cli = _cliente(c, h, e, rfc=rfc_moral(96), nombre="CLIENTE DE ESTADO DE CUENTA", emails=["cobranza@despacho-prueba.mx"])
+        _factura(c, h, e, cli, total="500", metodo="PPD")
+        r = c.post("/api/cobranza/recordar", headers=h, json={"cliente_ids": [cli["id"]]}).json()
+        assert r[0]["ok"] is True, r
+    nombres = {a["filename"]: a["content"] for a in enviados[-1]["attachments"]}
+    estado = next(n for n in nombres if n.startswith("estado_cuenta_"))
+    # PDF si hay con qué generarlo (weasyprint o Edge/Chrome); si no, el HTML de siempre
+    if estado.endswith(".pdf"):
+        assert base64.b64decode(nombres[estado])[:4] == b"%PDF"
+    else:
+        assert estado.endswith(".html")
+    assert any(n.endswith(".xml") for n in nombres)
+
+
 def test_sin_llave_sigue_por_smtp(monkeypatch):
     monkeypatch.setattr(settings, "resend_api_key", None)
     assert mailer.publica()["origen"] != "resend"

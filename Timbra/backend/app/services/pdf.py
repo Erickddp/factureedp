@@ -481,8 +481,12 @@ _weasy_ok: bool | None = None
 
 
 def pdf(xml: bytes, emisor=None) -> bytes:
+    return html_a_pdf(html(xml, emisor=emisor))
+
+
+def html_a_pdf(h: str) -> bytes:
+    """Cualquier HTML (la factura, el estado de cuenta…) a PDF: weasyprint si está, si no Edge/Chrome. RuntimeError si no hay."""
     global _weasy_ok
-    h = html(xml, emisor=emisor)
     if _weasy_ok is not False:
         try:
             import weasyprint

@@ -15,7 +15,7 @@ from .config import EN_WEB, settings
 from .db import SessionLocal, engine
 from .models import Addenda
 from .routers import (addendas, auth, catalogos, clientes, cobranza, correo, dashboard, debug, emisores, facturas, nomina,
-                      claves, lotes, pacs, pagos, pendientes, plantillas, portal, productos, xml, terceros)
+                      claves, lotes, migracion, pacs, pagos, pendientes, plantillas, portal, productos, xml, terceros)
 from .services import almacen
 from .services.addenda import SEMILLAS
 
@@ -100,7 +100,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","
                    allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
 for r in (auth, pacs, emisores, clientes, productos, plantillas, addendas, facturas, catalogos, dashboard, debug,
-          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo, pagos):
+          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo, pagos, migracion):
     app.include_router(r.router, prefix="/api")
 app.include_router(portal.publico, prefix="/api")  # autofactura: sin login
 
@@ -202,4 +202,6 @@ if STATIC.exists():
             return FileResponse(p)
         if (p / "index.html").is_file():
             return FileResponse(p / "index.html")
+        if (STATIC / "404.html").is_file():  # ruta que no existe: página 404 de verdad (antes caía en el login)
+            return FileResponse(STATIC / "404.html", status_code=404)
         return FileResponse(STATIC / "index.html")

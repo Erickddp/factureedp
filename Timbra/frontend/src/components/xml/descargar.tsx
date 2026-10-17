@@ -2,13 +2,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { CalendarRange, CheckCircle2, CloudDownload, FileKey2, FolderOpen, KeyRound, Loader2, ShieldCheck, Square, Upload, XCircle } from "lucide-react";
+import { CalendarRange, CheckCircle2, ClipboardCopy, CloudDownload, FileKey2, FolderOpen, KeyRound, Loader2, ShieldCheck, Square, Upload, X, XCircle } from "lucide-react";
 import { api, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
 import { isoLocal } from "@/lib/format";
 import type { Emisor } from "@/lib/types";
 import { useEmisor } from "@/components/emisor-context";
-import { type Efirma, type TrabajoXml, dia, periodos, subirXml } from "@/lib/xml";
+import { type Efirma, type ResultadoLectura, type TrabajoXml, dia, periodos, subirXml } from "@/lib/xml";
 import { Button, Input, cx } from "@/components/ui";
 
 const TIPOS = [{ id: "ambos", t: "Emitidos y recibidos" }, { id: "emitidos", t: "Sólo emitidos" }, { id: "recibidos", t: "Sólo recibidos" }];
@@ -268,31 +268,38 @@ function LeerCarpeta({ emisor, alTerminar }: { emisor: Emisor; alTerminar: () =>
   const [celular, setCelular] = useState(false);
   useEffect(() => { setCelular(window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(pointer: fine)").matches); }, []);
 
+  // El resultado de la última lectura NO es un aviso que se va: queda a la vista (y en la sesión, aunque cambies de pantalla)
+  const [resultado, setResultado] = useState<ResultadoLectura | null>(null);
+  useEffect(() => {
+    try { const g = sessionStorage.getItem(CLAVE_LECTURA); if (g) setResultado(JSON.parse(g)); } catch { /* sin almacenamiento: no pasa nada */ }
+  }, []);
+  const guardarResultado = (r: ResultadoLectura | null) => {
+    setResultado(r);
+    try { if (r) sessionStorage.setItem(CLAVE_LECTURA, JSON.stringify(r)); else sessionStorage.removeItem(CLAVE_LECTURA); } catch { /* idem */ }
+  };
+
   const leer = async (lista: FileList | File[] | null) => {
     const archivos = [...(lista ?? [])];
     if (!archivos.length) return;
+    if (!archivos.some((a) => /\.(xml|zip)$/i.test(a.name))) return void toast.error("Ahí no hay archivos .xml ni .zip");
     setAvance({ h: 0, t: archivos.length });
     try {
-      if (!archivos.some((a) => /\.(xml|zip)$/i.test(a.name))) return void toast.error("Ahí no hay archivos .xml ni .zip");
       const r = await subirXml(archivos, (h, t) => setAvance({ h, t }), emisor.rfc, async (cand) => {
         const texto = cand.map((c, i) => `${i + 1}. ${c.rfc}  ${c.nombre}`).join("\n");
         const n = Number(window.prompt(`En esos XML aparecen igual de veces estos RFC.\n¿De quién es la carpeta? Escribe el número:\n\n${texto}`, "1"));
         return cand[n - 1]?.rfc ?? null;
       });
-      const varios = r.contribuyentes.length > 1;
-      toast.success(varios ? `${r.nuevos.toLocaleString("es-MX")} XML nuevos, repartidos en ${r.contribuyentes.length} contribuyentes`
-        : `${r.nuevos.toLocaleString("es-MX")} XML nuevos de ${r.rfc}`, { duration: 15000, description: [
-        ...(varios ? r.contribuyentes.map((c) => `${c.rfc} ${c.nombre}: ${c.nuevos} nuevos${c.creado ? " (dado de alta)" : ""}`)
-          : [r.nombre, r.creado && "contribuyente dado de alta en tu cuenta"]),
-        r.repetidos && `${r.repetidos} ya estaban`, r.ajenos && `${r.ajenos} no se pudo saber de quién son o son de otra cuenta`,
-        r.invalidos && `${r.invalidos} no son CFDI`].filter(Boolean).join(" · ") + (varios ? ". Cámbialos arriba a la izquierda." : "") });
+      guardarResultado({ cuando: new Date().toISOString(), leidos: r.leidos, total: r.total, nuevos: r.nuevos, repetidos: r.repetidos,
+        rechazados: r.rechazados, rechazados_total: r.rechazados_total, contribuyentes: r.contribuyentes, error: r.error });
       if (r.emisor_id && r.emisor_id !== emisor.id) { recargarEmisores(); setEmisorId(r.emisor_id); }  // se abre el que más trajo
       else if (r.contribuyentes.some((c) => c.creado)) recargarEmisores();
+      if (r.error) toast.error(r.error, { duration: 8000 });
       alTerminar();
     } catch (e) { mostrarError(e); } finally { setAvance(null); }
   };
 
   return (
+    <>
     <section onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); leer(e.dataTransfer.files); }}
       className="flex flex-wrap items-center gap-4 rounded-3xl border-2 border-dashed border-linea px-6 py-5">
       <FolderOpen className="size-8 shrink-0 text-grafito" />
@@ -313,6 +320,80 @@ function LeerCarpeta({ emisor, alTerminar }: { emisor: Emisor; alTerminar: () =>
           {!celular && <Button onClick={() => carpeta.current?.click()}><FolderOpen className="size-4" /> Elegir carpeta</Button>}
           <Button variant={celular ? "primario" : "fantasma"} onClick={() => sueltos.current?.click()}><Upload className="size-4" /> XML o ZIP</Button>
         </span>
+      )}
+    </section>
+    {resultado && !avance && <PanelLectura r={resultado} cerrar={() => guardarResultado(null)} abrir={(id) => setEmisorId(id)} />}
+    </>
+  );
+}
+
+const CLAVE_LECTURA = "timbra:lectura";
+
+function PanelLectura({ r, cerrar, abrir }: { r: ResultadoLectura; cerrar: () => void; abrir: (emisorId: number) => void }) {
+  const bien = !r.error && r.nuevos + r.repetidos > 0;
+  const grupos = useMemo(() => {
+    // el mismo motivo con distinto RFC se junta en un solo grupo (si no, saldría un grupo por archivo)
+    const m = new Map<string, string[]>();
+    for (const x of r.rechazados) {
+      const clave = x.motivo.replace(/\b[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}\b/g, "RFC");
+      m.set(clave, [...(m.get(clave) ?? []), x.archivo]);
+    }
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
+  }, [r.rechazados]);
+  const copiar = () => {
+    const txt = r.rechazados.map((x) => `${x.archivo}\t${x.motivo}`).join("\n");
+    navigator.clipboard.writeText(`Archivo\tMotivo\n${txt}`).then(() => toast.success("Lista copiada: pégala en Excel"), () => toast.error("No se pudo copiar"));
+  };
+  const n = (x: number) => x.toLocaleString("es-MX");
+  return (
+    <section className={cx("rounded-3xl p-6 ring-1 sm:p-7", bien ? "bg-hoja ring-linea" : "bg-alerta-suave ring-alerta/30")} aria-live="polite">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="flex flex-wrap items-center gap-2 font-semibold">
+          {bien ? <CheckCircle2 className="size-5 text-sello" /> : <XCircle className="size-5 text-alerta" />}
+          Resultado de la última lectura
+          <span className="text-sm font-normal text-grafito">· {new Date(r.cuando).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {n(r.leidos)} de {n(r.total)} archivos revisados</span>
+        </p>
+        <button onClick={cerrar} className="rounded-lg p-1.5 text-grafito hover:bg-tinta/5" aria-label="Cerrar este resultado"><X className="size-4" /></button>
+      </div>
+      {r.error && <p className="mt-3 rounded-xl bg-alerta-suave px-3 py-2 text-sm text-alerta">{r.error}</p>}
+      <div className="mt-4 grid grid-cols-3 gap-4">
+        <div><p className="text-3xl font-semibold tabular-nums text-sello">{n(r.nuevos)}</p><p className="text-xs text-grafito">XML nuevos</p></div>
+        <div><p className="text-3xl font-semibold tabular-nums">{n(r.repetidos)}</p><p className="text-xs text-grafito">ya los tenías (se ignoraron)</p></div>
+        <div><p className={cx("text-3xl font-semibold tabular-nums", r.rechazados_total ? "text-alerta" : "")}>{n(r.rechazados_total)}</p><p className="text-xs text-grafito">no entraron</p></div>
+      </div>
+      {r.contribuyentes.length > 0 && (
+        <div className="mt-5">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[.08em] text-grafito">Contribuyentes</p>
+          <ul className="divide-y divide-linea rounded-2xl ring-1 ring-linea">
+            {r.contribuyentes.map((c) => (
+              <li key={c.rfc} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                <span className="min-w-0"><b className="font-mono text-xs">{c.rfc}</b> <span className="text-grafito">{c.nombre}</span>{c.creado && <span className="ml-2 rounded-full bg-sello-suave px-2 py-0.5 text-[11px] text-sello">dado de alta</span>}</span>
+                <span className="flex items-center gap-3 tabular-nums"><span><b>{n(c.nuevos)}</b> nuevos{c.repetidos ? ` · ${n(c.repetidos)} ya estaban` : ""}</span>
+                  <button onClick={() => abrir(c.emisor_id)} className="font-medium text-cobalto hover:underline">Abrir</button></span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {r.rechazados_total > 0 && (
+        <div className="mt-5">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-medium uppercase tracking-[.08em] text-grafito">Lo que no entró y por qué</p>
+            <button onClick={copiar} className="flex items-center gap-1 text-xs font-medium text-cobalto hover:underline"><ClipboardCopy className="size-3.5" /> Copiar lista</button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {grupos.map(([motivo, archivos]) => (
+              <details key={motivo} className="rounded-xl bg-papel px-4 py-2.5 text-sm ring-1 ring-linea">
+                <summary className="cursor-pointer"><b className="tabular-nums">{n(archivos.length)}</b> · {motivo}</summary>
+                <ul className="mt-2 max-h-48 overflow-auto font-mono text-xs text-grafito">
+                  {archivos.slice(0, 80).map((a, i) => <li key={i} className="truncate">{a}</li>)}
+                  {archivos.length > 80 && <li>…y {n(archivos.length - 80)} más (usa «Copiar lista»)</li>}
+                </ul>
+              </details>
+            ))}
+            {r.rechazados_total > r.rechazados.length && <p className="text-xs text-grafito">Se listan los primeros {n(r.rechazados.length)} de {n(r.rechazados_total)}.</p>}
+          </div>
+        </div>
       )}
     </section>
   );

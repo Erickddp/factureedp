@@ -137,6 +137,12 @@ export async function copiarTabla(f: Filtros): Promise<number> {
 export type Candidato = { rfc: string; nombre: string; veces: number };
 
 export type ContribuyenteLeido = { emisor_id: number; rfc: string; nombre: string; creado: boolean; nuevos: number; repetidos: number };
+export type Rechazado = { archivo: string; motivo: string };
+/** Lo que se leyó de una carpeta: se queda en pantalla (y en la sesión) hasta que se cierre. */
+export type ResultadoLectura = {
+  cuando: string; leidos: number; total: number; nuevos: number; repetidos: number; rechazados: Rechazado[]; rechazados_total: number;
+  contribuyentes: ContribuyenteLeido[]; error: string | null;
+};
 
 /** `actual`: el RFC en el que se está trabajando. `elegir`: se llama si los XML no dejan claro de quién son.
  *  Una carpeta puede traer XML de VARIOS contribuyentes: el servidor manda cada CFDI con su dueño (y da de alta los que
@@ -145,7 +151,7 @@ export async function subirXml(archivos: File[], paso: (hechos: number, total: n
   elegir: (c: Candidato[]) => Promise<string | null> = async () => null) {
   const utiles = archivos.filter((a) => /\.(xml|zip)$/i.test(a.name));
   const res = { nuevos: 0, repetidos: 0, ajenos: 0, invalidos: 0, total: utiles.length, emisor_id: 0, rfc: "", nombre: "", creado: false,
-    contribuyentes: [] as ContribuyenteLeido[] };
+    contribuyentes: [] as ContribuyenteLeido[], rechazados: [] as Rechazado[], rechazados_total: 0, leidos: 0, error: null as string | null };
   const porRfc = new Map<string, ContribuyenteLeido>();
   let tanda: File[] = [], peso = 0, hechos = 0, elegido = "";
   const enviar = async () => {
@@ -179,18 +185,27 @@ export async function subirXml(archivos: File[], paso: (hechos: number, total: n
       if (ya) { ya.nuevos += c.nuevos; ya.repetidos += c.repetidos; ya.creado ||= c.creado; } else porRfc.set(c.rfc, { ...c });
     }
     res.nuevos += j.nuevos ?? 0; res.repetidos += j.repetidos ?? 0; res.ajenos += j.ajenos ?? 0; res.invalidos += j.invalidos ?? 0;
+    res.rechazados_total += j.rechazados_total ?? 0;
+    for (const x of (j.rechazados ?? []) as Rechazado[]) if (res.rechazados.length < 300) res.rechazados.push(x);
     res.contribuyentes = [...porRfc.values()].sort((a, b) => b.nuevos + b.repetidos - (a.nuevos + a.repetidos));
     const p = res.contribuyentes[0];
     if (p) { res.emisor_id = p.emisor_id; res.rfc = p.rfc; res.nombre = p.nombre; res.creado = p.creado; }
     hechos += tanda.length;
+    res.leidos = hechos;
     paso(hechos, utiles.length);
     tanda = []; peso = 0;
   };
-  for (const a of utiles) {
-    if (tanda.length >= 150 || peso + a.size > 6 * 1024 * 1024) await enviar();  // tandas chicas: cada una contesta rápido
-    tanda.push(a);
-    peso += a.size;
+  // Si algo falla a la mitad no se pierde lo ya leído: se devuelve lo que se alcanzó con el error aparte
+  try {
+    for (const a of utiles) {
+      if (tanda.length >= 150 || peso + a.size > 6 * 1024 * 1024) await enviar();  // tandas chicas: cada una contesta rápido
+      tanda.push(a);
+      peso += a.size;
+    }
+    await enviar();
+  } catch (e) {
+    res.error = (e as Error).message || "No se pudo terminar de leer la carpeta.";
   }
-  await enviar();
+  if (!res.error && !res.nuevos && !res.repetidos) res.error = "Ahí no encontré ningún CFDI que se pueda guardar. Abajo ves el motivo de cada archivo.";
   return res;
 }

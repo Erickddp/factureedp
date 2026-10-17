@@ -154,19 +154,33 @@ def indexar(db: Session, emisor_id: int, ruta: Path, tipo: str = "", origen: str
     return True
 
 
-def _xml_sueltos(archivos: list[tuple[str, bytes]]):
-    """(nombre, contenido) de cada XML; los ZIP se abren aquí mismo."""
+def _xml_con_motivo(archivos: list[tuple[str, bytes]]):
+    """(nombre, contenido, motivo) de cada XML; los ZIP se abren aquí mismo. `motivo` no vacío = no se pudo leer."""
     for nombre, datos in archivos:
         if nombre.lower().endswith(".zip"):
             try:
                 with zipfile.ZipFile(io.BytesIO(datos)) as z:
                     for info in z.infolist():
-                        if not info.is_dir() and info.filename.lower().endswith(".xml") and info.file_size <= MAX_XML:
-                            yield info.filename, z.read(info)
+                        if info.is_dir() or not info.filename.lower().endswith(".xml"):
+                            continue
+                        if info.file_size > MAX_XML:
+                            yield f"{nombre} › {info.filename}", b"", f"Pesa más de {MAX_XML // (1024 * 1024)} MB: no es un CFDI normal"
+                        else:
+                            yield info.filename, z.read(info), ""
             except zipfile.BadZipFile:
-                yield nombre, b""
+                yield nombre, b"", "El ZIP está dañado o incompleto: no se pudo abrir"
+        elif len(datos) > MAX_XML:
+            yield nombre, b"", f"Pesa más de {MAX_XML // (1024 * 1024)} MB: no es un CFDI normal"
+        elif not datos.strip():
+            yield nombre, b"", "El archivo está vacío"
         else:
-            yield nombre, datos if len(datos) <= MAX_XML else b""
+            yield nombre, datos, ""
+
+
+def _xml_sueltos(archivos: list[tuple[str, bytes]]):
+    """(nombre, contenido) de cada XML; contenido vacío si no se pudo leer."""
+    for nombre, datos, motivo in _xml_con_motivo(archivos):
+        yield nombre, (b"" if motivo else datos)
 
 
 def _rfcs(root) -> tuple[str, str]:
@@ -179,15 +193,33 @@ def _rfcs(root) -> tuple[str, str]:
 GENERICOS = ("XAXX010101000", "XEXX010101000")
 
 
+MAX_RECHAZOS = 300  # cuántos archivos rechazados se listan (el total siempre se cuenta completo)
+
+
+class Rechazo(tuple):
+    """(archivo, motivo) de lo que no entró, para decírselo a la persona."""
+    __slots__ = ()
+
+    def __new__(cls, archivo: str, motivo: str):
+        return super().__new__(cls, (archivo, motivo))
+
+
 def _cfdis(archivos: list[tuple[str, bytes]]):
-    """(nombre, contenido, rfc emisor, rfc receptor) de cada CFDI válido; None en lugar de la tupla si no es CFDI."""
-    for nombre, datos in _xml_sueltos(archivos):
-        if not datos or b"<!DOCTYPE" in datos[:4096] or b"<!ENTITY" in datos[:4096]:  # un CFDI nunca trae DTD ni entidades
-            yield None
+    """(nombre, contenido, rfc emisor, rfc receptor) de cada CFDI válido; un `Rechazo` en lugar de la tupla si no lo es."""
+    for nombre, datos, motivo in _xml_con_motivo(archivos):
+        if motivo:
+            yield Rechazo(nombre, motivo)
+            continue
+        if b"<!DOCTYPE" in datos[:4096] or b"<!ENTITY" in datos[:4096]:  # un CFDI nunca trae DTD ni entidades
+            yield Rechazo(nombre, "Trae definiciones (DTD/entidades) que un CFDI nunca lleva: se descarta por seguridad")
             continue
         root = lector._raiz(Path(nombre), datos)
-        if root is None or lector.etree.QName(root).localname != "Comprobante":
-            yield None
+        if root is None:
+            yield Rechazo(nombre, "No se pudo leer como XML (¿está dañado o cortado?)")
+            continue
+        raiz = lector.etree.QName(root).localname
+        if raiz != "Comprobante":
+            yield Rechazo(nombre, f"No es un CFDI (es un «{raiz}»)" if raiz else "No es un CFDI")
             continue
         de, para = _rfcs(root)
         yield nombre, datos, de, para
@@ -207,17 +239,24 @@ def guardar_subidos(db: Session, emisor: Emisor, archivos: list[tuple[str, bytes
     Los que no son de este RFC no entran (se cuentan como ajenos)."""
     rfc = emisor.rfc.upper()
     res = {"nuevos": 0, "repetidos": 0, "ajenos": 0, "invalidos": 0}
+    rechazados: list[Rechazo] = []
     piezas = []
     for c in _cfdis(archivos):
-        if c is None:
+        if isinstance(c, Rechazo):
             res["invalidos"] += 1
+            rechazados.append(c)
         elif rfc not in (c[2], c[3]):
             res["ajenos"] += 1
+            rechazados.append(Rechazo(c[0], f"No es de {emisor.rfc}: sus RFC son {c[2]} y {c[3]}"))
         else:
             piezas.append((c[0], c[1], c[2]))
     _guardar_en(db, emisor, piezas, res)
     db.commit()
-    return res
+    return {**res, "rechazados": _lista(rechazados), "rechazados_total": len(rechazados)}
+
+
+def _lista(rechazados: list) -> list[dict]:
+    return [{"archivo": a, "motivo": m} for a, m in rechazados[:MAX_RECHAZOS]]
 
 
 def repartir(db: Session, archivos: list[tuple[str, bytes]], contribuyente, elegido: str = "", actual: str = "") -> dict:
@@ -232,14 +271,15 @@ def repartir(db: Session, archivos: list[tuple[str, bytes]], contribuyente, eleg
     """
     from fastapi import HTTPException
 
-    cfdis, invalidos = [], 0
+    cfdis, rechazados = [], []
     for c in _cfdis(archivos):
-        if c is None:
-            invalidos += 1
+        if isinstance(c, Rechazo):
+            rechazados.append(c)
         else:
             cfdis.append(c)
+    invalidos = len(rechazados)
     if not cfdis:
-        return {"vacio": True, "invalidos": invalidos}
+        return {"vacio": True, "invalidos": invalidos, "rechazados": _lista(rechazados), "rechazados_total": invalidos}
     datos = {x["rfc"]: x for x in candidatos_a_dueno(archivos, limite=None)}
     veces = {r: d["veces"] for r, d in datos.items()}
     mios = {r for (r,) in db.query(Emisor.rfc).filter(Emisor.rfc.in_(list(veces)))}
@@ -268,6 +308,8 @@ def repartir(db: Session, archivos: list[tuple[str, bytes]], contribuyente, eleg
     for nombre, contenido, de, para in cfdis:
         partes = partes_de(de, para)
         if not partes:
+            sin_dueno += 1
+            rechazados.append(Rechazo(nombre, f"Sin un RFC utilizable (emisor «{de}», receptor «{para}»)"))
             continue
         arriba = ganador(partes)
         # el dueño del CFDI, y también la otra parte si es dueña de algo en la carpeta o ya es tuya
@@ -276,6 +318,7 @@ def repartir(db: Session, archivos: list[tuple[str, bytes]], contribuyente, eleg
         if not dueños:
             dudosos.update(arriba)
             sin_dueno += 1
+            rechazados.append(Rechazo(nombre, f"No se pudo saber de quién es: {de} y {para} aparecen igual de veces en la carpeta"))
             continue
         for r in dueños:
             destinos.setdefault(r, []).append((nombre, contenido, de))
@@ -290,12 +333,14 @@ def repartir(db: Session, archivos: list[tuple[str, bytes]], contribuyente, eleg
             e, creado = contribuyente(r, d["nombre"], d["regimen"], d["cp"])
         except HTTPException:  # ese RFC es de otra cuenta de Timbra: no se toca
             otra_cuenta += len(piezas)
+            rechazados.extend(Rechazo(p[0], f"{r} está registrado en otra cuenta de Timbra") for p in piezas)
             continue
         res = {"nuevos": 0, "repetidos": 0}
         _guardar_en(db, e, piezas, res)
         db.commit()
         contribuyentes.append({"emisor_id": e.id, "rfc": e.rfc, "nombre": e.nombre, "creado": creado, **res})
-    return {"contribuyentes": contribuyentes, "invalidos": invalidos, "otra_cuenta": otra_cuenta, "sin_dueno": sin_dueno}
+    return {"contribuyentes": contribuyentes, "invalidos": invalidos, "otra_cuenta": otra_cuenta, "sin_dueno": sin_dueno,
+            "rechazados": _lista(rechazados), "rechazados_total": len(rechazados)}
 
 
 def candidatos_a_dueno(archivos: list[tuple[str, bytes]], limite: int | None = 6) -> list[dict]:

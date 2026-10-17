@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..logs import log, paso
 from ..models import Cliente, Emisor, Factura
 from . import mailer
+from . import pdf as pdf_svc
 from .cfdi import ahora_mx
 
 RANGOS = [("corriente", None, 0), ("1-30", 1, 30), ("31-60", 31, 60), ("61-90", 61, 90), ("+90", 91, None)]
@@ -123,7 +124,11 @@ def recordar(db: Session, emisor: Emisor, cliente: Cliente, mensaje: str | None 
         f"{'Tienes ' + str(len(vencidas)) + ' factura(s) vencida(s). ' if vencidas else ''}"
         f"Saldo pendiente: {_m(ec['saldo'])}\n\n{lineas}\n\nSi ya pagaste, ignora este mensaje y mándanos tu "
         f"comprobante para emitir el complemento de pago.\n\nSaludos,\n{emisor.nombre}")
-    adj = [(f"estado_cuenta_{cliente.rfc}.html", html_estado(emisor, ec).encode(), "text/html")]
+    h = html_estado(emisor, ec)
+    try:  # PDF, que lo abre cualquiera en el celular; si no hay cómo generarlo, el HTML de siempre
+        adj = [(f"estado_cuenta_{cliente.rfc}.pdf", pdf_svc.html_a_pdf(h), "application/pdf")]
+    except RuntimeError:
+        adj = [(f"estado_cuenta_{cliente.rfc}.html", h.encode(), "text/html")]
     for p in ec["pendientes"]:
         f = db.get(Factura, p["factura_id"])
         adj.append((f"{p['folio']}_{f.uuid}.xml", f.xml, "application/xml"))

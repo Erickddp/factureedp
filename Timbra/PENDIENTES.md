@@ -119,8 +119,12 @@ Con unos 120 timbres vendidos al mes en paquetes chicos ya se paga la cuota mín
 Guía paso a paso de todo en `CONECTAR.md`. Cuando termines un punto, avísame y yo lo pruebo de punta a punta.
 
 ## Fase 4: lo básico para operar (esta semana)
+- [x] [Claude] Exportar/importar emisores entre Timbras (Ajustes → «Pasar mis emisores a otra Timbra»), con simulacro, y panel con el resultado de «leer carpeta» (CONECTAR.md, punto 0)
+- [ ] [Rick] Subir en la web el CSD REAL de cada emisor (Emisores → emisor → CSD): en tu PC no hay ninguno real
 - [ ] [Rick] Mandar a Finkok el borrador con RFC, solicitud y Constancia (CONECTAR.md, punto 1)
-- [ ] [Rick] Resend: cuenta, dominio verificado y `RESEND_API_KEY` + `RESPALDO_CORREO` en Railway (punto 2)
+- [x] [Rick] Resend: cuenta, dominio verificado y `RESEND_API_KEY` + `RESPALDO_CORREO` en Railway (punto 2)
+- [ ] [Rick] Gmail: abrir **Spam** en cperickd@gmail.com, buscar `from:facturas@erickddp.com`, «No es spam» y crear un filtro «nunca enviar a spam»
+- [ ] [Rick] En Resend, crear una llave aparte para tu PC (y dejar la actual sólo para Railway), con permiso de envío limitado a erickddp.com
 - [ ] [Claude] Probar el correo: prueba, factura con el nombre del emisor y respaldo del día siguiente
 - [ ] [Rick] Credenciales de Finkok producción → Ajustes → PAC (DESPLEGAR.md, «Día del arranque»)
 - [ ] [Claude] Comprobar el PAC productivo sin gastar timbres y acompañarte en la primera factura real

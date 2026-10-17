@@ -7,6 +7,7 @@ import { mostrarError } from "@/lib/errores";
 import { api, descargar, fetcher, setSoporte, setToken } from "@/lib/api";
 import type { Addenda, Pac } from "@/lib/types";
 import { useEmisor } from "@/components/emisor-context";
+import { MigrarCuenta } from "@/components/migrar-cuenta";
 import { consola } from "@/lib/debug";
 import { fecha } from "@/lib/format";
 import { Badge, Button, Field, Input, Modal, PageHeader, Select, cx } from "@/components/ui";
@@ -97,6 +98,7 @@ export default function Ajustes() {
       <CorreoEnvio />
       <Usuarios />
       <DatosGuardados />
+      <MigrarCuenta />
 
       <Modal open={!!pac} onClose={() => setPac(null)} title={pac?.id ? "Editar PAC" : "Nuevo PAC"}>
         {pac && (

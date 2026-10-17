@@ -409,7 +409,9 @@ def test_leer_xml_propios_una_carpeta_un_zip_y_lo_que_no_es(sat):
                     ("archivos", ("todo.zip", mem.getvalue(), "application/zip")), ("archivos", ("ajeno.xml", de_otro, "text/xml")),
                     ("archivos", ("basura.xml", b"<html>no soy cfdi</html>", "text/xml")), ("archivos", ("foto.png", b"\x89PNG", "image/png"))]
         r = c.post(f"/api/xml/subir?emisor_id={e['id']}", headers=h, files=archivos)
-        assert r.status_code == 200 and r.json() == {"nuevos": 3, "repetidos": 0, "ajenos": 1, "invalidos": 1}, r.text
+        j = r.json()
+        assert r.status_code == 200 and {k: j[k] for k in ("nuevos", "repetidos", "ajenos", "invalidos")} == {"nuevos": 3, "repetidos": 0, "ajenos": 1, "invalidos": 1}, r.text
+        assert {x["archivo"] for x in j["rechazados"]} == {"ajeno.xml", "basura.xml"} and j["rechazados_total"] == 2
         assert c.post(f"/api/xml/subir?emisor_id={e['id']}", headers=h, files=archivos).json()["repetidos"] == 3   # leerla dos veces no duplica
         lista = c.get(f"/api/xml/cfdi?emisor_id={e['id']}", headers=h).json()
         assert lista["total"] == 3 and {k: v["n"] for k, v in lista["clases"].items()} == {"I": 1, "P": 1, "G": 1}
@@ -496,13 +498,24 @@ def test_leer_una_carpeta_de_cualquier_contribuyente_lo_abre_solo(sat):
         # leerla otra vez no duplica ni vuelve a dar de alta
         r2 = c.post("/api/xml/leer", headers=h, files=archivos).json()
         assert (r2["creado"], r2["emisor_id"], r2["nuevos"], r2["repetidos"]) == (False, j["emisor_id"], 0, 3)
-        # una carpeta sin CFDI se dice claro
-        r = c.post("/api/xml/leer", headers=h, files=[("archivos", ("a.xml", b"<html/>", "text/xml"))])
-        assert r.status_code == 422 and "CFDI" in r.json()["detail"]
-        # otra cuenta no puede quedarse con un RFC que ya es de alguien
+        # lo que no es un CFDI no truena la lectura: se devuelve con el motivo de cada archivo (la pantalla lo muestra)
+        r = c.post("/api/xml/leer", headers=h, files=[("archivos", ("a.xml", b"<html/>", "text/xml")),
+                                                      ("archivos", ("vacio.xml", b"  ", "text/xml")),
+                                                      ("archivos", ("roto.zip", b"no soy zip", "application/zip")),
+                                                      ("archivos", ("ret.xml", b'<Retenciones Version="2.0"/>', "text/xml"))])
+        assert r.status_code == 200, r.text
+        j0 = r.json()
+        assert (j0["nuevos"], j0["invalidos"], j0["rechazados_total"], j0["contribuyentes"]) == (0, 4, 4, [])
+        motivos = {x["archivo"]: x["motivo"] for x in j0["rechazados"]}
+        assert "«html»" in motivos["a.xml"] and "vacío" in motivos["vacio.xml"] and "ZIP" in motivos["roto.zip"] and "«Retenciones»" in motivos["ret.xml"]
+        # lo bueno y lo malo juntos: entra lo bueno y lo malo se lista
+        r = c.post("/api/xml/leer", headers=h, files=archivos + [("archivos", ("basura.xml", b"<html/>", "text/xml"))]).json()
+        assert (r["nuevos"], r["repetidos"], r["rechazados_total"]) == (0, 3, 2) and r["rechazados"][0]["archivo"] in ("otro.xml", "basura.xml")
+        # otra cuenta no puede quedarse con un RFC que ya es de alguien: no entra y se dice por qué
         ajeno_h = _usuario(c, h, "xml-ajeno3@prueba.mx", "xmlajeno3")
         r = c.post("/api/xml/leer", headers=ajeno_h, files=archivos)
-        assert r.status_code == 409 and "otra cuenta" in r.json()["detail"]
+        assert r.status_code == 200 and r.json()["nuevos"] == 0 and r.json()["contribuyentes"] == [], r.text
+        assert any("otra cuenta" in x["motivo"] for x in r.json()["rechazados"])
         eid = j["emisor_id"]
     with TestClient(app) as c:   # lo guardado es de la cuenta: sigue ahí tras reiniciar
         h, _e = _preparar(c)

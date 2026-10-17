@@ -348,6 +348,22 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   cuenta (A factura a B: emitido de A y recibido de B). Sin dueño claro → `sin_dueno`; si ninguno lo tiene → `elegir`.
   Todas las tandas van a `/xml/leer` (ya no a `/xml/subir`). En celular no se ofrece «Elegir carpeta» (los navegadores
   móviles no la soportan): XML sueltos o ZIP. Probado con las carpetas reales revueltas: 231 + 66, sin altas de más.
+- **Exportar/importar emisores (`services/migracion.py`, `routers/migracion.py`, `components/migrar-cuenta.tsx`):** archivo
+  `.timbracuenta` = `TIMBRA-CUENTA/1\n` + sal + Fernet(zlib(JSON)), llave = scrypt(contraseña de quien exporta, mín. 10).
+  El CSD viaja descifrado DENTRO del archivo cifrado y se re-cifra con la SECRET_KEY de quien importa (`signer.cargar_csd`,
+  que además lo valida). Nunca viajan: PAC, e.firma, usuarios, portal_clave, XML del SAT, lotes. Los ids se remapean (clientes,
+  empleados, facturas y los `payload` de facturas/plantillas, perfiles de Facturar→tercero, addendas por nombre). Un emisor que
+  ya existe se SALTA (nunca se pisa); un UUID repetido no se duplica; `_alcanzar_folios` evita folios repetidos. Importar =
+  mismo código en simulacro (rollback) y en serio. Bloqueado en modo soporte (`db.info["soporte"]`). tests/test_w13_migracion.py.
+  Los de pruebas se detectan por RFC conocido o por CSD cuyo número empieza con `30001000000` (los reales, `00001000000`).
+- **Leer carpetas:** `xml_indice._cfdis` devuelve `Rechazo(archivo, motivo)` (vacío, ZIP dañado, DTD, no es CFDI «Retenciones»,
+  sin RFC, sin dueño claro, RFC de otra cuenta); `/xml/leer` ya no responde 422/409 por una tanda sin CFDI: devuelve
+  `rechazados` (máx. 300) y `rechazados_total`, y la pantalla (`PanelLectura` en descargar.tsx, guardado en sessionStorage
+  `timbra:lectura`) los junta por tandas y los muestra agrupados por motivo hasta que se cierre.
+- **Estado de cuenta por correo:** adjunta PDF (`pdf.html_a_pdf`), con el HTML de respaldo si no hay con qué generarlo.
+- Correo en Gmail: los mensajes de facturas@erickddp.com pueden caer en SPAM (dominio nuevo); el conector de Gmail NO ve la
+  carpeta Spam (`in:spam` vacío aunque el contador diga 3): hay que pedirle a Rick que la revise. DMARC de GoDaddy ya existe
+  (`p=quarantine`); con DKIM y Return-Path de Resend alineados pasa. No reemplazarlo.
 - Guía del día del arranque: DESPLEGAR.md. Lista de pendientes compartida con Rick: PENDIENTES.md.
 - En el SAT real un periodo sin comprobantes termina en estado 5 con CodigoEstadoSolicitud 5004: no es error.
 - tests/test_w7_terceros.py.

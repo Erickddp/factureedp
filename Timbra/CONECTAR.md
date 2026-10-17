@@ -7,6 +7,30 @@ Railway → tu proyecto → el servicio de Timbra → **Variables** → «New Va
 
 ---
 
+## 0. Tus emisores en la web (exportar de tu PC e importar en la web)
+
+Ajustes → **«Pasar mis emisores a otra Timbra»** (está en tu PC y en la web).
+
+1. **En tu PC** (INICIAR.bat): palomea los emisores que quieres llevar. Los de pruebas del SAT (EKU, IVD, XIQB…) vienen
+   sin palomear: no valen ante el SAT. Deja «Incluir las facturas timbradas» si quieres el historial, escribe una
+   contraseña de 10 o más caracteres (dos veces) y pulsa **Exportar**. Se baja un archivo `.timbracuenta`.
+2. **En factura.erickddp.com**, misma pantalla, lado derecho: **Elegir archivo**, la contraseña, **Revisar archivo**.
+   Te dice qué entraría y no guarda nada. Si todo está bien, **Importar**.
+3. En **Emisores**, elige el PAC de cada uno cuando tengas el de producción, y revisa que su CSD no esté vencido.
+4. **Desde ese día factura sólo desde la web.** Si sigues timbrando el mismo emisor en las dos, los folios se repiten.
+5. Borra el archivo `.timbracuenta` (trae tus llaves privadas, aunque va cifrado).
+
+Qué se lleva: el emisor, su CSD (cer, key y contraseña), series y folios, clientes, productos, terceros, empleados,
+perfiles de lote, plantillas y, si lo pides, las facturas con su XML. Qué NO se lleva: el PAC, la e.firma, los XML que
+bajaste del SAT (se vuelven a leer o a bajar) ni los lotes.
+
+**Ojo con lo que hay hoy en tu PC:** EKU, IVD y XIQB usan el CSD de PRUEBAS del SAT (su número empieza con 30001…), y
+FODA y RAQUEL HILARIO son contribuyentes que sólo creaste al leer XML (no tienen CSD). **Ningún emisor de tu PC tiene un
+CSD real.** Los CSD reales de tus emisores hay que subirlos en la web: Emisores → emisor → CSD (el .cer, el .key y su
+contraseña, del portal del SAT).
+
+---
+
 ## 1. Finkok productivo (para timbrar de verdad)
 
 1. Manda el borrador que está en tu Gmail (hilo «FINKOK | Kit de Pruebas») con tu RFC, la solicitud firmada y tu Constancia.
