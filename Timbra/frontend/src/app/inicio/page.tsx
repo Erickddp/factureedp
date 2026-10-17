@@ -7,7 +7,7 @@
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, BadgeDollarSign, Check, FileText, HandCoins, Repeat, ScanSearch, ShieldCheck, Table2, Zap } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, Check, FileText, HandCoins, Menu, Repeat, ScanSearch, ShieldCheck, Table2, X, Zap } from "lucide-react";
 import { getToken } from "@/lib/api";
 import { Aurora, FacturaViva } from "@/components/inicio-piezas";
 import "./inicio.css";
@@ -81,7 +81,7 @@ function Demostracion() {
           </ol>
         </div>
         <div className="lp-hoja" aria-hidden>
-          <div className="lp-hoja-barra"><i /><i /><i /><span>lote de octubre</span><b>{e.timbradas}/{FILAS.length} timbradas</b></div>
+          <div className="lp-hoja-barra"><i /><i /><i /><span>lote de octubre</span><b>{e.timbradas > 0 ? `${e.timbradas}/${FILAS.length} timbradas` : `${e.revisadas}/${FILAS.length} listas`}</b></div>
           {FILAS.map((f, i) => (
             <div key={f[0]} className={`lp-fila ${i < e.timbradas ? "timbrada" : i < e.revisadas ? "revisada" : ""}`}>
               <span className="mono">{f[0]}</span><span>{f[1]}</span><b>{f[2]}</b>
@@ -99,6 +99,7 @@ export default function Inicio() {
   const raiz = useRef<HTMLDivElement>(null);
   const avance = useRef<HTMLDivElement>(null);
   const [dentro, setDentro] = useState(false);
+  const [menu, setMenu] = useState(false);  // menú de la barra en pantallas angostas
 
   useEffect(() => {
     setDentro(!!getToken());
@@ -110,7 +111,7 @@ export default function Inicio() {
     };
     const pedir = () => { if (!pendiente) pendiente = requestAnimationFrame(medir); };
     // Aparición al entrar en pantalla (una sola vez por elemento)
-    const io = new IntersectionObserver((xs) => xs.forEach((x) => { if (x.isIntersecting) { x.target.classList.add("visto"); io.unobserve(x.target); } }), { threshold: 0.15 });
+    const io = new IntersectionObserver((xs) => xs.forEach((x) => { if (x.isIntersecting) { x.target.classList.add("visto"); io.unobserve(x.target); } }), { threshold: 0.05, rootMargin: "0px 0px -6% 0px" });
     raiz.current!.querySelectorAll(".aparece").forEach((x) => io.observe(x));
     window.addEventListener("scroll", pedir, { passive: true });
     return () => { window.removeEventListener("scroll", pedir); io.disconnect(); cancelAnimationFrame(pendiente); };
@@ -122,18 +123,31 @@ export default function Inicio() {
     <div ref={raiz} className="lp">
       <div ref={avance} className="lp-avance" aria-hidden />
 
+      <a href="#contenido" className="lp-saltar">Saltar al contenido</a>
       <header className="lp-nav">
         <Link href="/inicio" className="lp-marca">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" /> <b>Timbra</b>
+          <img src="/logo.png" alt="Timbra" /> <b>Timbra</b>
         </Link>
-        <nav>
+        <nav aria-label="Principal">
           <a href="#funciones">Funciones</a>
           <a href="#como">Cómo funciona</a>
           <a href="#precios">Precios</a>
+          <button type="button" className="lp-menu" aria-label={menu ? "Cerrar menú" : "Abrir menú"} aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+            {menu ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
           <Link href={entrar} className="lp-boton chico">{dentro ? "Abrir Timbra" : "Entrar"}</Link>
         </nav>
+        {menu && (
+          <div className="lp-menu-panel" onClick={() => setMenu(false)}>
+            <a href="#funciones">Funciones</a>
+            <a href="#como">Cómo funciona</a>
+            <a href="#precios">Precios</a>
+          </div>
+        )}
       </header>
+
+      <main id="contenido">
 
       {/* ---------------- Héroe ---------------- */}
       <section className="lp-heroe">
@@ -145,11 +159,11 @@ export default function Inicio() {
           <p className="lp-ceja entra" style={{ animationDelay: "60ms" }}><span /> Facturación CFDI 4.0</p>
           <h1 className="entra" style={{ animationDelay: "140ms" }}>Factura en segundos.<br /><em>Sin gastar timbres en errores.</em></h1>
           <p className="lp-sub entra" style={{ animationDelay: "240ms" }}>
-            Timbra revisa cada factura contra las reglas del SAT antes de enviarla, y convierte tu tabla de Excel en un lote completo de CFDI.
+            Timbra valida RFC, régimen, uso del CFDI y claves SAT antes de timbrar, y convierte tu tabla de Excel en un lote completo de CFDI.
           </p>
           <div className="lp-acciones entra" style={{ animationDelay: "340ms" }}>
             <Link href={entrar} className="lp-boton">{dentro ? "Abrir Timbra" : "Entrar a Timbra"} <ArrowRight className="size-5" /></Link>
-            <a href="#precios" className="lp-enlace">3 facturas gratis para probar</a>
+            <a href="#precios" className="lp-enlace">Ver precios y la prueba gratis</a>
           </div>
         </div>
         <div className="entra" style={{ animationDelay: "420ms" }}><FacturaViva /></div>
@@ -198,7 +212,9 @@ export default function Inicio() {
               <p className="lp-plan-precio">{p.precio ? <><small>$</small>{p.precio}<small> MXN</small></> : "Gratis"}</p>
               <p className="lp-plan-unidad">{p.precio ? `$${(p.precio / p.timbres).toFixed(2)} por factura` : "3 facturas, una sola vez"}</p>
               <ul>{p.puntos.map((x) => <li key={x}><Check className="size-4" /> {x}</li>)}</ul>
-              <Link href={entrar} className={p.destacado ? "lp-boton mediano" : "lp-boton mediano hueco"}>{p.precio ? "Elegir" : "Probar gratis"}</Link>
+              {p.precio
+                ? <span className="lp-boton mediano hueco desactivado" aria-disabled="true" title="Las recargas en línea se activan en breve">Próximamente</span>
+                : <Link href={entrar} className="lp-boton mediano hueco">{dentro ? "Abrir Timbra" : "Entrar con mi invitación"}</Link>}
             </article>
           ))}
         </div>
@@ -211,6 +227,8 @@ export default function Inicio() {
         <h2 className="aparece">Tu siguiente factura,<br />a un atajo de distancia.</h2>
         <Link href={entrar} className="lp-boton aparece">{dentro ? "Abrir Timbra" : "Entrar a Timbra"} <ArrowRight className="size-5" /></Link>
       </section>
+
+      </main>
 
       <footer className="lp-pie">
         <span>Timbra · EDDP Servicios</span>

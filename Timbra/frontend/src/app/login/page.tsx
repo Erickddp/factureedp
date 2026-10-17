@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
+import { Check, Eye, EyeOff } from "lucide-react";
 import { api, setToken } from "@/lib/api";
 import { Aurora, FacturaViva } from "@/components/inicio-piezas";
 import { Button, Field, Input } from "@/components/ui";
@@ -17,6 +17,7 @@ export default function Login() {
   const [cargando, setCargando] = useState(false);
   const [google, setGoogle] = useState(false);
   const [yendo, setYendo] = useState(false);
+  const [ver, setVer] = useState(false);  // mostrar la contraseña
 
   // Regreso de Google: el token (o el error) llega en el fragmento "#", que no viaja a ningún servidor
   useEffect(() => {
@@ -74,7 +75,7 @@ export default function Login() {
         <p className="lp-ceja entra"><span /> Facturación CFDI 4.0</p>
         <h1 className="entra" style={{ animationDelay: "80ms" }}>Factura en segundos.<br /><em>Sin gastar timbres en errores.</em></h1>
         <ul className="entra" style={{ animationDelay: "160ms" }}>
-          <li><Check className="size-4" /> Valida cada factura contra las reglas del SAT antes de timbrar.</li>
+          <li><Check className="size-4" /> Valida RFC, régimen, uso y claves SAT antes de gastar un timbre.</li>
           <li><Check className="size-4" /> Convierte tu tabla de Excel en un lote completo de CFDI.</li>
           <li><Check className="size-4" /> PDF con tu marca, cobranza, pagos y nómina en un solo lugar.</li>
         </ul>
@@ -87,12 +88,18 @@ export default function Login() {
           <p>Tus emisores, clientes y facturas te esperan donde los dejaste.</p>
           <div className="mt-7 flex flex-col gap-4">
             <Field label="Usuario o correo">
-              <Input type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus className="h-12" />
+              <Input type="text" name="usuario" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus className="h-12" />
             </Field>
             <Field label="Contraseña">
-              <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-12" />
+              <div className="relative">
+                <Input type={ver ? "text" : "password"} name="contrasena" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-12 pr-12" />
+                <button type="button" onClick={() => setVer((v) => !v)} aria-label={ver ? "Ocultar contraseña" : "Mostrar contraseña"} aria-pressed={ver}
+                  className="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-grafito hover:text-tinta">
+                  {ver ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
+                </button>
+              </div>
             </Field>
-            {error && <p className="rounded-lg bg-rojo-suave px-3 py-2 text-sm text-rojo animate-entrar">{error}</p>}
+            {error && <p role="alert" className="rounded-lg bg-rojo-suave px-3 py-2 text-sm text-rojo animate-entrar">{error}</p>}
             <button type="submit" disabled={cargando} className="lp-boton mediano mt-1 disabled:opacity-60">{cargando ? "Entrando…" : "Entrar"}</button>
             {google && (
               <>
@@ -109,7 +116,7 @@ export default function Login() {
               </>
             )}
           </div>
-          <p className="!mt-6 text-center text-[13px]">¿Aún no tienes cuenta? <Link href="/inicio#precios" className="text-[#86a4ff] underline-offset-4 hover:underline">Conoce Timbra</Link></p>
+          <p className="!mt-6 text-center text-[13px]">¿Olvidaste tu contraseña? Pídele al administrador que la restablezca.<br />El acceso es por invitación. <Link href="/inicio#precios" className="text-[#86a4ff] underline-offset-4 hover:underline">Conoce Timbra</Link></p>
         </form>
       </section>
     </main>
