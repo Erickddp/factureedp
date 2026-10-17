@@ -154,6 +154,70 @@ def tick():
                 respaldo_fuera(hecho)
         except Exception:
             log.exception("Respaldo diario falló")
+    if _una_vez_al_dia("errores"):
+        try:
+            enviar_resumen_errores()
+        except Exception:
+            log.exception("Resumen diario de errores falló")
+
+
+# ---------------------------------------------------------------- errores del día, por correo
+def resumen_errores(horas: int = 24, ahora: datetime | None = None) -> tuple[int, str] | None:
+    """(total, texto) con los errores del registro de las últimas `horas`, agrupados (el mismo error con distinto folio o
+    id cuenta como uno). None si no hubo. Es la forma de ver qué pasa en el servidor sin entrar a Railway."""
+    import re
+    from collections import Counter
+    from datetime import timedelta
+
+    from .. import logs
+    ruta = Path(logs.ARCHIVO or "")
+    if not ruta.is_file():
+        return None
+    desde = ((ahora or datetime.now()) - timedelta(hours=horas)).strftime("%Y-%m-%d %H:%M:%S")
+    grupos: Counter = Counter()
+    ejemplo: dict[str, str] = {}
+    for archivo in [ruta.with_name(ruta.name + ".1"), ruta]:  # el de hoy y el anterior, por si rotó a media jornada
+        if not archivo.is_file():
+            continue
+        for linea in archivo.read_text(encoding="utf-8", errors="replace").splitlines():
+            if linea[:19] < desde or " ERROR " not in linea[:40] and " CRITICAL " not in linea[:40]:
+                continue
+            msg = linea.split(": ", 1)[-1]
+            clave = re.sub(r"\d+", "N", re.sub(r"\[[0-9a-f]{8}\]", "", msg))[:160]
+            grupos[clave] += 1
+            ejemplo.setdefault(clave, linea[:300])
+    if not grupos:
+        return None
+    total = sum(grupos.values())
+    filas = [f"{n:>4} × {ejemplo[k]}" for k, n in grupos.most_common(20)]
+    texto = (f"Errores de Timbra en las últimas {horas} horas: {total} ({len(grupos)} distintos).\n\n" + "\n".join(filas)
+             + "\n\nEl detalle completo está en la consola de Timbra (Registro) o en los Deploy Logs de Railway.")
+    return total, texto
+
+
+def enviar_resumen_errores() -> bool:
+    """Una vez al día, al mismo correo del respaldo. Sólo si hubo errores; un archivo marca el día para que un reinicio
+    del servidor no lo mande dos veces."""
+    from . import mailer
+
+    para = (settings.respaldo_correo or "").strip()
+    if not para or not mailer.por_api():
+        return False
+    marca = Path(settings.data_dir) / "logs" / ".resumen_errores"
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    try:
+        if marca.read_text(encoding="utf-8").strip() == hoy:
+            return False
+    except OSError:
+        pass
+    r = resumen_errores()
+    if r is None:
+        return False
+    total, texto = r
+    mailer.enviar([para], f"Timbra: {total} error{'es' if total != 1 else ''} en las últimas 24 horas", texto, [], nombre="Timbra")
+    marca.parent.mkdir(parents=True, exist_ok=True)
+    marca.write_text(hoy, encoding="utf-8")
+    return True
 
 
 async def correr():

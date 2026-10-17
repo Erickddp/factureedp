@@ -136,6 +136,35 @@ def test_comprobantes_de_pruebas_nunca_van_al_cliente(monkeypatch):
     assert mailer.destinatarios(NS(pac=None), ["cliente@empresa.mx"]) == ["yo@despacho.mx"]
 
 
+def test_resumen_diario_de_errores_por_correo(monkeypatch, tmp_path):
+    from datetime import datetime
+
+    import requests
+
+    from app import logs
+    from app.services import programador
+    log = tmp_path / "timbra.log"
+    log.write_text("\n".join([
+        "2026-10-15 08:00:00,000 ERROR   [aaaaaaaa] timbra: viejo, de hace dos días",
+        "2026-10-16 09:00:00,000 INFO    [bbbbbbbb] timbra: GET /api/facturas → 200 (5 ms)",
+        "2026-10-16 09:01:00,000 ERROR   [cccccccc] timbra: Respuesta del PAC: 718 - Timbres agotados",
+        "2026-10-16 09:02:00,000 ERROR   [dddddddd] timbra: Respuesta del PAC: 718 - Timbres agotados",
+        "2026-10-16 09:03:00,000 ERROR   [eeeeeeee] timbra: POST /api/facturas/12/enviar → 502 (30 ms)",
+    ]), encoding="utf-8")
+    monkeypatch.setattr(logs, "ARCHIVO", str(log))
+    total, texto = programador.resumen_errores(ahora=datetime(2026, 10, 16, 20, 0))
+    assert total == 3 and "2 ×" in texto and "viejo" not in texto and "INFO" not in texto
+    enviados = []
+    monkeypatch.setattr(requests, "post", lambda url, json=None, headers=None, timeout=None: enviados.append(json) or Resp(200, {"id": "x"}))
+    monkeypatch.setattr(settings, "resend_api_key", "re_prueba")
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path))
+    monkeypatch.setattr(programador, "resumen_errores", lambda: (3, "texto"))
+    assert programador.enviar_resumen_errores() is False                    # sin RESPALDO_CORREO no sale
+    monkeypatch.setattr(settings, "respaldo_correo", "yo@despacho-prueba.mx")
+    assert programador.enviar_resumen_errores() is True and enviados[-1]["to"] == ["yo@despacho-prueba.mx"]
+    assert programador.enviar_resumen_errores() is False and len(enviados) == 1   # una vez al día, aunque reinicie
+
+
 def test_sin_llave_sigue_por_smtp(monkeypatch):
     monkeypatch.setattr(settings, "resend_api_key", None)
     assert mailer.publica()["origen"] != "resend"
