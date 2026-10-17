@@ -1,9 +1,10 @@
 "use client";
 /** Consola de depuración: registro en vivo del servidor, estado de servicios y red del navegador. F9 abre/cierra. */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import { toast } from "sonner";
 import { Copy, Download, Maximize2, Minimize2, Pause, Play, RefreshCw, Trash2, X } from "lucide-react";
-import { api, descargar } from "@/lib/api";
+import { api, descargar, fetcher } from "@/lib/api";
 import { consola, useConsola } from "@/lib/debug";
 import { mostrarError } from "@/lib/errores";
 import { Badge, Button, Input, Select, cx } from "./ui";
@@ -17,6 +18,11 @@ const hora = (ts: number) => new Date(ts).toLocaleTimeString("es-MX", { hour12: 
 export function Consola() {
   const st = useConsola();
   const [alta, setAlta] = useState(false);
+  // El registro del servidor y el estado de los servicios son sólo del administrador: una cuenta normal sólo ve la red de su navegador
+  // (sin preguntarle al servidor cada segundo algo que siempre contesta 403). Misma llave que el resto de la app: no pide nada extra.
+  const { data: yo } = useSWR<{ admin: boolean }>("/auth/yo", fetcher);
+  const admin = !!yo?.admin;
+  const pestana = admin ? st.pestana : "red";
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.key === "F9") { e.preventDefault(); consola.alternar(); }
@@ -33,8 +39,8 @@ export function Consola() {
     >
       <header className="flex flex-wrap items-center gap-2 border-b border-linea px-3 py-2">
         <strong className="mr-2 text-sm">Consola</strong>
-        {(["registro", "servicios", "red"] as const).map((p) => (
-          <button key={p} onClick={() => consola.pestana(p)} className={cx("rounded-md px-3 py-1 text-sm", st.pestana === p ? "bg-tinta text-white" : "text-grafito hover:bg-tinta/5")}>
+        {(admin ? ["registro", "servicios", "red"] as const : ["red"] as const).map((p) => (
+          <button key={p} onClick={() => consola.pestana(p)} className={cx("rounded-md px-3 py-1 text-sm", pestana === p ? "bg-tinta text-white" : "text-grafito hover:bg-tinta/5")}>
             {{ registro: "Registro", servicios: "Servicios", red: "Red del navegador" }[p]}
           </button>
         ))}
@@ -46,9 +52,9 @@ export function Consola() {
         </div>
       </header>
       <div className="min-h-0 flex-1">
-        {st.pestana === "registro" && <Registro filtroReq={st.filtroReq} />}
-        {st.pestana === "servicios" && <Servicios />}
-        {st.pestana === "red" && <RedNavegador />}
+        {pestana === "registro" && <Registro filtroReq={st.filtroReq} />}
+        {pestana === "servicios" && <Servicios />}
+        {pestana === "red" && <RedNavegador admin={admin} />}
       </div>
     </section>
   );
@@ -200,10 +206,11 @@ function Servicios() {
   );
 }
 
-function RedNavegador() {
+function RedNavegador({ admin }: { admin: boolean }) {
   const { red } = useConsola();
   return (
     <div className="h-full overflow-auto text-[12px]">
+      {!admin && <p className="border-b border-linea px-3 py-2 text-grafito">Estas son las peticiones de tu navegador a Timbra. Si algo falla, copia esta lista (y lo que dice el aviso rojo) y mándala a soporte.</p>}
       {!red.length && <p className="p-4 text-grafito">Aún no hay peticiones.</p>}
       <table className="w-full min-w-[640px]">
         <tbody>
@@ -214,7 +221,7 @@ function RedNavegador() {
               <td className="max-w-[40vw] truncate px-2 py-1">{r.ruta}</td>
               <td className="px-2 py-1 tabular-nums">{r.estado || "sin red"}</td>
               <td className="px-2 py-1 tabular-nums text-grafito">{r.ms} ms</td>
-              <td className="px-2 py-1">{r.req && <button onClick={() => consola.filtrarReq(r.req!)} className="text-cobalto hover:underline">{r.req}</button>}</td>
+              <td className="px-2 py-1">{r.req && (admin ? <button onClick={() => consola.filtrarReq(r.req!)} className="text-cobalto hover:underline">{r.req}</button> : <span className="text-grafito">{r.req}</span>)}</td>
               <td className="px-2 py-1 text-rojo">{r.error}</td>
             </tr>
           ))}
