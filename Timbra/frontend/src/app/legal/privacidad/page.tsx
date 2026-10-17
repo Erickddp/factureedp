@@ -83,6 +83,12 @@ export default function Privacidad() {
         abrir ni borrar ningún otro archivo de tu Drive. No copia PDF, logotipos ni otros datos de tu cuenta. El permiso se guarda cifrado; al desconectar
         se revoca y lo ya copiado se queda en tu Drive, porque es tuyo.
       </p>
+      <p>
+        <b>Modo invitado.</b> Si eliges «Probar sin cuenta», {r.marca} crea una cuenta temporal sin pedirte datos personales (sólo guarda la dirección IP y la
+        hora en que aceptaste estos documentos). Dura 1 hora: pasado ese tiempo se borran la cuenta y todo lo que hayas bajado o capturado (XML, emisores,
+        clientes, constancia fiscal). Sin registrarte puedes explorar y bajar tus XML del SAT, pero no timbrar ni guardar de forma permanente; tu e.firma se usa
+        en memoria y no se guarda. Si creas tu cuenta durante esa hora, tu trabajo se conserva.
+      </p>
 
       <h2>6. Cómo los protegemos</h2>
       <ul>

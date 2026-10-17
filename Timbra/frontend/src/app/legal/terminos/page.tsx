@@ -28,6 +28,8 @@ export default function Terminos() {
         <li>Debes ser mayor de edad y tener capacidad para contratar, o actuar en nombre de una empresa que te lo autorice.</li>
         <li>Eres responsable de lo que se haga con tu usuario y contraseña. Avísanos de inmediato si sospechas que alguien más entró.</li>
         <li>Sólo puedes dar de alta emisores para los que tengas autorización: el tuyo propio o el de tus clientes que te lo hayan encargado.</li>
+        <li><b>Modo invitado.</b> «Probar sin cuenta» abre una cuenta temporal que dura 1 hora, sin timbrar ni guardar de forma permanente; al terminar se borra todo
+          lo que hayas bajado o capturado, salvo que crees tu cuenta durante esa hora (ver el <Link className="underline" href="/legal/privacidad/">Aviso de privacidad</Link>).</li>
       </ul>
 
       <h2>3. Lo que te toca a ti</h2>
