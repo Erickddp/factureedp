@@ -547,8 +547,29 @@ def _regreso(**fragmento) -> RedirectResponse:
     return RedirectResponse(f"{settings.front_url.rstrip('/')}/login/#{urlencode(fragmento)}", status_code=302)
 
 
+def _regreso_drive(uid, code, error, db) -> RedirectResponse:
+    from ..services import drive
+    destino = f"{settings.front_url.rstrip('/')}/sat/#"
+    if error or not code:
+        return RedirectResponse(destino + urlencode({"drive_error": "No se conectó Google Drive."}), status_code=302)
+    try:
+        drive.completar(db, uid, code)
+    except drive.DriveError as e:
+        return RedirectResponse(destino + urlencode({"drive_error": str(e)}), status_code=302)
+    except Exception:
+        log.exception("Drive: no se pudo completar la conexión")
+        return RedirectResponse(destino + urlencode({"drive_error": "No se pudo conectar Google Drive. Intenta de nuevo."}), status_code=302)
+    drive.lanzar(uid)  # empieza a copiar lo que ya hay
+    return RedirectResponse(destino + "drive=ok", status_code=302)
+
+
 @router.get("/google/callback")
 def google_callback(code: str | None = None, state: str | None = None, error: str | None = None, db: Session = Depends(get_db)):
+    try:  # regreso de «Conectar Google Drive» (services/drive.py): vuelve a XML del SAT, no a la entrada
+        if state and jwt.decode(state, settings.jwt_secret, algorithms=["HS256"]).get("a") == "drive":
+            return _regreso_drive(jwt.decode(state, settings.jwt_secret, algorithms=["HS256"]).get("u"), code, error, db)
+    except jwt.PyJWTError:
+        pass
     if error or not code or not state:
         return _regreso(error="No se completó el inicio de sesión con Google.")
     try:

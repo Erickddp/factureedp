@@ -8,6 +8,7 @@ import { Vacio, cx } from "@/components/ui";
 import { Comprobantes } from "@/components/xml/comprobantes";
 import { Datos } from "@/components/xml/datos";
 import { Descargar } from "@/components/xml/descargar";
+import { DriveTarjeta } from "@/components/drive";
 
 type Pestana = "descargar" | "datos";
 
@@ -41,6 +42,7 @@ export default function XmlSat() {
       {pestana === "descargar" ? (
         <div className="grid gap-8">
           <Descargar emisor={emisor} alCambiar={refrescar} />
+          <DriveTarjeta />
           <Comprobantes emisor={emisor} version={version} />
         </div>
       ) : (

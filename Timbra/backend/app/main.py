@@ -15,7 +15,7 @@ from .config import EN_WEB, settings
 from .db import SessionLocal, engine
 from .models import Addenda
 from .routers import (addendas, auth, catalogos, clientes, cobranza, correo, dashboard, debug, emisores, facturas, nomina,
-                      claves, lotes, migracion, pacs, pagos, pendientes, plantillas, portal, productos, xml, terceros)
+                      claves, drive, lotes, migracion, pacs, pagos, pendientes, plantillas, portal, productos, xml, terceros)
 from .services import almacen
 from .services.addenda import SEMILLAS
 
@@ -100,7 +100,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","
                    allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
 for r in (auth, pacs, emisores, clientes, productos, plantillas, addendas, facturas, catalogos, dashboard, debug,
-          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo, pagos, migracion):
+          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo, pagos, migracion, drive):
     app.include_router(r.router, prefix="/api")
 app.include_router(portal.publico, prefix="/api")  # autofactura: sin login
 

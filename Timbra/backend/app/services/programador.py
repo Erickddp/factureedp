@@ -147,6 +147,11 @@ def tick():
             except Exception:
                 db.rollback()
                 log.exception("Programador · cobranza falló")
+    try:  # cada vuelta: copia a Google Drive los XML nuevos de las cuentas que lo conectaron (en sus propios hilos)
+        from . import drive
+        drive.sincronizar_todos()
+    except Exception:
+        log.exception("Programador · Drive falló")
     if _una_vez_al_dia("respaldo"):
         try:
             hecho = respaldo_diario()

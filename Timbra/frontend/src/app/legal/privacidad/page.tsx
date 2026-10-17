@@ -74,6 +74,13 @@ export default function Privacidad() {
         sus requisitos de uso limitado. Puedes desconectar tu cuenta de Google en Mi perfil, o revocar el acceso desde la configuración de seguridad de tu cuenta de Google.
       </p>
 
+      <p>
+        <b>Copia de tus XML en Google Drive.</b> Sólo si tú la activas en «XML del SAT», {r.marca} pide el permiso de Drive limitado a los archivos que
+        él mismo crea (drive.file) y guarda en una carpeta «Timbra» de tu Drive una copia de tus XML (los bajados del SAT y los que timbras). No puede ver,
+        abrir ni borrar ningún otro archivo de tu Drive. No copia PDF, logotipos ni otros datos de tu cuenta. El permiso se guarda cifrado; al desconectar
+        se revoca y lo ya copiado se queda en tu Drive, porque es tuyo.
+      </p>
+
       <h2>6. Cómo los protegemos</h2>
       <ul>
         <li>Conexión cifrada (HTTPS) en todo momento.</li>

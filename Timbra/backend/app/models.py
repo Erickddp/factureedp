@@ -493,3 +493,30 @@ class LoteFila(Base):
     factura_id: Mapped[int | None] = mapped_column(ForeignKey("facturas.id"))
     intentos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     actualizado: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class DriveConexion(Base):
+    """Google Drive de una cuenta (permiso drive.file): ahí se copian sus XML. El token de renovación va cifrado como los CSD.
+    Sin emisor_id a propósito: es de la cuenta, y services/drive.py siempre filtra por usuario_id."""
+    __tablename__ = "drive_conexiones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), unique=True, index=True)
+    google_email: Mapped[str | None] = mapped_column(String(200))
+    refresh_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
+    carpeta_id: Mapped[str | None] = mapped_column(String(120))  # carpeta raíz «Timbra» en su Drive
+    estado: Mapped[str] = mapped_column(String(14), default="activa")  # activa | sincronizando | error | revocada
+    error: Mapped[str | None] = mapped_column(Text)
+    subidos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    ultimo: Mapped[datetime | None] = mapped_column(DateTime)
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
+
+
+class DriveArchivo(Base):
+    """Lo que ya se copió a Drive (o la carpeta que ya existe): así cada XML se sube una sola vez."""
+    __tablename__ = "drive_archivos"
+    __table_args__ = (UniqueConstraint("usuario_id", "ruta"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    ruta: Mapped[str] = mapped_column(String(400))  # «Timbra/RFC/202610/recibidos/UUID.xml» o «dir:Timbra/RFC/202610»
+    drive_id: Mapped[str] = mapped_column(String(120))
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
