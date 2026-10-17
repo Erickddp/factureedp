@@ -159,6 +159,7 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
   const [ver, setVer] = useState<number | null>(null);
   const [corregir, setCorregir] = useState<FilaLote | null>(null);
   const [confirmar, setConfirmar] = useState(false);
+  const [seguroDescartar, setSeguroDescartar] = useState(false);
   const [detenerEnError, setDetenerEnError] = useState(false);
   const corriendo = !!l?.ejecutando;
   useEffect(() => { if (ejecutando && l && !l.ejecutando) setEjecutando(false); }, [l, ejecutando]);
@@ -198,6 +199,13 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
       else toast.success(`${r.guardadas} de ${r.timbradas} facturas en tu carpeta`, { description: r.carpetas[0] });
       mutate();
     } catch (e) { mostrarError(e); } finally { setCopiando(false); }
+  };
+  const descartar = async () => {
+    try {
+      const r = await api<{ liberadas: number }>(`/lotes/${loteId}/descartar`, { method: "POST" });
+      toast.success(`${r.liberadas} ${r.liberadas === 1 ? "fila descartada" : "filas descartadas"}; sus folios quedaron libres`);
+      mutate();
+    } catch (e) { mostrarError(e); }
   };
   const omitir = async (f: FilaLote) => {
     try { await api(`/lotes/${loteId}/filas/${f.id}/omitir`, { method: "POST" }); toast.success("Fila omitida; su folio quedó libre"); setVer(null); mutate(); } catch (e) { mostrarError(e); }
@@ -247,6 +255,11 @@ function Detalle({ loteId, volver }: { loteId: number; volver: () => void }) {
             )}
             {listas.length > 0 && <Button variant="primario" onClick={() => setConfirmar(true)}><Play className="size-4" /> Timbrar {yaHayTimbradas ? "las demás" : "todas"} ({listas.length}) <EtiquetaAmbiente ambiente={amb} enBoton /> <Kbd>Ctrl ↵</Kbd></Button>}
             {pendientes.length > 0 && <Button onClick={() => reintentar(pendientes.map((f) => f.id))}><RotateCcw className="size-4" /> Reintentar pendientes ({pendientes.length})</Button>}
+            {(listas.length > 0 || pendientes.length > 0) && (
+              seguroDescartar
+                ? <Button variant="peligro" onClick={() => { setSeguroDescartar(false); descartar(); }} onBlur={() => setSeguroDescartar(false)} autoFocus><Trash2 className="size-4" /> Sí, descartar {listas.length + pendientes.length} filas</Button>
+                : <Button variant="fantasma" onClick={() => setSeguroDescartar(true)} title="«Revisar filas» aparta los folios: esto los libera si ya no vas a timbrar este lote"><Trash2 className="size-4" /> Descartar lo no timbrado</Button>
+            )}
             <label className="ml-1 flex items-center gap-2 text-sm text-grafito"><input type="checkbox" checked={detenerEnError} onChange={(e) => setDetenerEnError(e.target.checked)} /> Detener al primer error</label>
           </>
         )}

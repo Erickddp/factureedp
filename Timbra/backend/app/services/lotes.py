@@ -571,6 +571,18 @@ def omitir_fila(db: Session, fila: LoteFila):
     db.commit()
 
 
+def descartar_lote(db: Session, lote: Lote) -> int:
+    """Omite todas las filas que aún no se timbran y libera sus folios (revisar filas los aparta). Devuelve cuántas liberó."""
+    if en_ejecucion(lote.id):
+        raise ErrorFila("El lote se está timbrando: detenlo primero.")
+    n = 0
+    for fila in db.query(LoteFila).filter(LoteFila.lote_id == lote.id, LoteFila.estado.in_(("listo", "error"))).all():
+        fila.estado, fila.actualizado = "omitida", datetime.now()
+        n += 1
+    db.commit()
+    return n
+
+
 # ---------------------------------------------------------------- ejecución
 _EJECUTANDO: set[int] = set()
 _DETENER: set[int] = set()

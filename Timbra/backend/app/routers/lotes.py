@@ -165,6 +165,16 @@ def omitir(lid: int, fid: int, db: Session = Depends(get_db)):
     return _fila(db, fila)
 
 
+@router.post("/{lid}/descartar")
+def descartar(lid: int, db: Session = Depends(get_db)):
+    """Tira lo que no se ha timbrado y libera los folios que «Revisar filas» había apartado."""
+    lote = _lote(db, lid)
+    try:
+        return {"liberadas": svc.descartar_lote(db, lote)}
+    except svc.ErrorFila as e:
+        raise HTTPException(409, str(e))
+
+
 @router.post("/{lid}/filas/{fid}/revalidar")
 def revalidar(lid: int, fid: int, db: Session = Depends(get_db)):
     """Vuelve a revisar una fila sin cambiarla (p. ej. después de corregir un cliente o cargar el CSD)."""

@@ -296,3 +296,29 @@ def test_csv_con_encabezados_en_otro_orden_y_modo_consecutivo():
         c.post(f"/api/lotes/{r.json()['id']}/ejecutar", headers=h, json={})
         d = _esperar(c, h, r.json()["id"])
         assert d["filas"][0]["estado"] == "timbrada" and d["filas"][0]["referencia"] == "K-1"
+
+
+def test_descartar_lote_libera_los_folios_apartados():
+    """Reporte del tester: «Revisar filas» aparta folios aunque no se timbre nada; descartar los libera."""
+    from test_w4_skill import rfc_de_prueba
+    with TestClient(app) as c:
+        h, e = _preparar(c)
+        pid = _perfil(c, h, e)
+        c.post(f"/api/emisores/{e['id']}/series", headers=h, json={"serie": "D", "tipo": "I", "siguiente_folio": 500})
+        lote = _nuevo_lote(c, h, e, pid, [
+            fila("D-500", "PACIENTE UNO", rfc_de_prueba(21), "42501", "05/10/2026", "750", "562.50", "TDC"),
+            fila("D-501", "PACIENTE DOS", "ZZZ", "42501", "06/10/2026", "900", "675", "TDD"),
+        ])
+        assert {f["estado"] for f in lote["filas"]} == {"listo", "error"}
+        r = c.post(f"/api/lotes/{lote['id']}/descartar", headers=h)
+        assert r.status_code == 200 and r.json()["liberadas"] == 2, r.text
+        det = c.get(f"/api/lotes/{lote['id']}", headers=h).json()
+        assert {f["estado"] for f in det["filas"]} == {"omitida"}
+        # Los folios ya no están apartados: una factura normal toma el 500
+        r = c.post("/api/facturas", headers=h, json={
+            "emisor_id": e["id"], "serie": "D", "metodo_pago": "PUE", "forma_pago": "03",
+            "receptor": {"rfc": "KIJ0906199R1", "nombre": "KERNEL INDUSTIA JUGUETERA", "regimen_fiscal": "601",
+                         "codigo_postal": "42501", "uso_cfdi": "G03", "guardar": False},
+            "conceptos": [{"clave_prod_serv": "84111506", "clave_unidad": "E48", "descripcion": "x",
+                           "valor_unitario": "10", "objeto_imp": "01", "impuestos": []}]})
+        assert r.status_code == 200 and r.json()["folio"] == "500", r.text
