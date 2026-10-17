@@ -16,6 +16,9 @@ shutil.rmtree("./_test_datos", ignore_errors=True)
 os.environ.setdefault("DATA_DIR", "./_test_datos")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_datos/timbra.db")
 os.environ["PROGRAMADOR"] = "False"
+# El administrador de las pruebas es siempre el de ejemplo, aunque el .env de la PC ya traiga el real (si no, ningún login sirve)
+os.environ["ADMIN_EMAIL"] = "rick@erickddp.com"
+os.environ["ADMIN_PASSWORD"] = "cambiame"
 # Llave de prueba de 32+ bytes: la de ejemplo es corta y PyJWT avisa en cada token.
 os.environ.setdefault("JWT_SECRET", "jwt-de-pruebas-" + "x" * 40)
 
@@ -30,5 +33,6 @@ if hasattr(time, "tzset"):
 def _sin_servicios_reales(monkeypatch):
     from app.config import settings
     for llave in ("resend_api_key", "respaldo_correo", "correo_pruebas", "mp_access_token", "mp_webhook_secret", "paquetes_timbres",
-                  "smtp_host", "smtp_user", "smtp_password", "smtp_from"):
+                  "smtp_host", "smtp_user", "smtp_password", "smtp_from", "google_client_id", "google_client_secret"):
         monkeypatch.setattr(settings, llave, None)
+    monkeypatch.setattr(settings, "registro_abierto", False)
