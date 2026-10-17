@@ -21,6 +21,9 @@ export const ATAJOS: { grupo: string; items: [string, string][] }[] = [
     ["Alt + Shift + 1 … 9", "Abrir plantilla favorita en Facturar (luego Ctrl + Enter)"], ["Alt + R", "Recurrentes y favoritas"], ["Alt + L", "Lotes desde tabla"], ["Alt + J", "Pendientes"], ["Alt + K", "Investigar clave SAT"],
     ["Alt + E", "Nómina (empleados)"], ["Alt + B", "Cobranza"], ["Alt + F", "Facturas emitidas"], ["Alt + T", "Timbres"],
   ] },
+  { grupo: "Gastos (XML del SAT → Gastos)", items: [
+    ["D", "Marcar lo elegido como deducible"], ["N", "Marcar lo elegido como no deducible"], ["U", "Volver a la sugerencia de Timbra"],
+  ] },
   { grupo: "Nómina", items: [
     ["Alt + Q", "Armar la quincena de todos (recetas)"], ["Ctrl + Enter", "Timbrar los recibos marcados"], ["Tab / Enter", "Siguiente importe"],
   ] },

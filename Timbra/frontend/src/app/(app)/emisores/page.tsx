@@ -11,6 +11,7 @@ import type { Emisor, Pac } from "@/lib/types";
 import { useEmisor } from "@/components/emisor-context";
 import { CatSelect } from "@/components/catalogo";
 import { Badge, Button, Field, Input, Modal, PageHeader, Select, Vacio } from "@/components/ui";
+import { BotonConstancia, type EmisorSugerido } from "@/components/constancia";
 
 const vacio = { rfc: "", nombre: "", regimen_fiscal: "", lugar_expedicion: "", email: "", pac_id: "" as string | number, region_fronteriza: false };
 
@@ -22,6 +23,8 @@ export default function Emisores() {
   const [borrar, setBorrar] = useState<Emisor | null>(null);
   const [rfcEscrito, setRfcEscrito] = useState("");
   const [borrando, setBorrando] = useState(false);
+  // Alta rápida con la constancia: lo leído llena el formulario (sugerencia, tú confirmas) y el PDF se guarda al crear el emisor
+  const [csf, setCsf] = useState<{ archivo: File; sug: EmisorSugerido } | null>(null);
 
   const guardar = async () => {
     if (!edit) return;
@@ -33,7 +36,14 @@ export default function Emisores() {
       toast.success("Emisor guardado");
       setEdit(null);
       recargar();
-      if (!edit.id) { setEmisorId(e.id); setCsd(e); }
+      if (!edit.id) {
+        setEmisorId(e.id); setCsd(e);
+        if (csf) {  // guarda la constancia de este emisor (si el RFC se cambió a mano, el servidor la rechaza y se avisa)
+          const fd = new FormData();
+          fd.append("archivo", csf.archivo);
+          api(`/constancia/${e.id}`, { method: "POST", body: fd }).then(() => toast.success("Constancia guardada: ya sirve para clasificar tus gastos")).catch(mostrarError);
+        }
+      }
     } catch (err) {
       mostrarError(err);
     }
@@ -54,7 +64,8 @@ export default function Emisores() {
   return (
     <>
       <PageHeader title="Emisores y CSD">
-        <Button variant="primario" onClick={() => setEdit({ ...vacio })}><Plus className="size-4" /> RFC emisor</Button>
+        <BotonConstancia alLeer={({ emisor: s }, archivo) => { setCsf({ archivo, sug: s }); setEdit({ ...vacio, rfc: s.rfc, nombre: s.nombre, regimen_fiscal: s.regimen_fiscal, lugar_expedicion: s.lugar_expedicion }); }}>Alta rápida con constancia (PDF)</BotonConstancia>
+        <Button variant="primario" onClick={() => { setCsf(null); setEdit({ ...vacio }); }}><Plus className="size-4" /> RFC emisor</Button>
       </PageHeader>
       {!emisores.length ? (
         <Vacio titulo="Da de alta el primer RFC que va a facturar">Luego sube su CSD (.cer, .key y contraseña) y listo.</Vacio>
@@ -106,6 +117,22 @@ export default function Emisores() {
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? "Editar emisor" : "Nuevo emisor"} wide>
         {edit && (
           <div className="grid gap-4 sm:grid-cols-2">
+            {csf && !edit.id && (
+              <div className="grid gap-2 rounded-xl bg-acento-suave px-4 py-3 text-sm sm:col-span-2">
+                <p><b>Llenado con tu constancia.</b> Revisa los datos: lo que ves es una sugerencia y lo decides tú.</p>
+                {csf.sug.regimenes.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-grafito">Régimen con el que vas a facturar:</span>
+                    {csf.sug.regimenes.map((r) => (
+                      <button key={r.clave ?? r.nombre} type="button" disabled={!r.clave || !r.emite} onClick={() => r.clave && setEdit({ ...edit, regimen_fiscal: r.clave })}
+                        title={r.emite ? r.nombre : "Este régimen no sirve para emitir facturas"}
+                        className={`rounded-full px-3 py-1 text-xs ring-1 ${edit.regimen_fiscal === r.clave ? "bg-acento text-white ring-acento" : "bg-hoja ring-linea disabled:opacity-50"}`}>{r.clave} · {r.nombre.replace(/^Régimen (de |General de Ley |Simplificado de )?/i, "").slice(0, 30)}</button>
+                    ))}
+                  </div>
+                )}
+                {csf.sug.avisos.filter((a) => !a.startsWith("Tiene más de un régimen")).map((a) => <p key={a} className="text-alerta">{a}</p>)}
+              </div>
+            )}
             <Field label="RFC"><Input value={edit.rfc} onChange={(e) => setEdit({ ...edit, rfc: e.target.value.toUpperCase().trim() })} /></Field>
             <Field label="CP del lugar de expedición"><Input value={edit.lugar_expedicion} maxLength={5} onChange={(e) => setEdit({ ...edit, lugar_expedicion: e.target.value })} /></Field>
             <Field label="Nombre o razón social (sin régimen societario)" className="sm:col-span-2"><Input value={edit.nombre} onChange={(e) => setEdit({ ...edit, nombre: e.target.value.toUpperCase() })} /></Field>

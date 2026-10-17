@@ -523,3 +523,54 @@ class DriveArchivo(Base):
     ruta: Mapped[str] = mapped_column(String(400))  # «Timbra/RFC/202610/recibidos/UUID.xml» o «dir:Timbra/RFC/202610»
     drive_id: Mapped[str] = mapped_column(String(120))
     creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
+
+
+class ConstanciaFiscal(Base):
+    """Constancia de Situación Fiscal (PDF del SAT) de un emisor, ya leída. Se guarda el historial; la vigente es la más reciente.
+    El PDF vive en datos/csf/{emisor_id}/ (entra al respaldo). Nunca pisa los datos del emisor: sólo se compara."""
+    __tablename__ = "constancia_fiscal"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    emisor_id: Mapped[int] = mapped_column(ForeignKey("emisores.id"), index=True)
+    rfc: Mapped[str] = mapped_column(String(13))
+    nombre: Mapped[str] = mapped_column(String(300), default="")
+    curp: Mapped[str | None] = mapped_column(String(18))
+    cp: Mapped[str] = mapped_column(String(5), default="")
+    id_cif: Mapped[str | None] = mapped_column(String(20))
+    emitida_el: Mapped[str | None] = mapped_column(String(10))  # AAAA-MM-DD
+    regimenes: Mapped[list] = mapped_column(JSON, default=list)  # [{clave, nombre, desde, hasta}]
+    actividades: Mapped[list] = mapped_column(JSON, default=list)  # [{orden, nombre, porcentaje, desde, hasta}]
+    obligaciones: Mapped[list] = mapped_column(JSON, default=list)
+    domicilio: Mapped[dict] = mapped_column(JSON, default=dict)
+    archivo: Mapped[str] = mapped_column(String(300), default="")
+    subida_por: Mapped[int | None] = mapped_column(Integer)
+    creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
+
+
+class XmlDeduccion(Base):
+    """Lo que una PERSONA decidió sobre un gasto (CFDI recibido). Aparte de xml_cfdi: volver a leer o bajar el XML nunca la borra.
+    `aprendida` es lo que ya se contó en pref_deduccion, para poder corregir el aprendizaje si cambia de opinión."""
+    __tablename__ = "xml_deduccion"
+    __table_args__ = (UniqueConstraint("emisor_id", "uuid"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    emisor_id: Mapped[int] = mapped_column(ForeignKey("emisores.id"), index=True)
+    uuid: Mapped[str] = mapped_column(String(40))
+    decision: Mapped[str] = mapped_column(String(14))  # deducible | no_deducible
+    porcentaje: Mapped[float | None] = mapped_column(Float)  # parciales (restaurantes 8.5)
+    nota: Mapped[str | None] = mapped_column(String(300))
+    aprendida: Mapped[bool] = mapped_column(Boolean, default=False)
+    rfc_proveedor: Mapped[str | None] = mapped_column(String(13))
+    claves: Mapped[str | None] = mapped_column(String(120))  # segmentos de 4 dígitos de las claves del XML, separados por coma
+    decidido_por: Mapped[int | None] = mapped_column(Integer)
+    decidido_el: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class PrefDeduccion(Base):
+    """Lo que Timbra ha aprendido de las decisiones de una cuenta: por proveedor (rfc) y por tipo de producto/servicio (clave de 4 dígitos)."""
+    __tablename__ = "pref_deduccion"
+    __table_args__ = (UniqueConstraint("emisor_id", "tipo", "valor"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    emisor_id: Mapped[int] = mapped_column(ForeignKey("emisores.id"), index=True)
+    tipo: Mapped[str] = mapped_column(String(6))  # rfc | clave
+    valor: Mapped[str] = mapped_column(String(13))
+    si: Mapped[int] = mapped_column(Integer, default=0)  # veces que se marcó deducible
+    no: Mapped[int] = mapped_column(Integer, default=0)  # veces que se marcó no deducible

@@ -16,4 +16,4 @@ openpyxl
 tzdata  # Windows no trae zonas horarias: sin esto falla America/Mexico_City y no se arma ningún CFDI
 cfdiclient==1.6.3  # habla con la descarga masiva del SAT (la misma versión probada en la app de escritorio)
 reportlab>=4  # PDF propio de una hoja para los XML del SAT
-pypdf>=4  # sólo pruebas: contar hojas del PDF
+pypdf>=4  # lee la Constancia de Situación Fiscal (alta rápida del emisor) y cuenta hojas del PDF en pruebas

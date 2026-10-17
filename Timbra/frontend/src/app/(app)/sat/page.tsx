@@ -2,15 +2,16 @@
 /** XML del SAT: descargar con la e.firma (que no se guarda), ver lo descargado y los números que salen de esos XML. */
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { BarChart3, CloudDownload } from "lucide-react";
+import { BarChart3, CloudDownload, Scale } from "lucide-react";
 import { useEmisor } from "@/components/emisor-context";
 import { Vacio, cx } from "@/components/ui";
 import { Comprobantes } from "@/components/xml/comprobantes";
 import { Datos } from "@/components/xml/datos";
+import { Gastos } from "@/components/xml/gastos";
 import { Descargar } from "@/components/xml/descargar";
 import { DriveTarjeta } from "@/components/drive";
 
-type Pestana = "descargar" | "datos";
+type Pestana = "descargar" | "datos" | "gastos";
 
 export default function XmlSat() {
   const { emisor } = useEmisor();
@@ -28,8 +29,8 @@ export default function XmlSat() {
         <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{emisor.nombre}</h1>
         <p className="font-mono text-sm text-grafito">{emisor.rfc}</p>
       </div>
-      <div role="tablist" className="mb-7 grid grid-cols-2 gap-2 rounded-3xl bg-hoja p-2 ring-1 ring-linea">
-        {([["descargar", "Descargar", "Baja del SAT o lee tus XML", CloudDownload], ["datos", "Datos", "Gráficas y números de esos XML", BarChart3]] as const).map(([id, texto, sub, Icono]) => (
+      <div role="tablist" className="mb-7 grid grid-cols-3 gap-2 rounded-3xl bg-hoja p-2 ring-1 ring-linea">
+        {([["descargar", "Descargar", "Baja del SAT o lee tus XML", CloudDownload], ["datos", "Datos", "Gráficas y números de esos XML", BarChart3], ["gastos", "Gastos", "Deducibles y no deducibles", Scale]] as const).map(([id, texto, sub, Icono]) => (
           <button key={id} role="tab" aria-selected={pestana === id} onClick={() => setPestana(id)}
             className={cx("flex h-[72px] items-center justify-center gap-3.5 rounded-2xl px-4 text-left transition-[background,color,box-shadow] duration-150",
               pestana === id ? "bg-acento text-white shadow-boton" : "text-grafito hover:bg-tinta/5 hover:text-tinta")}>
@@ -45,8 +46,10 @@ export default function XmlSat() {
           <DriveTarjeta />
           <Comprobantes emisor={emisor} version={version} />
         </div>
-      ) : (
+      ) : pestana === "datos" ? (
         <Datos emisor={emisor} version={version} />
+      ) : (
+        <Gastos emisor={emisor} version={version} />
       )}
     </>
   );

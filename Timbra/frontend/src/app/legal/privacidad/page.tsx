@@ -26,6 +26,8 @@ export default function Privacidad() {
         <li><b>Fiscales de cada emisor que des de alta:</b> RFC, nombre o razón social, régimen fiscal, código postal, logotipo y datos de contacto.</li>
         <li><b>Certificado de sello digital (CSD):</b> archivos .cer y .key y su contraseña. Se guardan cifrados y sólo se usan para sellar las facturas que tú ordenas.</li>
         <li><b>e.firma:</b> sólo para descargar tus XML del SAT. Se usa en memoria mientras dura la descarga y <b>no se guarda</b> en ningún disco, base de datos ni respaldo.</li>
+        <li><b>Constancia de Situación Fiscal (si la subes):</b> el PDF del SAT y lo que dice (RFC, nombre, régimen, actividades y domicilio fiscal). Se usa
+          para llenar el alta del emisor y para orientarte sobre qué gastos pueden ser deducibles. Se guarda en tu cuenta y puedes sustituirla cuando quieras.</li>
         <li><b>De tus clientes y empleados</b> (receptores de tus facturas y recibos de nómina): RFC, nombre, régimen, código postal, correo, teléfono y, en nómina, CURP, número de seguridad social y percepciones.</li>
         <li><b>Técnicos:</b> dirección IP, fecha y hora de acceso y registro de errores, para seguridad y soporte.</li>
       </ul>
