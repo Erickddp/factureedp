@@ -155,7 +155,7 @@ Con unos 120 timbres vendidos al mes en paquetes chicos ya se paga la cuota mín
 - [x] [Claude] Borradores de aviso de privacidad y términos de uso (`legal/`)
 - [ ] [Claude] Publicar aviso y términos como páginas, con casilla de aceptación al crear cuenta (cuando los revises)
 - [ ] [Claude] Manifiesto de Finkok por emisor (opcional según Finkok)
-- [ ] [Claude] Registro abierto con Google para clientes nuevos (ya existe `REGISTRO_ABIERTO`; falta la bienvenida)
+- [x] [Claude] Registro abierto: crear cuenta con correo y contraseña o con Google, confirmar correo (3 timbres de regalo), «olvidé mi contraseña» (2.15)
 
 ### Guiar
 - [x] [Claude] Guía para conectar todo: `CONECTAR.md`
@@ -190,8 +190,8 @@ Guía paso a paso de todo en `CONECTAR.md`. Cuando termines un punto, avísame y
 - [ ] [Rick] Variables de Google en Railway y URI de redirección (punto 4)
 - [ ] [Claude] Probar «Entrar con Google» y la carpeta de Drive desde la web
 - [ ] [Rick] Aviso de privacidad y términos revisados
-- [ ] [Claude] Publicarlos, casilla de aceptación y bienvenida para cuentas nuevas
-- [ ] [Rick] `REGISTRO_ABIERTO=true` y tu primer cliente de paga
+- [x] [Claude] Publicarlos, casilla de aceptación y bienvenida para cuentas nuevas
+- [ ] [Rick] Probar crear una cuenta tuya con otro correo (revisa Spam) y entrar sin Google; luego `REGISTRO_ABIERTO=true` y tu primer cliente de paga
 - [ ] [Claude] Revisar los registros del servidor de las primeras semanas y lo que vaya saliendo
 
 ---

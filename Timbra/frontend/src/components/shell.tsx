@@ -61,7 +61,7 @@ const guardar = (k: string, v: string) => { try { localStorage.setItem(k, v); } 
 const iniciales = (s: string) => s.trim().split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "?";
 
 type Yo = {
-  email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null; timbres?: number | null;
+  email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null; timbres?: number | null; correo_verificado?: boolean;
   terminos?: { vigente: string; aceptada: string | null; aceptados: string | null; pendiente: boolean };
 };
 
@@ -421,10 +421,18 @@ function Avisos() {
   const sinDisco = salud?.almacen?.permanente === false;
   // Saldo de timbres de la cuenta (quien factura con el PAC de Timbra): se avisa cuando quedan pocos
   const { data: yo } = useSWR<Yo>("/auth/yo", fetcher, { refreshInterval: 120_000 });
-  const pocos = typeof yo?.timbres === "number" && yo.timbres <= 5;
-  if (!sinDisco && !pocos && !malos.length && !pend.length && (!pg?.total || enPendientes)) return null;
+  const pocos = typeof yo?.timbres === "number" && yo.timbres <= 5 && yo.correo_verificado !== false;
+  const sinConfirmar = yo?.correo_verificado === false;  // se registró con correo y contraseña y no ha confirmado el correo
+  const reenviar = () => api("/auth/reenviar-verificacion", { method: "POST" })
+    .then(() => toast.success("Listo: revisa tu correo (y la carpeta de spam)."), mostrarError);
+  if (!sinConfirmar && !sinDisco && !pocos && !malos.length && !pend.length && (!pg?.total || enPendientes)) return null;
   return (
     <div className="escalonar mb-6 flex flex-wrap gap-2">
+      {sinConfirmar && (
+        <button onClick={reenviar} className="inline-flex items-center gap-2 rounded-full bg-alerta-suave px-3 py-1.5 text-[13px] font-medium text-alerta ring-1 ring-current/15">
+          <Stamp className="size-4" /> Confirma tu correo ({yo!.email}) para recibir tus 3 timbres de regalo · Reenviar el enlace
+        </button>
+      )}
       {pocos && (
         <Link href="/timbres" className={cx("inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 ring-current/15", yo!.timbres! <= 0 ? "bg-rojo-suave text-rojo" : "bg-alerta-suave text-alerta")}>
           <Stamp className="size-4" /> {yo!.timbres! <= 0 ? "Se acabaron tus timbres: recarga para seguir facturando" : `Te quedan ${yo!.timbres} timbres`}

@@ -231,6 +231,9 @@ class Usuario(Base):
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     # Saldo de timbres para facturar con el PAC de la plataforma. Cada cuenta nueva trae 3 de regalo.
     timbres: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    # False = se registró sola con correo y contraseña y aún no confirma que el correo es suyo: sus timbres de regalo llegan al
+    # confirmar. Las cuentas que da de alta el administrador y las que entran con Google (correo ya verificado) nacen en True.
+    correo_verificado: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     # Términos de uso y aviso de privacidad aceptados (app/legal.py): versión, cuándo y desde qué IP. Es la constancia.
     terminos_version: Mapped[str | None] = mapped_column(String(20))
     terminos_aceptados: Mapped[datetime | None] = mapped_column(DateTime)

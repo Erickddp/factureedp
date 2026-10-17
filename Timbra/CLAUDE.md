@@ -181,6 +181,24 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
   `/login/#token=…` (fragmento, nunca query). Sólo entra quien ya tiene cuenta, salvo `REGISTRO_ABIERTO=true`. Permisos pedidos:
   openid, email, profile; Drive y Sheets se pedirán aparte cuando se construyan. tests/test_w1_cuentas.py.
 
+## Cuentas abiertas: registro, confirmar correo, «olvidé mi contraseña» (2.15, no lo rompas)
+- Los datos viven en la BD de Railway (volumen `/data`), no en Drive. Una cuenta es una fila de `Usuario`: con correo y contraseña o
+  con Google (`google_sub`), o las dos (Google + «Olvidé mi contraseña» le deja elegir una). Misma cuenta, nada se duplica.
+- `POST /auth/registro` (sólo con `REGISTRO_ABIERTO=true`; `/auth/config` devuelve `registro`): correo real (rechaza dominios de
+  relleno), contraseña ≥8 que no sea de las de práctica ni el correo, casilla de Términos/Privacidad obligatoria. Entra de una vez
+  pero con **0 timbres**: los 3 de regalo (`TIMBRES_BIENVENIDA`, una sola vez) llegan al confirmar el correo
+  (`POST /auth/verificar`). Sin confirmar no se timbra con el PAC de la plataforma (`timbres.sin_saldo`).
+- Los enlaces del correo van en el FRAGMENTO (`/login/#verificar=…`, `#restablecer=…`) y la base es `settings.url_publica` en web,
+  nunca el Host de la petición. Son JWT con claim `a`: `current_user` los rechaza como sesión. «Olvidé» y «verificar» se ligan al
+  hash de la contraseña, así que el enlace sirve UNA vez y al restablecer se cierran las sesiones viejas.
+- Frenos por IP y por cuenta (`_limite`, `_GOLPES`): registro 5/h/IP creadas (los intentos inválidos van aparte), reenviar
+  confirmación 3, «olvidé» 3/h por cuenta y por equipo. «Olvidé» responde igual exista o no la cuenta.
+- Anti-secuestro: si alguien registra el correo de otra persona y la dueña entra con Google (que sí comprobó el correo), la
+  contraseña del primero se invalida y la cuenta es de la dueña. Cuentas creadas por Google: `activo=True, correo_verificado=True,
+  timbres=3` explícitos (con `None` antes del flush quedaban «desactivadas» y con regalo doble).
+- Pantalla: `frontend/src/app/login/page.tsx` (entrar / crear / olvidé / restablecer) y aviso «Confirma tu correo» en `shell.tsx`.
+  tests/test_w14_cuentas_abiertas.py (correo capturado: nunca sale uno de verdad).
+
 ## Estabilidad (no la rompas)
 - `satcfdi.catalogs.conn` es UNA conexión SQLite compartida: con peticiones simultáneas fallaba (~16% de consultas, «API misuse», 500).
   `app/__init__.py` la reemplaza por una conexión de sólo lectura por hilo. tests/test_v6_catalogo_hilos.py lo vigila. Nunca uses

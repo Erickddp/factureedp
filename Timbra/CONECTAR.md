@@ -100,8 +100,11 @@ usuarios de prueba. Para abrirlo a todos hay que publicarla (y Google revisa los
 
 1. Revisa y llena los borradores de `legal/AVISO_DE_PRIVACIDAD.md` y `legal/TERMINOS_DE_USO.md` (lo que está entre
    corchetes). Avísame y los publico como páginas dentro de Timbra.
-2. Cuando Mercado Pago esté en producción y los textos publicados: en Railway `REGISTRO_ABIERTO=true` (cualquiera con
-   Google crea su cuenta con 3 timbres de regalo).
+2. Cuando Mercado Pago esté en producción y los textos publicados: en Railway `REGISTRO_ABIERTO=true`. Cualquiera crea su cuenta
+   con correo y contraseña, o con Google (no hace falta Google para entrar). Recibe 3 timbres de regalo al confirmar su correo:
+   por eso `RESEND_API_KEY` tiene que estar puesta **antes** de abrir el registro (los enlaces usan `URL_PUBLICA`, que ya trae
+   `https://factura.erickddp.com` por defecto).
+   Prueba tú primero: crea una cuenta con otro correo tuyo, confirma el enlace (revisa Spam) y entra de nuevo sin Google.
 
 ---
 
@@ -116,4 +119,5 @@ usuarios de prueba. Para abrirlo a todos hay que publicarla (y Google revisa los
 | `MP_WEBHOOK_SECRET` | Firmar los avisos de pago | |
 | `PAQUETES_TIMBRES` | Cambiar precios (opcional) | |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Entrar con Google | |
+| `URL_PUBLICA` | Base de los enlaces de confirmar correo y recuperar contraseña | Trae el valor correcto por defecto |
 | `REGISTRO_ABIERTO` | Que cualquiera cree su cuenta | Al final |

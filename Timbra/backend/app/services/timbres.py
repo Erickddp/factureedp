@@ -118,6 +118,9 @@ def _cuenta_que_paga(db: Session, emisor):
 
 def sin_saldo(db: Session, emisor) -> str | None:
     u = _cuenta_que_paga(db, emisor)
+    if u is not None and not u.correo_verificado:
+        return (f"Confirma tu correo ({u.email}) para empezar a timbrar: te mandamos un mensaje con un enlace. "
+                "Al confirmarlo recibes tus timbres de regalo.")
     if u is not None and u.timbres <= 0:
         return "Se acabaron los timbres de tu cuenta. Recarga para seguir facturando (Timbres, en el menú)."
     return None

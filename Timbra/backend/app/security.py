@@ -55,6 +55,8 @@ def current_user(cred: HTTPAuthorizationCredentials | None = Depends(bearer)) ->
         data = jwt.decode(cred.credentials, settings.jwt_secret, algorithms=["HS256"])
     except jwt.PyJWTError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido o vencido")
+    if not data.get("sub") or data.get("a"):  # un token de otra cosa (Google, confirmar correo, restablecer) no abre sesión
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido o vencido")
     return data["sub"]
 
 

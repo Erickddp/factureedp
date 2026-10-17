@@ -50,7 +50,7 @@ class PerfilIn(BaseModel):
 
 def _yo(u: Usuario) -> dict:
     return {"id": u.id, "email": u.email, "usuario": u.usuario, "nombre": u.nombre, "admin": u.admin, "creado": u.creado,
-            "google_email": u.google_email, "timbres": None if u.admin else u.timbres,
+            "google_email": u.google_email, "timbres": None if u.admin else u.timbres, "correo_verificado": bool(u.correo_verificado),
             "terminos": {"vigente": TERMINOS_VERSION, "aceptada": u.terminos_version, "aceptados": u.terminos_aceptados,
                          "pendiente": terminos_pendientes(u)}}
 
@@ -111,10 +111,208 @@ def login(data: LoginIn, request: Request, db: Session = Depends(get_db)):
     return {"token": create_token(u.email, u.password_hash), "nombre": u.nombre, "admin": u.admin}
 
 
+# ---------------------------------------------------------------- registro, confirmar correo y restablecer contraseña
+BIENVENIDA = "Cortesía de bienvenida"
+TIMBRES_BIENVENIDA = 3
+_GOLPES: dict[str, list[float]] = {}
+
+
+def _limite(llave: str, tope: int, ventana: int) -> bool:
+    """True si esa llave ya se pasó del tope en la ventana (segundos); si no, anota este intento."""
+    ahora = time.time()
+    if len(_GOLPES) > 20000:  # nadie llena la memoria a punta de intentos
+        for k in [k for k, v in _GOLPES.items() if not v or ahora - v[-1] >= 86400]:
+            _GOLPES.pop(k, None)
+    recientes = [t for t in _GOLPES.get(llave, []) if ahora - t < ventana]
+    if len(recientes) >= tope:
+        _GOLPES[llave] = recientes
+        return True
+    _GOLPES[llave] = recientes + [ahora]
+    return False
+
+
+def _ip(request: Request) -> str:
+    return request.client.host if request.client else "?"
+
+
+def _enlace(accion: str, token: str) -> str:
+    """Enlace de los correos. Va en el fragmento (#): no llega a ningún registro ni al encabezado Referer."""
+    base = settings.url_publica if EN_WEB else (settings.front_url or "http://localhost:8000")
+    return f"{base.rstrip('/')}/login/#{accion}={token}"
+
+
+def _token_de(accion: str, u: Usuario, minutos: int) -> str:
+    datos = {"a": accion, "u": u.id, "exp": datetime.now(timezone.utc) + timedelta(minutes=minutos)}
+    if accion == "verificar":
+        datos["e"] = u.email
+    else:  # restablecer: sirve UNA vez (al cambiar la contraseña, esta huella ya no coincide)
+        from ..security import huella_clave
+        datos["k"] = huella_clave(u.password_hash)
+    return jwt.encode(datos, settings.jwt_secret, algorithm="HS256")
+
+
+def _leer_token(token: str, accion: str) -> dict:
+    mal = HTTPException(400, "El enlace venció o no es válido. Pide uno nuevo.")
+    try:
+        d = jwt.decode(token or "", settings.jwt_secret, algorithms=["HS256"])
+    except jwt.PyJWTError:
+        raise mal from None
+    if d.get("a") != accion or not d.get("u"):
+        raise mal
+    return d
+
+
+def _mandar(u: Usuario, asunto: str, cuerpo: str) -> bool:
+    from ..services import mailer
+    try:
+        mailer.enviar([u.email], asunto, cuerpo, [], nombre="Timbra")
+        return True
+    except mailer.CorreoError as e:
+        log.warning("No salió el correo a la cuenta %s: %s", u.id, e)
+        return False
+
+
+def _confirmar_correo(u: Usuario) -> bool:
+    return _mandar(u, "Confirma tu correo en Timbra",
+                   f"Hola{' ' + u.nombre if u.nombre else ''},\n\nConfirma que este correo es tuyo para recibir tus {TIMBRES_BIENVENIDA} timbres de regalo:\n\n"
+                   f"{_enlace('verificar', _token_de('verificar', u, 3 * 24 * 60))}\n\nEl enlace sirve 3 días. Si tú no creaste una cuenta en Timbra, ignora este mensaje.\n\nTimbra")
+
+
+def _dar_bienvenida(db: Session, u: Usuario) -> None:
+    """Los timbres de regalo de quien se registró con correo y contraseña llegan al confirmar el correo, una sola vez."""
+    from ..models import MovimientoTimbres
+    from ..services import timbres
+    if db.query(MovimientoTimbres.id).filter_by(usuario_id=u.id, motivo=BIENVENIDA).first() is None:
+        timbres.recargar(db, u.id, TIMBRES_BIENVENIDA, BIENVENIDA, None, vence=False)
+
+
+def _contrasena_valida(pw: str, correo: str = "") -> str | None:
+    if len(pw) < 8:
+        return "La contraseña lleva mínimo 8 caracteres."
+    if pw.lower() in DEBILES or (correo and pw.lower() == correo.lower()):
+        return "Esa contraseña es muy fácil de adivinar. Elige otra."
+    return None
+
+
+class RegistroIn(BaseModel):
+    email: str
+    password: str
+    nombre: str | None = None
+    acepto: bool = False
+
+
+@router.post("/registro")
+def registro(data: RegistroIn, request: Request, db: Session = Depends(get_db)):
+    """Cuenta nueva con correo y contraseña (sin Google). Entra de inmediato; los timbres de regalo llegan al confirmar el correo."""
+    from ..services import mailer
+    if not settings.registro_abierto:
+        raise HTTPException(403, "El registro está cerrado. Pide acceso al administrador.")
+    if _limite(f"regint|{_ip(request)}", 40, 3600):  # intentos (también los que no pasan la revisión): no sirve para adivinar correos
+        raise HTTPException(429, "Demasiados intentos desde este equipo. Intenta más tarde.")
+    correo = data.email.strip().lower()[:200]
+    if not mailer.CORREO_OK.match(correo):
+        raise HTTPException(422, "Escribe un correo válido (nombre@dominio.com).")
+    if mailer.RELLENO.search(correo):
+        raise HTTPException(422, "Ese correo es de ejemplo y no existe. Escribe el tuyo.")
+    if (malo := _contrasena_valida(data.password, correo)):
+        raise HTTPException(422, malo)
+    if not data.acepto:
+        raise HTTPException(422, "Para crear tu cuenta acepta los Términos de uso y el Aviso de privacidad.")
+    if db.query(Usuario).filter(Usuario.email == correo).first():
+        raise HTTPException(409, "Ese correo ya tiene cuenta. Entra con tu contraseña, o usa «Olvidé mi contraseña».")
+    if _limite(f"reg|{_ip(request)}", 5, 3600) or _limite("reg|todos", 300, 86400):  # cuentas CREADAS por equipo y en total
+        raise HTTPException(429, "Demasiados registros desde este equipo. Intenta más tarde.")
+    u = Usuario(email=correo, nombre=(data.nombre or "").strip()[:150] or correo.split("@")[0], password_hash=hash_password(data.password),
+                activo=True, admin=False, timbres=0, correo_verificado=False, terminos_version=TERMINOS_VERSION,
+                terminos_aceptados=datetime.now(), terminos_ip=_ip(request))
+    db.add(u)
+    db.commit()
+    log.info("Cuenta nueva con correo y contraseña: %s", u.id)
+    return {"token": create_token(u.email, u.password_hash), "nombre": u.nombre, "admin": False, "correo_enviado": _confirmar_correo(u)}
+
+
+class TokenIn(BaseModel):
+    token: str
+
+
+@router.post("/verificar")
+def verificar(data: TokenIn, request: Request, db: Session = Depends(get_db)):
+    """El enlace del correo de confirmación."""
+    if _limite(f"ver|{_ip(request)}", 30, 3600):
+        raise HTTPException(429, "Demasiados intentos. Espera unos minutos.")
+    t = _leer_token(data.token, "verificar")
+    u = db.get(Usuario, t["u"])
+    if not u or not u.activo or u.email != t.get("e"):
+        raise HTTPException(400, "El enlace venció o no es válido. Pide uno nuevo.")
+    ya = bool(u.correo_verificado)
+    u.correo_verificado = True
+    db.commit()
+    _dar_bienvenida(db, u)
+    return {"ok": True, "ya_estaba": ya, "timbres": u.timbres}
+
+
+@router.post("/reenviar-verificacion")
+def reenviar_verificacion(email: str = Depends(current_user), db: Session = Depends(get_db)):
+    u = _actual(db, email)
+    if u.correo_verificado:
+        return {"ok": True, "ya_estaba": True}
+    if _limite(f"reenv|{u.id}", 3, 3600):
+        raise HTTPException(429, "Ya te mandamos varios correos. Revisa tu bandeja (y la carpeta de spam) o intenta en una hora.")
+    if not _confirmar_correo(u):
+        raise HTTPException(503, "No pudimos enviar el correo en este momento. Intenta de nuevo en unos minutos.")
+    return {"ok": True, "ya_estaba": False}
+
+
+class OlvideIn(BaseModel):
+    email: str
+
+
+@router.post("/olvide")
+def olvide(data: OlvideIn, request: Request, db: Session = Depends(get_db)):
+    """Manda el enlace para elegir una contraseña nueva. Responde lo mismo exista o no la cuenta (no revela quién tiene cuenta).
+    Sirve también a quien entró siempre con Google y quiere poder entrar con contraseña."""
+    if _limite(f"olv|{_ip(request)}", 8, 3600):
+        raise HTTPException(429, "Demasiados intentos desde este equipo. Espera un rato.")
+    correo = data.email.strip().lower()[:200]
+    u = db.query(Usuario).filter(or_(Usuario.email == correo, Usuario.usuario == correo), Usuario.activo.is_(True)).first()
+    if u and not _limite(f"olv|{u.id}", 3, 3600):
+        _mandar(u, "Restablece tu contraseña de Timbra",
+                f"Hola{' ' + u.nombre if u.nombre else ''},\n\nPara elegir una contraseña nueva entra aquí (sirve 1 hora y una sola vez):\n\n"
+                f"{_enlace('restablecer', _token_de('restablecer', u, 60))}\n\nSi tú no lo pediste, ignora este mensaje: tu contraseña sigue igual.\n\nTimbra")
+    return {"ok": True}
+
+
+class RestablecerIn(BaseModel):
+    token: str
+    nueva: str
+
+
+@router.post("/restablecer")
+def restablecer(data: RestablecerIn, request: Request, db: Session = Depends(get_db)):
+    from ..security import huella_clave
+    if _limite(f"rest|{_ip(request)}", 20, 3600):
+        raise HTTPException(429, "Demasiados intentos. Espera unos minutos.")
+    t = _leer_token(data.token, "restablecer")
+    u = db.get(Usuario, t["u"])
+    if not u or not u.activo or t.get("k") != huella_clave(u.password_hash):
+        raise HTTPException(400, "Ese enlace ya se usó o venció. Pide uno nuevo.")
+    if (malo := _contrasena_valida(data.nueva, u.email)):
+        raise HTTPException(422, malo)
+    u.password_hash = hash_password(data.nueva)  # las sesiones abiertas con la anterior dejan de valer
+    primera = not u.correo_verificado
+    u.correo_verificado = True  # recibió el correo: el correo es suyo
+    db.commit()
+    if primera:
+        _dar_bienvenida(db, u)
+    log.info("Contraseña restablecida por correo: cuenta %s", u.id)
+    return {"token": create_token(u.email, u.password_hash), "nombre": u.nombre, "admin": u.admin}
+
+
 @router.get("/config")
 def config():
     """Lo que la pantalla de entrada necesita saber sin haber entrado."""
-    return {"google": bool(settings.google_client_id and settings.google_client_secret), "terminos": TERMINOS_VERSION}
+    return {"google": bool(settings.google_client_id and settings.google_client_secret), "terminos": TERMINOS_VERSION,
+            "registro": settings.registro_abierto}
 
 
 @router.get("/yo")
@@ -382,11 +580,23 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
     if u is None:
         if not settings.registro_abierto:
             return _regreso(error=f"{correo} no tiene cuenta en Timbra. Entra con tu usuario y conéctala en Mi perfil, o pide acceso al administrador.")
-        u = Usuario(email=correo, nombre=g.get("name"), password_hash=hash_password(secrets.token_urlsafe(24)))
+        # cuenta nueva con Google: el correo ya viene verificado por Google; la contraseña es una al azar que nadie conoce
+        # (si después quiere entrar también con contraseña, usa «Olvidé mi contraseña»)
+        # activo=True explícito: el valor por omisión de la columna se aplica al guardar, y la revisión de abajo corre antes
+        u = Usuario(email=correo, nombre=g.get("name"), password_hash=hash_password(secrets.token_urlsafe(24)), activo=True, admin=False,
+                    correo_verificado=True, timbres=TIMBRES_BIENVENIDA)
         db.add(u)
     if not u.activo:
         return _regreso(error="Tu cuenta está desactivada.")
+    primera = False
+    if not u.correo_verificado:
+        # Google ya comprobó que ese correo es de quien entra. Si la cuenta la había creado otra persona con ese mismo correo
+        # y una contraseña que sólo ella conoce, esa contraseña se invalida: la cuenta pasa a ser de quien tiene el correo.
+        u.password_hash = hash_password(secrets.token_urlsafe(24))
+        u.correo_verificado, primera = True, True
     u.google_sub, u.google_email = sub, correo
     db.commit()
+    if primera:
+        _dar_bienvenida(db, u)
     log.info("Entrada con Google: %s", u.email)
     return _regreso(token=create_token(u.email, u.password_hash))

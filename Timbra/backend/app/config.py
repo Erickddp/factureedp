@@ -38,7 +38,10 @@ class Settings(BaseSettings):
     google_client_secret: str | None = None
     google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
     front_url: str = ""  # sólo si las pantallas viven en otra dirección (Vercel): a dónde regresar tras Google
-    registro_abierto: bool = False  # True = cualquiera con Google crea su cuenta; False = sólo cuentas que dé de alta el admin
+    registro_abierto: bool = False  # True = cualquiera crea su cuenta (correo y contraseña, o Google); False = sólo las que dé de alta el admin
+    # Dirección pública que llevan los enlaces de los correos (confirmar correo, restablecer contraseña). En el servidor NUNCA se
+    # toma del encabezado Host de la petición: alguien podría mandar un enlace a su propio sitio con el correo de otra persona.
+    url_publica: str = "https://factura.erickddp.com"
 
 
 settings = Settings()
