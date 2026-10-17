@@ -46,17 +46,12 @@ def _etiqueta(e: Emisor, f: Filtros) -> str:
 def _contribuyente(db: Session, rfc: str, nombre: str = "", regimen: str = "", cp: str = "") -> tuple[Emisor, bool]:
     """El emisor de ese RFC en tu cuenta; si no existe se da de alta con lo que se sepa (se completa después en Emisores).
     Así se puede bajar o leer lo de cualquier contribuyente sin capturarlo antes a mano."""
-    from sqlalchemy import select
-
     from ..models import Producto, Serie
     from ..services.semillas import productos_base
     rfc = rfc.upper().strip()
     e = db.query(Emisor).filter_by(rfc=rfc).first()
     if e is not None:
         return e, False
-    t = Emisor.__table__
-    if db.connection().execute(select(t.c.id).where(t.c.rfc == rfc)).first():
-        raise HTTPException(409, f"{rfc} ya está registrado en otra cuenta de Timbra.")
     e = Emisor(rfc=rfc, nombre=(nombre or rfc).upper()[:300], regimen_fiscal=(regimen or ("601" if len(rfc) == 12 else "612"))[:3],
                lugar_expedicion=(cp or "00000")[:5])
     e.series = [Serie(serie="A", tipo="I", default=True), Serie(serie="NC", tipo="E", default=True),

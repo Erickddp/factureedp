@@ -511,11 +511,13 @@ def test_leer_una_carpeta_de_cualquier_contribuyente_lo_abre_solo(sat):
         # lo bueno y lo malo juntos: entra lo bueno y lo malo se lista
         r = c.post("/api/xml/leer", headers=h, files=archivos + [("archivos", ("basura.xml", b"<html/>", "text/xml"))]).json()
         assert (r["nuevos"], r["repetidos"], r["rechazados_total"]) == (0, 3, 2) and r["rechazados"][0]["archivo"] in ("otro.xml", "basura.xml")
-        # otra cuenta no puede quedarse con un RFC que ya es de alguien: no entra y se dice por qué
+        # otra cuenta puede llevar el mismo RFC: tiene su propio emisor y sus propios CFDI (no ve ni toca los de la primera)
         ajeno_h = _usuario(c, h, "xml-ajeno3@prueba.mx", "xmlajeno3")
         r = c.post("/api/xml/leer", headers=ajeno_h, files=archivos)
-        assert r.status_code == 200 and r.json()["nuevos"] == 0 and r.json()["contribuyentes"] == [], r.text
-        assert any("otra cuenta" in x["motivo"] for x in r.json()["rechazados"])
+        assert r.status_code == 200 and r.json()["nuevos"] == 3 and len(r.json()["contribuyentes"]) == 1, r.text
+        suyo = r.json()["emisor_id"]
+        assert suyo != j["emisor_id"] and c.get(f"/api/xml/cfdi?emisor_id={j['emisor_id']}", headers=ajeno_h).status_code in (403, 404)
+        assert c.delete(f"/api/emisores/{suyo}?confirmar={nuevo}", headers=ajeno_h).status_code == 200
         eid = j["emisor_id"]
     with TestClient(app) as c:   # lo guardado es de la cuenta: sigue ahí tras reiniciar
         h, _e = _preparar(c)

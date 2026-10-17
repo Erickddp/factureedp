@@ -87,9 +87,12 @@ def test_cada_cuenta_ve_solo_lo_suyo():
                                                                   "lugar_expedicion": "42501", "pac_id": pa["id"]})
         assert r.status_code == 403, r.text
 
-        # Mismo RFC en otra cuenta: mensaje claro, no un error del sistema
+        # Mismo RFC en otra cuenta: se permite (cada cuenta con lo suyo); dentro de la misma cuenta no se repite
         r = c.post("/api/emisores", headers=hb, json={"rfc": ea["rfc"], "nombre": "X", "regimen_fiscal": "601", "lugar_expedicion": "42501"})
-        assert r.status_code == 409 and "otra cuenta" in r.json()["detail"]
+        assert r.status_code == 200, r.text
+        assert c.post("/api/emisores", headers=hb, json={"rfc": ea["rfc"], "nombre": "X", "regimen_fiscal": "601", "lugar_expedicion": "42501"}).status_code == 409
+        assert [x["id"] for x in c.get("/api/emisores", headers=ha).json()] == [ea["id"]]  # Ana no ve el de Beto
+        assert c.delete(f"/api/emisores/{r.json()['id']}?confirmar={ea['rfc']}", headers=hb).status_code == 200
 
         # Rutas de administrador
         assert c.get("/api/auth/usuarios", headers=hb).status_code == 403

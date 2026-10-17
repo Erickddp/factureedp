@@ -204,7 +204,6 @@ def importar(db: Session, paquete: dict, pac_id: int | None) -> list[dict]:
     (rollback = simulacro: el informe sale igual de exacto)."""
     ids_addendas = {a.nombre: a.id for a in db.query(Addenda)}
     addendas = {int(k): ids_addendas.get(v) for k, v in (paquete.get("addendas") or {}).items()}
-    t = Emisor.__table__
     informe = []
     for item in paquete["emisores"]:
         rfc = str(item.get("rfc") or "").upper().strip()
@@ -215,9 +214,6 @@ def importar(db: Session, paquete: dict, pac_id: int | None) -> list[dict]:
             continue
         if db.query(Emisor).filter(Emisor.rfc == rfc).first() is not None:
             r["estado"], r["motivo"] = "ya_existe", "Ya está en esta cuenta: no se toca (para volver a traerlo, bórralo primero en Emisores)."
-            continue
-        if db.connection().execute(select(t.c.id).where(t.c.rfc == rfc)).first() is not None:
-            r["estado"], r["motivo"] = "otra_cuenta", "Ese RFC está registrado en otra cuenta de Timbra."
             continue
         e = Emisor(**{c: _de_json(item[c]) for c in CAMPOS_EMISOR if c in item and c != "creado"}, pac_id=pac_id)
         if item.get("creado"):

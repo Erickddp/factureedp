@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -33,8 +32,6 @@ def ver(emisor_id: int, db: Session = Depends(get_db)):
 def crear(data: EmisorIn, db: Session = Depends(get_db)):
     if db.query(Emisor).filter_by(rfc=data.rfc).first():
         raise HTTPException(409, f"{data.rfc} ya está dado de alta")
-    if db.connection().execute(select(Emisor.__table__.c.id).where(Emisor.__table__.c.rfc == data.rfc)).first():
-        raise HTTPException(409, f"{data.rfc} ya está registrado en otra cuenta de Timbra. Si es tuyo, pide al administrador que lo libere.")
     e = Emisor(**data.model_dump())
     if e.pac_id is None:  # sin PAC propio: factura con el de la plataforma (si el administrador ya lo puso)
         from ..services import timbres

@@ -43,9 +43,11 @@ class Pac(Base):
 
 class Emisor(Base):
     __tablename__ = "emisores"
+    # El RFC es único dentro de cada cuenta; dos cuentas pueden llevar el mismo RFC (cada una con sus datos y su CSD).
+    __table_args__ = (Index("uq_emisores_usuario_rfc", "usuario_id", "rfc", unique=True),)
     id: Mapped[int] = mapped_column(primary_key=True)
     usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"), index=True)  # dueño de la cuenta (ver db.py)
-    rfc: Mapped[str] = mapped_column(String(13), unique=True, index=True)
+    rfc: Mapped[str] = mapped_column(String(13), index=True)
     nombre: Mapped[str] = mapped_column(String(300))
     regimen_fiscal: Mapped[str] = mapped_column(String(3))
     lugar_expedicion: Mapped[str] = mapped_column(String(5))  # CP

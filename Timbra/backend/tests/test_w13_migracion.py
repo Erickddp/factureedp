@@ -55,10 +55,10 @@ def test_exportar_e_importar_en_otra_cuenta():
         r = _importar(c, h, archivo).json()
         assert r["simulacro"] and r["emisores"][0]["estado"] == "ya_existe"
 
-        # otra cuenta no puede traerse un RFC que sigue en la primera: se libera primero (el emisor está en demo, se puede)
+        # otra cuenta sí puede traerse el mismo RFC aunque siga en la primera (cada cuenta lleva lo suyo)
         b = _usuario(c, h, "migra-b@prueba.mx", "migrab")
         r = _importar(c, b, archivo).json()
-        assert r["emisores"][0]["estado"] == "otra_cuenta"
+        assert r["emisores"][0]["estado"] == "nuevo"
         assert c.delete(f"/api/emisores/{e['id']}?confirmar=EKU9003173C9", headers=h).status_code == 200
         try:
             # simulacro: dice qué entraría y NO guarda nada
