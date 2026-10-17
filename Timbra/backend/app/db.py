@@ -104,11 +104,20 @@ def _identificar(db, request: Request | None):
     from .models import Usuario
     from .security import huella_clave
     t = Usuario.__table__
-    fila = db.execute(select(t.c.id, t.c.admin, t.c.activo, t.c.password_hash).where(t.c.email == correo)).first()
+    fila = db.execute(select(t.c.id, t.c.admin, t.c.activo, t.c.password_hash, t.c.invitado, t.c.expira).where(t.c.email == correo)).first()
     if fila is None or not fila.activo:
         raise HTTPException(401, "Tu sesión ya no es válida. Vuelve a entrar.")
     if datos.get("k") and datos["k"] != huella_clave(fila.password_hash):  # la contraseña cambió después de abrir esta sesión
         raise HTTPException(401, "La contraseña de esta cuenta cambió. Vuelve a entrar.")
+    if fila.invitado:
+        from datetime import datetime
+
+        from .services import invitados
+        if fila.expira and fila.expira < datetime.now():
+            raise HTTPException(401, "Tu sesión de invitado terminó y su trabajo se borró. Entra de nuevo o crea tu cuenta.")
+        if not invitados.permite(request.method, request.url.path):
+            raise HTTPException(403, invitados.MENSAJE)
+        db.info["invitado"] = True
     db.info["uid_real"] = fila.id
     db.info["es_admin"] = bool(fila.admin)
     db.info["uid"] = fila.id

@@ -47,7 +47,7 @@ export default function XmlSat() {
           <Comprobantes emisor={emisor} version={version} />
         </div>
       ) : pestana === "datos" ? (
-        <Datos emisor={emisor} version={version} />
+        <Datos emisor={emisor} version={version} alGastos={() => setPestana("gastos")} />
       ) : (
         <Gastos emisor={emisor} version={version} />
       )}

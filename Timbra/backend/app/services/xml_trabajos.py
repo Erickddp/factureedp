@@ -97,6 +97,11 @@ def cancelar(tid: int) -> bool:
     return bool(t)
 
 
+def en_curso() -> int:
+    """Cuántas descargas o ZIP se están armando ahora mismo en este servidor."""
+    return len(_vivos)
+
+
 def vivo(tid: int) -> bool:
     return tid in _vivos
 

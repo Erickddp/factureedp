@@ -74,6 +74,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
       window.location.href = "/ajustes/";
     }
     consola.red({ metodo, ruta: path, estado: res.status, ms, req, error: msg });
+    if (res.status === 403 && msg.startsWith("Crea tu cuenta") && typeof window !== "undefined") window.dispatchEvent(new Event("timbra:requiere-cuenta"));  // invitado: abre «Crea tu cuenta»
     throw new ApiError(res.status, msg, req, traza);
   }
   if (!SILENCIO.some((s) => path.startsWith(s))) consola.red({ metodo, ruta: path, estado: res.status, ms, req });

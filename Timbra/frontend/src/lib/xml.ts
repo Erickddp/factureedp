@@ -20,7 +20,7 @@ export type Filtros = { emisor_id: number; mes: string; tipo: string; clase: str
 export type TrabajoXml = {
   id: number; clase: "sat" | "zip"; estado: "curso" | "listo" | "error" | "cancelado" | "interrumpido"; avance: number; total: number;
   mensaje: string; creado: string; terminado: string | null; descargable: boolean; registro?: string;
-  params: { desde?: string; hasta?: string; tipo?: string; nombre?: string; n?: number; incluir?: string };
+  params: { desde?: string; hasta?: string; tipo?: string; cancelados?: boolean; nombre?: string; n?: number; incluir?: string };
   resumen: {
     nuevos?: number; repetidos?: number; solicitudes?: number; errores?: string[]; avisos?: string[]; comprobantes?: number; pendientes?: string[];
     estatus?: { revisados: number; cancelados: number; nuevos_cancelados: number; sin_xml: number } | null;

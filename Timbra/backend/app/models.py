@@ -230,6 +230,8 @@ class Usuario(Base):
     google_sub: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)  # identidad de Google conectada
     google_email: Mapped[str | None] = mapped_column(String(200))
     foto: Mapped[str | None] = mapped_column(Text)  # foto de perfil de Google como imagen pequeña (data:image/...;base64,...)
+    novedades: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")  # casilla opcional: avisos de novedades de Timbra
+    cierre_solicitado: Mapped[datetime | None] = mapped_column(DateTime)  # la persona cerró su cuenta; los datos se borran en <= 90 días
     admin: Mapped[bool] = mapped_column(Boolean, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     # Saldo de timbres para facturar con el PAC de la plataforma. Cada cuenta nueva trae 3 de regalo.
@@ -241,6 +243,10 @@ class Usuario(Base):
     terminos_version: Mapped[str | None] = mapped_column(String(20))
     terminos_aceptados: Mapped[datetime | None] = mapped_column(DateTime)
     terminos_ip: Mapped[str | None] = mapped_column(String(45))
+    # Invitado: entró sin registrarse. Su trabajo es temporal: a la hora (`expira`) se borra. Puede explorar y bajar XML,
+    # pero no timbrar ni guardar de forma permanente hasta crear su cuenta (services/invitados.py).
+    invitado: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    expira: Mapped[datetime | None] = mapped_column(DateTime)
     creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 

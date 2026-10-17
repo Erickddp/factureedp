@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Dato, PaginaLegal } from "@/components/legal";
-import { RESPONSABLE } from "@/lib/legal";
+import { PROVEEDORES, RESPONSABLE } from "@/lib/legal";
 
 export const metadata: Metadata = { title: "Aviso de privacidad · Timbra" };
 
@@ -16,7 +16,7 @@ export default function Privacidad() {
       <h2>1. Quién es responsable de tus datos</h2>
       <p>
         <Dato v={r.nombre} /> (RFC <Dato v={r.rfc} />), que opera {r.marca} bajo el nombre comercial EDDP Servicios, con domicilio en{" "}
-        <Dato v={r.domicilio} />, es responsable del uso y protección de los datos personales que nos das al usar {r.marca}.
+        <Dato v={r.domicilio} /> (el domicilio completo está en la <Link className="underline" href="/legal/responsable/">página de datos del responsable</Link> y te lo damos por correo si lo pides), es responsable del uso y protección de los datos personales que nos das al usar {r.marca}.
         Contacto para todo lo relacionado con tus datos: <a className="underline" href={`mailto:${r.correo}`}>{r.correo}</a>.
       </p>
 
@@ -47,8 +47,8 @@ export default function Privacidad() {
         <li>Cumplir obligaciones legales y atender requerimientos de autoridad.</li>
       </ul>
       <p>
-        <b>Finalidad adicional:</b> avisarte de novedades y cambios de {r.marca}. Si no la quieres, escríbenos a {r.correo}; negarte no afecta el
-        servicio. No vendemos tus datos ni los usamos para publicidad de terceros.
+        <b>Finalidad adicional:</b> avisarte de novedades y cambios de {r.marca}, sólo si marcas la casilla al crear tu cuenta (o la activas en Mi perfil → Mis datos).
+        La puedes quitar cuando quieras ahí mismo o escribiéndonos a {r.correo}; no marcarla no afecta el servicio. No vendemos tus datos ni los usamos para publicidad de terceros.
       </p>
 
       <h2>4. Datos de tus clientes y empleados</h2>
@@ -60,10 +60,9 @@ export default function Privacidad() {
 
       <h2>5. Con quién los compartimos</h2>
       <ul>
-        <li><b>El PAC</b> (hoy Finkok) y <b>el SAT</b>: reciben el CFDI para timbrarlo, validarlo o cancelarlo. Es obligatorio por ley para facturar.</li>
-        <li><b>Proveedores que nos dan infraestructura</b>, sólo para operar {r.marca} y bajo obligación de confidencialidad: alojamiento del servidor
-          (Railway), envío de correos (Resend), cobro de timbres (Mercado Pago; Timbra no ve ni guarda los datos de tu tarjeta) e inicio de sesión (Google, sólo si lo usas). Algunos tienen sus servidores fuera de México, por ejemplo
-          en Estados Unidos.</li>
+        {PROVEEDORES.map((p) => (
+          <li key={p.nombre}><b>{p.nombre}</b> ({p.donde}): {p.para}.{p.obligatorio ? " Es obligatorio por ley para facturar." : " Sólo para operar " + r.marca + " y bajo obligación de confidencialidad."}</li>
+        ))}
         <li><b>Autoridades</b>, cuando lo exija la ley o una orden fundada.</li>
       </ul>
       <p>Estas comunicaciones no requieren tu consentimiento porque son necesarias para el servicio que contratas o las exige la ley.</p>
@@ -100,7 +99,7 @@ export default function Privacidad() {
 
       <h2>7. Cuánto tiempo los guardamos</h2>
       <p>
-        Mientras tengas cuenta. Si la cierras, borramos tus datos en un plazo máximo de 90 días, salvo los CFDI y la información que la ley fiscal
+        Mientras tengas cuenta. Puedes cerrarla tú mismo en Mi perfil → Mis datos: queda bloqueada de inmediato y borramos tus datos en un plazo máximo de 90 días, salvo los CFDI y la información que la ley fiscal
         obliga a conservar (5 años, artículo 30 del Código Fiscal de la Federación), que se guardan bloqueados sólo para ese fin.
       </p>
 

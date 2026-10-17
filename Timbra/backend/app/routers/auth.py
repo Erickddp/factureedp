@@ -49,7 +49,7 @@ class PerfilIn(BaseModel):
 
 
 def _yo(u: Usuario) -> dict:
-    return {"id": u.id, "email": u.email, "usuario": u.usuario, "nombre": u.nombre, "admin": u.admin, "creado": u.creado,
+    return {"invitado": bool(u.invitado), "expira": u.expira.isoformat() if u.invitado and u.expira else None, "id": u.id, "email": u.email, "usuario": u.usuario, "nombre": u.nombre, "admin": u.admin, "creado": u.creado,
             "google_email": u.google_email, "foto": u.foto, "timbres": None if u.admin else u.timbres, "correo_verificado": bool(u.correo_verificado),
             "terminos": {"vigente": TERMINOS_VERSION, "aceptada": u.terminos_version, "aceptados": u.terminos_aceptados,
                          "pendiente": terminos_pendientes(u)}}
@@ -231,6 +231,56 @@ def registro(data: RegistroIn, request: Request, db: Session = Depends(get_db)):
     return {"token": create_token(u.email, u.password_hash), "nombre": u.nombre, "admin": False, "correo_enviado": _confirmar_correo(u)}
 
 
+class InvitadoIn(BaseModel):
+    acepto: bool = False
+
+
+@router.post("/invitado")
+def invitado(data: InvitadoIn, request: Request, db: Session = Depends(get_db)):
+    """Entrar sin registrarse. Cuenta temporal de 1 hora (services/invitados.py); si luego quiere conservar su trabajo, /auth/convertir."""
+    from ..services import invitados
+    if not settings.registro_abierto:
+        raise HTTPException(403, "Por ahora el acceso es por invitación. Entra con tu cuenta.")
+    if not data.acepto:
+        raise HTTPException(422, "Para entrar acepta los Términos de uso y el Aviso de privacidad.")
+    if _limite(f"inv|{_ip(request)}", 6, 3600) or _limite("inv|todos", 400, 86400):
+        raise HTTPException(429, "Demasiados accesos de invitado desde este equipo. Intenta más tarde o crea tu cuenta.")
+    u = invitados.crear(db, _ip(request))
+    u.terminos_version = TERMINOS_VERSION
+    db.commit()
+    return {"token": create_token(u.email, u.password_hash, u.expira), "expira": u.expira.isoformat()}
+
+
+@router.post("/convertir")
+def convertir(data: RegistroIn, request: Request, email: str = Depends(current_user), db: Session = Depends(get_db)):
+    """El invitado crea su cuenta: la MISMA cuenta pasa a ser normal y conserva lo que ya traía. Devuelve un token nuevo (cambió el correo)."""
+    from ..services import mailer
+    u = _actual(db, email)
+    if not u.invitado:
+        raise HTTPException(409, "Tu cuenta ya es una cuenta normal.")
+    if not settings.registro_abierto:
+        raise HTTPException(403, "El registro está cerrado. Pide acceso al administrador.")
+    if _limite(f"conv|{_ip(request)}", 40, 3600):
+        raise HTTPException(429, "Demasiados intentos desde este equipo. Intenta más tarde.")
+    correo = data.email.strip().lower()[:200]
+    if not mailer.CORREO_OK.match(correo):
+        raise HTTPException(422, "Escribe un correo válido (nombre@dominio.com).")
+    if mailer.RELLENO.search(correo):
+        raise HTTPException(422, "Ese correo es de ejemplo y no existe. Escribe el tuyo.")
+    if (malo := _contrasena_valida(data.password, correo)):
+        raise HTTPException(422, malo)
+    if not data.acepto:
+        raise HTTPException(422, "Para crear tu cuenta acepta los Términos de uso y el Aviso de privacidad.")
+    if db.query(Usuario).filter(Usuario.email == correo).first():
+        raise HTTPException(409, "Ese correo ya tiene cuenta. Entra con tu contraseña, o usa «Olvidé mi contraseña».")
+    u.email, u.nombre, u.password_hash = correo, (data.nombre or "").strip()[:150] or correo.split("@")[0], hash_password(data.password)
+    u.invitado, u.expira, u.correo_verificado = False, None, False
+    u.terminos_version, u.terminos_aceptados, u.terminos_ip = TERMINOS_VERSION, datetime.now(), _ip(request)
+    db.commit()
+    log.info("Invitado %s creó su cuenta", u.id)
+    return {"token": create_token(u.email, u.password_hash), "nombre": u.nombre, "admin": False, "correo_enviado": _confirmar_correo(u)}
+
+
 class TokenIn(BaseModel):
     token: str
 
@@ -312,7 +362,7 @@ def restablecer(data: RestablecerIn, request: Request, db: Session = Depends(get
 def config():
     """Lo que la pantalla de entrada necesita saber sin haber entrado."""
     return {"google": bool(settings.google_client_id and settings.google_client_secret), "terminos": TERMINOS_VERSION,
-            "registro": settings.registro_abierto}
+            "registro": settings.registro_abierto, "invitado": settings.registro_abierto}
 
 
 @router.get("/yo")

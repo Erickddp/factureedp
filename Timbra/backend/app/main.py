@@ -15,7 +15,7 @@ from .config import EN_WEB, settings
 from .db import SessionLocal, engine
 from .models import Addenda
 from .routers import (addendas, auth, catalogos, clientes, cobranza, constancia, correo, dashboard, debug, deducibles, emisores, facturas, nomina,
-                      claves, drive, lotes, migracion, pacs, pagos, pendientes, plantillas, portal, productos, xml, terceros)
+                      claves, drive, lotes, migracion, mis_datos, pacs, pagos, pendientes, plantillas, portal, productos, xml, terceros)
 from .services import almacen
 from .services.addenda import SEMILLAS
 
@@ -36,6 +36,29 @@ def migrar():
 
 logs.configurar(settings.data_dir, settings.debug)
 log = logs.log
+
+
+def _trabajos_vivos() -> tuple[int, int]:
+    from .services import lotes as lotes_svc, xml_trabajos
+    return xml_trabajos.en_curso(), len(lotes_svc._EJECUTANDO)
+
+
+def _esperar_trabajos(maximo: int) -> None:
+    """Al apagar: espera (hasta `maximo` s) a que terminen las descargas del SAT y los lotes. Si se acaba el tiempo se apaga igual
+    y lo que quedó a medias se marca «interrumpido» al volver a arrancar (con su botón «Retomar»)."""
+    import time
+    t0, aviso = time.time(), 0.0
+    while time.time() - t0 < maximo:
+        xml, lotes = _trabajos_vivos()
+        if not (xml or lotes):
+            if aviso:
+                log.info("Apagado: ya terminaron las descargas y los lotes (%.0f s)", time.time() - t0)
+            return
+        if time.time() - aviso >= 30:
+            aviso = time.time()
+            log.warning("Apagado en espera: %s descarga(s) del SAT y %s lote(s) en curso (máx. %s s)", xml, lotes, maximo)
+        time.sleep(2)
+    log.warning("Apagado: se acabó la espera de %s s con trabajos en curso; quedarán interrumpidos", maximo)
 
 
 @asynccontextmanager
@@ -89,6 +112,10 @@ async def lifespan(app: FastAPI):
     yield
     if tarea:
         tarea.cancel()
+    if settings.espera_apagado > 0:  # un despliegue no debe cortar una descarga del SAT ni un lote a medio timbrar
+        import asyncio
+
+        await asyncio.to_thread(_esperar_trabajos, settings.espera_apagado)
     log.info("Timbra apagado")
 
 
@@ -100,7 +127,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","
                    allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
 for r in (auth, pacs, emisores, clientes, productos, plantillas, addendas, facturas, catalogos, dashboard, debug,
-          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo, pagos, migracion, drive, constancia, deducibles):
+          nomina, xml, cobranza, portal, terceros, lotes, claves, pendientes, correo, pagos, migracion, drive, constancia, deducibles, mis_datos):
     app.include_router(r.router, prefix="/api")
 app.include_router(portal.publico, prefix="/api")  # autofactura: sin login
 
@@ -184,7 +211,8 @@ async def validacion_error(request: Request, exc: RequestValidationError):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "version": app.version, "web": EN_WEB, "almacen": almacen.estado()}
+    xml, lotes = _trabajos_vivos()  # antes de desplegar: si hay descargas o lotes en curso, esperar (un despliegue los corta)
+    return {"ok": True, "version": app.version, "web": EN_WEB, "almacen": almacen.estado(), "descargas": xml, "lotes": lotes}
 
 
 if STATIC.exists():

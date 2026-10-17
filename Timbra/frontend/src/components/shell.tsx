@@ -16,6 +16,8 @@ import { tema, useTema } from "@/lib/tema";
 import type { TimbresPac } from "@/lib/types";
 import { AtajosProvider, useAtajos } from "./atajos";
 import { Consola } from "./consola";
+import { BannerInvitado, ModalCrearCuenta } from "./invitado";
+import { MisDatos } from "./mis-datos";
 import { EmisorProvider, EtiquetaAmbiente, ambienteDe, useEmisor } from "./emisor-context";
 import { Badge, Button, Field, Input, Modal, cx } from "./ui";
 
@@ -62,6 +64,7 @@ const iniciales = (s: string) => s.trim().split(/[\s@.]+/).filter(Boolean).slice
 
 type Yo = {
   email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null; timbres?: number | null; correo_verificado?: boolean; foto?: string | null;
+  invitado?: boolean; expira?: string | null;
   terminos?: { vigente: string; aceptada: string | null; aceptados: string | null; pendiente: boolean };
 };
 
@@ -210,6 +213,7 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
           {yo?.terminos?.aceptados && dato("Términos y privacidad", <span>Aceptados el {new Date(yo.terminos.aceptados).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })} · <Link className="underline" href="/legal/terminos/" target="_blank">Ver</Link></span>)}
           {dato("Tema", <button className="underline" onClick={() => tema.siguiente()}>{t === "oscuro" ? "Oscuro" : t === "claro" ? "Claro" : "Como el sistema"}</button>)}
         </dl>
+        <MisDatos />
         {accesos.length > 0 && (
           <div className="rounded-xl px-4 py-3 text-sm ring-1 ring-linea">
             <p className="mb-1.5 font-medium">Soporte ha entrado a tu cuenta</p>
@@ -563,6 +567,7 @@ function Marco({ children }: { children: React.ReactNode }) {
         </header>
         <main key={path} className="mx-auto w-full min-w-0 max-w-[1280px] flex-1 px-4 py-6 animate-entrar sm:px-6 lg:px-10 lg:py-8">
           <BandaSoporte />
+          {yo?.invitado && yo.expira && <BannerInvitado expira={yo.expira} />}
           <Avisos />
           {/* Mientras llegan los emisores no se pinta la pantalla: así no sale «da de alta un emisor» por un instante */}
           {cargando ? <div aria-busy className="esqueleto h-9 w-72" /> : children}
@@ -586,6 +591,7 @@ function Marco({ children }: { children: React.ReactNode }) {
           </aside>
         </div>
       )}
+      <ModalCrearCuenta />
       <Perfil abierto={perfil} cerrar={() => setPerfil(false)} yo={yo} cambio={(y) => mutYo(y, false)} />
       {yo?.terminos?.pendiente && !getSoporte() && <AceptarTerminos version={yo.terminos.vigente} nueva={!!yo.terminos.aceptada} listo={(y) => mutYo(y, false)} />}
       <Consola />

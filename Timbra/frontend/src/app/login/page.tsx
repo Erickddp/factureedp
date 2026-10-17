@@ -7,6 +7,7 @@ import { Check, Eye, EyeOff } from "lucide-react";
 import { api, getToken, setToken } from "@/lib/api";
 import { Aurora, FacturaViva } from "@/components/inicio-piezas";
 import { Button, Field, Input } from "@/components/ui";
+import { entrarComoInvitado } from "@/components/invitado";
 import "../inicio/inicio.css";
 
 type Modo = "entrar" | "crear" | "olvide" | "restablecer";
@@ -25,10 +26,12 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
   const [acepto, setAcepto] = useState(false);
+  const [novedades, setNovedades] = useState(false);  // casilla opcional: avisos de novedades
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
   const [cargando, setCargando] = useState(false);
   const [google, setGoogle] = useState(false);
+  const [invitados, setInvitados] = useState(false);
   const [registro, setRegistro] = useState(false);  // el registro abierto lo decide el servidor
   const [yendo, setYendo] = useState(false);
   const [ver, setVer] = useState(false);  // mostrar la contraseña
@@ -47,7 +50,7 @@ export default function Login() {
       return;
     }
     if (h.get("error")) setError(h.get("error")!);
-    api<{ google: boolean; registro?: boolean }>("/auth/config").then((c) => { setGoogle(c.google); setRegistro(!!c.registro); }).catch(() => {});
+    api<{ google: boolean; registro?: boolean; invitado?: boolean }>("/auth/config").then((c) => { setGoogle(c.google); setRegistro(!!c.registro); setInvitados(!!c.invitado); }).catch(() => {});
 
     const verificar = h.get("verificar");
     if (verificar) {
@@ -77,6 +80,7 @@ export default function Login() {
       } else if (modo === "crear") {
         const r = await api<{ token: string; correo_enviado: boolean }>("/auth/registro", { method: "POST", json: { email, password, nombre, acepto } });
         setToken(r.token);
+        if (novedades) api("/mis-datos/novedades", { method: "PUT", json: { acepta: true } }).catch(() => {});
         toast.success(r.correo_enviado ? "¡Cuenta creada! Te mandamos un correo para confirmarla y recibir tus timbres de regalo."
           : "¡Cuenta creada! No pudimos mandar el correo de confirmación: pídelo de nuevo desde la aplicación.", { duration: 9000 });
         router.push("/facturar");
@@ -168,6 +172,14 @@ export default function Login() {
                   <Link href="/legal/privacidad/" target="_blank" className="underline underline-offset-2">Aviso de privacidad</Link>.</span>
               </label>
             )}
+            {modo === "crear" && (<>
+              <label className="flex items-start gap-2 text-[13px] leading-snug">
+                <input type="checkbox" className="mt-0.5 accent-cobalto" checked={novedades} onChange={(e) => setNovedades(e.target.checked)} />
+                <span>Quiero recibir avisos de novedades de Timbra (opcional).</span>
+              </label>
+              <p className="text-[12px] leading-relaxed opacity-80">En corto: Timbra usa tu nombre y correo para tu cuenta y tus facturas, comparte con el SAT y el PAC sólo lo que lleva el CFDI, no
+                guarda tu e.firma, no vende tus datos y puedes cerrar tu cuenta cuando quieras. <Link href="/legal/" target="_blank" className="underline underline-offset-2">Ver todo</Link>.</p>
+            </>)}
             {error && <p role="alert" className="rounded-lg bg-rojo-suave px-3 py-2 text-sm text-rojo animate-entrar">{error}</p>}
             {aviso && <p role="status" className="rounded-lg bg-sello-suave px-3 py-2 text-sm text-sello animate-entrar">{aviso}</p>}
             <button type="submit" disabled={cargando || (modo === "crear" && !acepto)} className="lp-boton mediano mt-1 disabled:opacity-60">{cargando ? enviando : boton}</button>
@@ -203,6 +215,13 @@ export default function Login() {
               <button type="button" onClick={() => cambiar("entrar")} className="text-[#86a4ff] underline-offset-4 hover:underline">← Volver a entrar</button>
             )}
           </p>
+          {modo === "entrar" && invitados && (
+            <p className="!mt-3 text-center text-[13px] text-grafito">
+              <button type="button" disabled={yendo} onClick={() => { setYendo(true); entrarComoInvitado().catch((e) => { setError((e as Error).message); setYendo(false); }); }}
+                className="text-[#86a4ff] underline-offset-4 hover:underline">Probar sin cuenta</button>
+              <span> · tu trabajo se borra en 1 hora</span>
+            </p>
+          )}
         </form>
       </section>
     </main>

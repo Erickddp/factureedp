@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { CalendarRange, CheckCircle2, ClipboardCopy, CloudDownload, FileKey2, FolderOpen, KeyRound, Loader2, ShieldCheck, Square, Upload, X, XCircle } from "lucide-react";
+import { CalendarRange, CheckCircle2, ClipboardCopy, CloudDownload, FileKey2, FolderOpen, KeyRound, Loader2, RotateCcw, ShieldCheck, Square, Upload, X, XCircle } from "lucide-react";
 import { api, fetcher } from "@/lib/api";
 import { mostrarError } from "@/lib/errores";
 import { isoLocal } from "@/lib/format";
@@ -28,6 +28,28 @@ export function Descargar({ emisor, alCambiar }: { emisor: Emisor; alCambiar: ()
     antes.current = enCurso?.id ?? null;
   }, [enCurso, alCambiar, mFirma]);
 
+  // «Retomar»: una descarga interrumpida (el servidor se reinició) se pide otra vez con los mismos datos; el SAT no repite lo ya bajado.
+  // Si la e.firma ya no está en memoria, se deja anotado y arranca sola en cuanto se pone.
+  const [pendiente, setPendiente] = useState<{ desde: string; hasta: string; tipo: string; cancelados: boolean } | null>(null);
+  const arrancar = async (p: { desde: string; hasta: string; tipo: string; cancelados: boolean }) => {
+    await api("/xml/descargas", { method: "POST", json: { emisor_id: emisor.id, ...p } });
+    toast.success("Descarga retomada: sigue donde se quedó.");
+    mTrabajos(); mFirma();
+  };
+  const retomar = (t: TrabajoXml) => {
+    if (!t.params.desde || !t.params.hasta) return;
+    const p = { desde: t.params.desde, hasta: t.params.hasta, tipo: t.params.tipo ?? "ambos", cancelados: t.params.cancelados ?? true };
+    if (firma?.puesta) arrancar(p).catch(mostrarError);
+    else { setPendiente(p); toast.message("Pon tu e.firma en el paso 1: en cuanto esté lista, la descarga se retoma sola."); }
+  };
+  useEffect(() => {
+    if (!pendiente || !firma?.puesta || enCurso) return;
+    const p = pendiente;
+    setPendiente(null);
+    arrancar(p).catch(mostrarError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendiente, firma?.puesta, enCurso]);
+
   return (
     <div className="grid gap-5">
       <div className="grid gap-5 lg:grid-cols-2">
@@ -35,7 +57,7 @@ export function Descargar({ emisor, alCambiar }: { emisor: Emisor; alCambiar: ()
         <PasoPeriodo emisor={emisor} lista={!!firma?.puesta} ocupada={!!enCurso} alIniciar={() => { mTrabajos(); mFirma(); }} />
       </div>
       {enCurso && <Avance t={detalle ?? enCurso} alDetener={() => mTrabajos()} />}
-      {!enCurso && ultimo && <Resultado t={ultimo} />}
+      {!enCurso && ultimo && <Resultado t={ultimo} alRetomar={() => retomar(ultimo)} esperando={!!pendiente} />}
       <LeerCarpeta emisor={emisor} alTerminar={alCambiar} />
     </div>
   );
@@ -229,7 +251,7 @@ function Avance({ t, alDetener }: { t: TrabajoXml; alDetener: () => void }) {
   );
 }
 
-function Resultado({ t }: { t: TrabajoXml }) {
+function Resultado({ t, alRetomar, esperando }: { t: TrabajoXml; alRetomar: () => void; esperando: boolean }) {
   const r = t.resumen;
   const bien = t.estado === "listo";
   const dato = (n: number | undefined, etiqueta: string, tono?: string) => (
@@ -253,6 +275,12 @@ function Resultado({ t }: { t: TrabajoXml }) {
       {!bien && t.mensaje && <p className="mt-2 text-sm">{t.mensaje}</p>}
       {[...(r.errores ?? []), ...(r.avisos ?? [])].slice(0, 4).map((e, i) => <p key={i} className="mt-2 text-sm text-grafito">· {e}</p>)}
       {!bien && <p className="mt-3 text-sm text-grafito">Lo que ya se bajó está guardado. Pon tu e.firma y pide el mismo periodo: continúa donde se quedó, sin volver a pedirle al SAT.</p>}
+      {(t.estado === "interrumpido" || t.estado === "error") && t.params.desde && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button variant="acento" onClick={alRetomar} disabled={esperando}><RotateCcw className="size-4" /> {esperando ? "Esperando tu e.firma…" : "Retomar este periodo"}</Button>
+          {esperando && <span className="text-sm text-grafito">Pon tu e.firma en el paso 1 y arranca sola.</span>}
+        </div>
+      )}
     </section>
   );
 }

@@ -147,6 +147,12 @@ def tick():
             except Exception:
                 db.rollback()
                 log.exception("Programador · cobranza falló")
+    try:  # invitados cuya hora ya pasó: se borran con todo lo suyo
+        from . import invitados
+        with SessionLocal() as db:
+            invitados.purgar(db)
+    except Exception:
+        log.exception("Programador · borrar invitados falló")
     try:  # cada vuelta: copia a Google Drive los XML nuevos de las cuentas que lo conectaron (en sus propios hilos)
         from . import drive
         drive.sincronizar_todos()

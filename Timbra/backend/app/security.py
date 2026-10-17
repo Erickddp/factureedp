@@ -38,8 +38,10 @@ def huella_clave(password_hash: str | None) -> str:
     return hashlib.sha256(f"{settings.jwt_secret}|{password_hash or ''}".encode()).hexdigest()[:12]
 
 
-def create_token(email: str, password_hash: str | None = None) -> str:
-    payload = {"sub": email, "exp": datetime.now(timezone.utc) + timedelta(days=7)}
+def create_token(email: str, password_hash: str | None = None, vence: datetime | None = None) -> str:
+    """vence: hora (local, sin zona) en que debe dejar de servir; sirve para los invitados. Sin ella, 7 días."""
+    exp = vence.astimezone(timezone.utc) if vence else datetime.now(timezone.utc) + timedelta(days=7)
+    payload = {"sub": email, "exp": exp}
     if password_hash:
         payload["k"] = huella_clave(password_hash)
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")

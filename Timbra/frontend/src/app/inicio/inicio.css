@@ -43,6 +43,7 @@
 .lp-boton.mediano { height: 46px; border-radius: 13px; font-size: 15px; width: 100%; }
 .lp-boton.hueco { background: rgb(255 255 255 / .06); box-shadow: 0 0 0 1px var(--borde) inset; }
 .lp-boton.hueco:hover { background: rgb(255 255 255 / .1); }
+.lp-nota { max-width: 520px; margin-top: 18px; font-size: 13px; line-height: 1.5; color: var(--gris); }
 .lp-enlace { color: var(--gris); font-size: 15px; text-underline-offset: 5px; transition: color .2s; }
 .lp-enlace:hover { color: #fff; text-decoration: underline; }
 

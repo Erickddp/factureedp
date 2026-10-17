@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     timezone: str = "America/Mexico_City"
     debug: bool = True  # errores con traza completa en la consola de depuración
     programador: bool = True  # recurrentes, descarga SAT, cobranza y respaldo diario en segundo plano
+    # Al apagar (cada despliegue), segundos que espera a que terminen las descargas del SAT y los lotes en curso antes de cerrar.
+    # En Railway va junto con RAILWAY_DEPLOYMENT_DRAINING_SECONDS (>= este valor): si no, Railway mata el proceso antes. 0 = no esperar.
+    espera_apagado: int = 600
 
     smtp_host: str | None = None
     smtp_port: int = 587

@@ -8,7 +8,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, BadgeDollarSign, Check, FileText, HandCoins, Menu, Repeat, ScanSearch, ShieldCheck, Table2, X, Zap } from "lucide-react";
-import { getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { entrarComoInvitado } from "@/components/invitado";
 import { Aurora, FacturaViva } from "@/components/inicio-piezas";
 import "./inicio.css";
 
@@ -99,10 +100,13 @@ export default function Inicio() {
   const raiz = useRef<HTMLDivElement>(null);
   const avance = useRef<HTMLDivElement>(null);
   const [dentro, setDentro] = useState(false);
-  const [menu, setMenu] = useState(false);  // menú de la barra en pantallas angostas
+  const [menu, setMenu] = useState(false);
+  const [invitados, setInvitados] = useState(false);  // el servidor dice si se puede entrar sin cuenta
+  const [entrando, setEntrando] = useState(false);  // menú de la barra en pantallas angostas
 
   useEffect(() => {
     setDentro(!!getToken());
+    api<{ invitado?: boolean }>("/auth/config").then((c) => setInvitados(!!c.invitado)).catch(() => {});
     let pendiente = 0;
     const medir = () => {
       pendiente = 0;
@@ -163,8 +167,19 @@ export default function Inicio() {
           </p>
           <div className="lp-acciones entra" style={{ animationDelay: "340ms" }}>
             <Link href={entrar} className="lp-boton">{dentro ? "Abrir Timbra" : "Entrar a Timbra"} <ArrowRight className="size-5" /></Link>
+            {!dentro && invitados && (
+              <button type="button" className="lp-boton hueco" disabled={entrando} onClick={() => { setEntrando(true); entrarComoInvitado().catch(() => setEntrando(false)); }}>
+                {entrando ? "Entrando…" : "Probar sin cuenta"}
+              </button>
+            )}
             <a href="#precios" className="lp-enlace">Ver precios y la prueba gratis</a>
           </div>
+          {!dentro && invitados && (
+            <p className="lp-nota entra" style={{ animationDelay: "420ms" }}>
+              Sin registro: baja tus XML del SAT y explora. Tu trabajo se borra en 1 hora; si te gusta, creas tu cuenta y se queda. Al entrar aceptas los{" "}
+              <Link href="/legal/terminos/" className="underline">Términos</Link> y el <Link href="/legal/privacidad/" className="underline">Aviso de privacidad</Link>.
+            </p>
+          )}
         </div>
         <div className="entra" style={{ animationDelay: "420ms" }}><FacturaViva /></div>
       </section>

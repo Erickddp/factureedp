@@ -202,3 +202,12 @@ Guía paso a paso de todo en `CONECTAR.md`. Cuando termines un punto, avísame y
 - Timbrado para terceros (2.13.0, en el servidor): PAC de la plataforma, alta automática del RFC en Finkok, saldo de timbres por cuenta con recarga manual
 - XML del SAT dentro de Timbra, con la e.firma sólo en memoria y el Excel de 65 columnas
 - Modo soporte, endurecimiento de seguridad, persistencia del servidor comprobada
+
+### Legal y fiscal (revisión del 17-oct-2026)
+- [x] [Claude] Textos corregidos contra lo que hace la app, versión legal 2026-10-17, domicilio general y completo aparte
+- [x] [Claude] Centro legal, guía fiscal, aviso corto y casilla de novedades en el registro, «Mis datos» y cierre de cuenta
+- [ ] [Rick] Domicilio de despacho u oficina virtual para notificaciones (si lo hay, cambiar `domicilioCompleto` en `lib/legal.ts`)
+- [ ] [Rick + contador] Validar la guía fiscal (`lib/fiscal.ts`, poner `VALIDADO = true`): números de regla de la RMF, plazo de cancelación, vigencia del IVA 8% fronterizo
+- [ ] [Rick + abogado] Retracto del consumidor en timbres no usados, cláusulas de encargado para datos de nómina, plazos ARCO de la ley de 2025
+- [ ] [Rick + contador] Régimen e IVA propios, CFDI por cada recarga y esquema de reventa con Finkok
+- [ ] [Rick] Borrar a mano, antes de 90 días, los datos de cuentas que cierran (aviso «CIERRE DE CUENTA» en el registro y en el correo de respaldo)

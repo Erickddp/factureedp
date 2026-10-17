@@ -12,8 +12,10 @@ export function PaginaLegal({ titulo, children }: { titulo: string; children: Re
             <img src="/logo.png" alt="" className="size-7" /> {RESPONSABLE.marca}
           </Link>
           <nav className="flex gap-4 text-sm text-grafito">
+            <Link href="/legal/" className="hover:text-tinta">Centro legal</Link>
             <Link href="/legal/terminos/" className="hover:text-tinta">Términos</Link>
             <Link href="/legal/privacidad/" className="hover:text-tinta">Privacidad</Link>
+            <Link href="/legal/fiscal/" className="hover:text-tinta">Guía fiscal</Link>
           </nav>
         </div>
       </header>

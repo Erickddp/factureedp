@@ -199,6 +199,21 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - Pantalla: `frontend/src/app/login/page.tsx` (entrar / crear / olvidé / restablecer) y aviso «Confirma tu correo» en `shell.tsx`.
   tests/test_w14_cuentas_abiertas.py (correo capturado: nunca sale uno de verdad).
 
+## Información legal y fiscal (2.16, no la rompas)
+- Los textos viven en `frontend/src/app/legal/*` y los DATOS en un solo archivo: `frontend/src/lib/legal.ts` (responsable, proveedores,
+  versión, historial). Si cambias algo de fondo en Aviso o Términos: sube `VERSION` en `lib/legal.ts` y `TERMINOS_VERSION` en
+  `backend/app/legal.py` (tests/test_w17_legal.py exige que sean iguales y que estén en HISTORIAL) y agrega la entrada al HISTORIAL:
+  cada cuenta acepta de nuevo al entrar.
+- Domicilio: en Aviso y Términos sólo se muestra `RESPONSABLE.domicilio` (alcaldía y ciudad). El completo (`domicilioCompleto`) sólo sale
+  en `/legal/responsable/` (sin enlace en menús, `noindex`). El test vigila que la calle no aparezca en los textos principales.
+- `/legal/` = Centro legal (resumen en 30 s, proveedores, historial). `/legal/fiscal/` = guía fiscal con fuente por punto, datos en
+  `lib/fiscal.ts`. `VALIDADO` en ese archivo queda en false hasta que un contador o abogado confirme los números de regla de la RMF
+  (cambian cada año; revisar en diciembre-enero).
+- «Mis datos» (Mi perfil): `routers/mis_datos.py` (`GET /mis-datos`, `PUT /mis-datos/novedades`, `POST /mis-datos/cerrar`) y
+  `components/mis-datos.tsx`. Las novedades son una casilla OPCIONAL (default false). Cerrar la cuenta la desactiva al instante y deja
+  `cierre_solicitado`; **el borrado de datos dentro de 90 días es MANUAL** (el aviso a `RESPALDO_CORREO` y la línea CIERRE DE CUENTA del
+  registro lo recuerdan) y se conservan bloqueados los CFDI que exige el CFF art. 30. tests/test_w16_mis_datos.py.
+
 ## Estabilidad (no la rompas)
 - `satcfdi.catalogs.conn` es UNA conexión SQLite compartida: con peticiones simultáneas fallaba (~16% de consultas, «API misuse», 500).
   `app/__init__.py` la reemplaza por una conexión de sólo lectura por hilo. tests/test_v6_catalogo_hilos.py lo vigila. Nunca uses

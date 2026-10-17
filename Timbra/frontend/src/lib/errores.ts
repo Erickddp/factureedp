@@ -9,6 +9,7 @@ import { consola } from "./debug";
 export function mostrarError(e: unknown) {
   const err = e as ApiError;
   const msg = err?.message || String(e);
+  if (err?.status === 403 && msg.startsWith("Crea tu cuenta")) return;  // al invitado se le abre la ventana «Crea tu cuenta»; no hace falta otro aviso
   const m = msg.match(/^(.*?)\. Qué hacer: (.*?)(?: \[Detalle del PAC: .*\])?$/s);
   toast.error(m ? m[1] : msg, {
     description: m ? `Qué hacer: ${m[2]}` : undefined,
