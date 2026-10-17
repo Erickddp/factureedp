@@ -66,6 +66,14 @@ export default function Privacidad() {
       </ul>
       <p>Estas comunicaciones no requieren tu consentimiento porque son necesarias para el servicio que contratas o las exige la ley.</p>
 
+      <p>
+        <b>Inicio de sesión con Google.</b> Si eliges «Continuar con Google», {r.marca} pide sólo los permisos básicos de identidad (openid, correo y perfil) y
+        recibe tu correo, tu nombre y un identificador de tu cuenta de Google, únicamente para reconocerte y abrir o crear tu cuenta. {r.marca} no accede a tu
+        Gmail, Drive, Calendario, contactos ni a ningún otro dato de tu cuenta de Google, y no usa esta información para publicidad ni la vende o transfiere a
+        terceros. El uso de la información recibida de las API de Google se apega a la Política de datos de usuario de los servicios de API de Google, incluidos
+        sus requisitos de uso limitado. Puedes desconectar tu cuenta de Google en Mi perfil, o revocar el acceso desde la configuración de seguridad de tu cuenta de Google.
+      </p>
+
       <h2>6. Cómo los protegemos</h2>
       <ul>
         <li>Conexión cifrada (HTTPS) en todo momento.</li>
