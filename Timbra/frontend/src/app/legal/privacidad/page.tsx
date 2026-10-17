@@ -22,7 +22,7 @@ export default function Privacidad() {
 
       <h2>2. Qué datos usamos</h2>
       <ul>
-        <li><b>De tu cuenta:</b> nombre, correo, nombre de usuario, contraseña (guardada sólo como huella cifrada, nunca en texto) y, si la conectas, tu identidad de Google (correo e identificador).</li>
+        <li><b>De tu cuenta:</b> nombre, correo, nombre de usuario, contraseña (guardada sólo como huella cifrada, nunca en texto) y, si la conectas, tu identidad de Google (correo, identificador y tu foto de perfil, que sólo se muestra en tu avatar de Timbra).</li>
         <li><b>Fiscales de cada emisor que des de alta:</b> RFC, nombre o razón social, régimen fiscal, código postal, logotipo y datos de contacto.</li>
         <li><b>Certificado de sello digital (CSD):</b> archivos .cer y .key y su contraseña. Se guardan cifrados y sólo se usan para sellar las facturas que tú ordenas.</li>
         <li><b>e.firma:</b> sólo para descargar tus XML del SAT. Se usa en memoria mientras dura la descarga y <b>no se guarda</b> en ningún disco, base de datos ni respaldo.</li>

@@ -61,7 +61,7 @@ const guardar = (k: string, v: string) => { try { localStorage.setItem(k, v); } 
 const iniciales = (s: string) => s.trim().split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "?";
 
 type Yo = {
-  email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null; timbres?: number | null; correo_verificado?: boolean;
+  email: string; usuario?: string | null; nombre: string | null; admin: boolean; creado?: string | null; google_email?: string | null; timbres?: number | null; correo_verificado?: boolean; foto?: string | null;
   terminos?: { vigente: string; aceptada: string | null; aceptados: string | null; pendiente: boolean };
 };
 
@@ -136,7 +136,9 @@ function BotonPerfil({ yo, riel, abrir }: { yo?: Yo; riel?: boolean; abrir: () =
   const nombre = yo?.nombre || yo?.email || "Mi perfil";
   return (
     <button onClick={abrir} title={riel ? `${nombre} · Mi perfil` : "Mi perfil"} className={cx("flex min-w-0 items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors hover:bg-tinta/5", riel && "justify-center")}>
-      <span className={cx("grid shrink-0 place-items-center rounded-full bg-linear-to-br from-acento-suave to-tinta/10 font-semibold text-tinta ring-1 ring-linea", riel ? "size-10 text-xs" : "size-8 text-[11px]")}>{iniciales(nombre)}</span>
+      <span className={cx("grid shrink-0 place-items-center rounded-full bg-linear-to-br from-acento-suave to-tinta/10 font-semibold text-tinta ring-1 ring-linea", riel ? "size-10 text-xs" : "size-8 text-[11px]")}>
+        {yo?.foto ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={yo.foto} alt="" className="size-full rounded-full object-cover" /> : iniciales(nombre)}
+      </span>
       {!riel && (
         <span className="min-w-0 leading-tight">
           <b className="block truncate text-sm font-medium">{nombre}</b>
@@ -181,7 +183,9 @@ function Perfil({ abierto, cerrar, yo, cambio }: { abierto: boolean; cerrar: () 
       footer={<Button variant="fantasma" onClick={() => { setToken(null); router.push("/login/"); }}><LogOut className="size-4" /> Cerrar sesión</Button>}>
       <div className="grid gap-5">
         <div className="flex items-center gap-3">
-          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primario text-sm font-semibold text-sobre-primario">{iniciales(yo?.nombre || yo?.email || "")}</span>
+          <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-primario text-sm font-semibold text-sobre-primario">
+            {yo?.foto ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={yo.foto} alt="" className="size-full object-cover" /> : iniciales(yo?.nombre || yo?.email || "")}
+          </span>
           <div className="min-w-0"><b className="block truncate">{yo?.nombre || "Sin nombre"}</b><span className="block truncate text-sm text-grafito">{yo?.email}</span></div>
           <Badge tono={yo?.admin ? "cobalto" : "neutro"} className="ml-auto">{yo?.admin ? "Administrador" : "Usuario"}</Badge>
         </div>

@@ -50,7 +50,7 @@ class PerfilIn(BaseModel):
 
 def _yo(u: Usuario) -> dict:
     return {"id": u.id, "email": u.email, "usuario": u.usuario, "nombre": u.nombre, "admin": u.admin, "creado": u.creado,
-            "google_email": u.google_email, "timbres": None if u.admin else u.timbres, "correo_verificado": bool(u.correo_verificado),
+            "google_email": u.google_email, "foto": u.foto, "timbres": None if u.admin else u.timbres, "correo_verificado": bool(u.correo_verificado),
             "terminos": {"vigente": TERMINOS_VERSION, "aceptada": u.terminos_version, "aceptados": u.terminos_aceptados,
                          "pendiente": terminos_pendientes(u)}}
 
@@ -542,6 +542,27 @@ def _canjear(code: str) -> dict:
     return datos
 
 
+def _foto_de_google(url: str | None) -> str | None:
+    """La foto de perfil de Google como imagen pequeña lista para guardar (data URI). Se baja desde el servidor: el navegador no
+    toca a Google y la política de seguridad de la página no cambia. Nunca tumba la entrada: si algo falla, sin foto."""
+    import base64
+    import httpx
+    from urllib.parse import urlparse
+    try:
+        p = urlparse(url or "")
+        if p.scheme != "https" or not (p.hostname or "").endswith(".googleusercontent.com"):
+            return None
+        pide = re.sub(r"=s\d+(-c)?$", "", url) + "=s128-c"
+        r = httpx.get(pide, timeout=6, follow_redirects=False)
+        tipo = r.headers.get("content-type", "").split(";")[0]
+        if r.status_code != 200 or tipo not in ("image/jpeg", "image/png", "image/webp", "image/gif") or len(r.content) > 60_000:
+            return None
+        return f"data:{tipo};base64,{base64.b64encode(r.content).decode()}"
+    except Exception as e:  # noqa: BLE001
+        log.warning("No se pudo bajar la foto de Google: %s", e)
+        return None
+
+
 def _regreso(**fragmento) -> RedirectResponse:
     # El token viaja en el fragmento (#), que el navegador no manda a ningún servidor ni queda en registros
     return RedirectResponse(f"{settings.front_url.rstrip('/')}/login/#{urlencode(fragmento)}", status_code=302)
@@ -593,6 +614,7 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
         if otro:
             return _regreso(error=f"Esa cuenta de Google ya está conectada a otro usuario de Timbra ({otro.email}).")
         u.google_sub, u.google_email = sub, correo
+        u.foto = _foto_de_google(g.get("picture")) or u.foto
         db.commit()
         log.info("Google conectado a %s (%s)", u.email, correo)
         return _regreso(token=create_token(u.email, u.password_hash), aviso=f"Google conectado: {correo}")
@@ -616,6 +638,7 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
         u.password_hash = hash_password(secrets.token_urlsafe(24))
         u.correo_verificado, primera = True, True
     u.google_sub, u.google_email = sub, correo
+    u.foto = _foto_de_google(g.get("picture")) or u.foto  # se renueva en cada entrada: si la cambia en Google, aquí también
     db.commit()
     if primera:
         _dar_bienvenida(db, u)

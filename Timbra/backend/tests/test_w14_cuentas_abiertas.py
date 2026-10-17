@@ -190,3 +190,23 @@ def test_quien_se_registra_con_un_correo_ajeno_no_se_queda_con_la_cuenta_de_su_d
         assert c.post("/api/auth/login", json={"email": "victima@gmail.com", "password": "ClaveDelAtacante1"}).status_code == 401
         assert c.get("/api/auth/yo", headers=sesion_atacante).status_code == 401  # y su sesión abierta tampoco vale
         assert _timbres("victima@gmail.com") == 3
+
+
+def test_la_foto_de_google_se_guarda_en_la_cuenta_y_sale_en_yo(correos, monkeypatch):
+    monkeypatch.setattr(settings, "google_client_id", "cliente-de-prueba")
+    monkeypatch.setattr(settings, "google_client_secret", "secreto-de-prueba")
+    visto = []
+    monkeypatch.setattr(auth, "_canjear", lambda code: {"sub": "g-foto-1", "email": "con.foto@gmail.com", "email_verified": True, "name": "Con Foto",
+                                                         "picture": "https://lh3.googleusercontent.com/a/abc=s96-c"})
+    monkeypatch.setattr(auth, "_foto_de_google", lambda url: visto.append(url) or "data:image/png;base64,AAAA")
+    with TestClient(app, follow_redirects=False) as c:
+        r = c.get(f"/api/auth/google/callback?code=x&state={_estado(c.get('/api/auth/google/entrar').json()['url'])}")
+        token = r.headers["location"].split("#token=")[1].split("&")[0]
+        yo = c.get("/api/auth/yo", headers={"Authorization": f"Bearer {token}"}).json()
+        assert yo["foto"] == "data:image/png;base64,AAAA" and visto == ["https://lh3.googleusercontent.com/a/abc=s96-c"]
+
+
+def test_solo_se_baja_la_foto_de_los_servidores_de_google():
+    for url in (None, "", "http://lh3.googleusercontent.com/a/x", "https://evil.example.com/a.png", "https://googleusercontent.com.evil.com/a",
+                "https://169.254.169.254/latest"):
+        assert auth._foto_de_google(url) is None

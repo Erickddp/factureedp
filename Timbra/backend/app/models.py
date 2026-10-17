@@ -227,6 +227,7 @@ class Usuario(Base):
     password_hash: Mapped[str] = mapped_column(String(300))
     google_sub: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)  # identidad de Google conectada
     google_email: Mapped[str | None] = mapped_column(String(200))
+    foto: Mapped[str | None] = mapped_column(Text)  # foto de perfil de Google como imagen pequeña (data:image/...;base64,...)
     admin: Mapped[bool] = mapped_column(Boolean, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     # Saldo de timbres para facturar con el PAC de la plataforma. Cada cuenta nueva trae 3 de regalo.
