@@ -112,7 +112,7 @@ def test_google_entra_vincula_y_no_abre_registro(monkeypatch):
     monkeypatch.setattr(auth, "_canjear", lambda code: dict(identidad))
     with TestClient(app, follow_redirects=False) as c:
         admin, _ = _preparar(c)
-        assert c.get("/api/auth/config").json() == {"google": True}
+        assert c.get("/api/auth/config").json()["google"] is True
         url = c.get("/api/auth/google/entrar").json()["url"]
         assert "accounts.google.com" in url and "client_id=cliente-de-prueba" in url and "scope=openid+email+profile" in url
 

@@ -7,7 +7,6 @@ import time
 import zipfile
 from decimal import Decimal
 
-shutil.rmtree("./_test_datos", ignore_errors=True)  # corrida limpia (los folios de la hoja dependen de la BD)
 os.environ.setdefault("DATA_DIR", "./_test_datos")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_datos/timbra.db")
 os.environ["PROGRAMADOR"] = "False"

@@ -231,6 +231,10 @@ class Usuario(Base):
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     # Saldo de timbres para facturar con el PAC de la plataforma. Cada cuenta nueva trae 3 de regalo.
     timbres: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    # Términos de uso y aviso de privacidad aceptados (app/legal.py): versión, cuándo y desde qué IP. Es la constancia.
+    terminos_version: Mapped[str | None] = mapped_column(String(20))
+    terminos_aceptados: Mapped[datetime | None] = mapped_column(DateTime)
+    terminos_ip: Mapped[str | None] = mapped_column(String(45))
     creado: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 

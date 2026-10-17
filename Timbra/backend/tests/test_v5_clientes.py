@@ -2,7 +2,6 @@
 import os
 import shutil
 
-shutil.rmtree("./_test_datos", ignore_errors=True)
 os.environ.setdefault("DATA_DIR", "./_test_datos")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_datos/timbra.db")
 os.environ["PROGRAMADOR"] = "False"

@@ -13,6 +13,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..config import EN_WEB, settings
+from ..legal import TERMINOS_VERSION, pendiente as terminos_pendientes
 from ..db import get_db, solo_admin
 from ..logs import log
 from ..models import Usuario
@@ -49,7 +50,9 @@ class PerfilIn(BaseModel):
 
 def _yo(u: Usuario) -> dict:
     return {"id": u.id, "email": u.email, "usuario": u.usuario, "nombre": u.nombre, "admin": u.admin, "creado": u.creado,
-            "google_email": u.google_email, "timbres": None if u.admin else u.timbres}
+            "google_email": u.google_email, "timbres": None if u.admin else u.timbres,
+            "terminos": {"vigente": TERMINOS_VERSION, "aceptada": u.terminos_version, "aceptados": u.terminos_aceptados,
+                         "pendiente": terminos_pendientes(u)}}
 
 
 def _actual(db: Session, email: str) -> Usuario:
@@ -111,12 +114,30 @@ def login(data: LoginIn, request: Request, db: Session = Depends(get_db)):
 @router.get("/config")
 def config():
     """Lo que la pantalla de entrada necesita saber sin haber entrado."""
-    return {"google": bool(settings.google_client_id and settings.google_client_secret)}
+    return {"google": bool(settings.google_client_id and settings.google_client_secret), "terminos": TERMINOS_VERSION}
 
 
 @router.get("/yo")
 def yo(email: str = Depends(current_user), db: Session = Depends(get_db)):
     return _yo(_actual(db, email))
+
+
+class TerminosIn(BaseModel):
+    version: str
+
+
+@router.post("/terminos")
+def aceptar_terminos(data: TerminosIn, request: Request, email: str = Depends(current_user), db: Session = Depends(get_db)):
+    """Constancia de que la cuenta aceptó los términos de uso y el aviso de privacidad vigentes."""
+    if data.version != TERMINOS_VERSION:
+        raise HTTPException(409, "Los términos cambiaron mientras los leías. Recarga la página y revísalos otra vez.")
+    u = _actual(db, email)
+    u.terminos_version = TERMINOS_VERSION
+    u.terminos_aceptados = datetime.now()
+    u.terminos_ip = (request.client.host if request.client else None)
+    db.commit()
+    log.info("Cuenta %s aceptó términos y aviso de privacidad %s", u.id, TERMINOS_VERSION)
+    return _yo(u)
 
 
 @router.put("/yo")
@@ -247,7 +268,7 @@ def crear_usuario(data: UsuarioIn, db: Session = Depends(get_db)):
         raise HTTPException(422, "El nombre de usuario lleva de 3 a 40 letras minúsculas, números, punto o guion.")
     if len(data.password) < 8:
         raise HTTPException(422, "La contraseña lleva mínimo 8 caracteres")
-    if db.query(Usuario).filter(or_(Usuario.email == correo, Usuario.usuario == (usuario or "\0"))).first():
+    if db.query(Usuario).filter(or_(Usuario.email == correo, Usuario.usuario == usuario) if usuario else Usuario.email == correo).first():
         raise HTTPException(409, "Ese correo o nombre de usuario ya existe")
     db.add(Usuario(email=correo, usuario=usuario, nombre=data.nombre, password_hash=hash_password(data.password), admin=data.admin))
     db.commit()

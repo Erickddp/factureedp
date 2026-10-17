@@ -116,7 +116,11 @@ export default function Login() {
               </>
             )}
           </div>
-          <p className="!mt-6 text-center text-[13px]">¿Olvidaste tu contraseña? Pídele al administrador que la restablezca.<br />El acceso es por invitación. <Link href="/inicio#precios" className="text-[#86a4ff] underline-offset-4 hover:underline">Conoce Timbra</Link></p>
+          <p className="!mt-5 text-center text-[12px] leading-relaxed opacity-80">
+            Al entrar aceptas los <Link href="/legal/terminos/" className="underline underline-offset-2">Términos de uso</Link> y el{" "}
+            <Link href="/legal/privacidad/" className="underline underline-offset-2">Aviso de privacidad</Link>.
+          </p>
+          <p className="!mt-4 text-center text-[13px]">¿Olvidaste tu contraseña? Pídele al administrador que la restablezca.<br />El acceso es por invitación. <Link href="/inicio#precios" className="text-[#86a4ff] underline-offset-4 hover:underline">Conoce Timbra</Link></p>
         </form>
       </section>
     </main>

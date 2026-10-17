@@ -233,6 +233,7 @@ export default function Inicio() {
       <footer className="lp-pie">
         <span>Timbra · EDDP Servicios</span>
         <span>El timbrado lo realiza un PAC autorizado por el SAT.</span>
+        <span className="flex gap-5"><Link href="/legal/terminos/" className="lp-enlace !text-[13px]">Términos de uso</Link><Link href="/legal/privacidad/" className="lp-enlace !text-[13px]">Aviso de privacidad</Link></span>
       </footer>
     </div>
   );

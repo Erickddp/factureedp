@@ -210,6 +210,20 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 - A cuenta de terceros: RFC válido no genérico, distinto del emisor, régimen acorde a persona, CP del catálogo, nombre sin societario.
 - Cuenta predial alfanumérica (varias con coma). Pedimento: 15 dígitos, se normaliza solo a "AA  AA  AAAA  AAAAAAA".
 
+## Términos y privacidad (2.13.4, no lo rompas)
+- Páginas públicas `frontend/src/app/legal/{terminos,privacidad}` (marco en `components/legal.tsx`, datos del responsable en
+  `lib/legal.ts`; lo marcado con ⟨…⟩ sale resaltado hasta que Rick lo llene). Ligadas desde entrada, inicio y autofactura.
+- Constancia por cuenta: `Usuario.terminos_{version,aceptados,ip}` (migración 0012), `POST /auth/terminos` sólo acepta la versión
+  vigente (`app/legal.py`). `/auth/yo` trae `terminos.pendiente`; el `Shell` muestra `AceptarTerminos` (no se cierra: aceptar o salir).
+  El administrador no acepta; en modo soporte no aparece. Si cambian los textos de fondo: sube la versión en `app/legal.py` Y en
+  `lib/legal.ts` (tests/test_w9_terminos.py vigila que sean iguales) y todos los aceptan otra vez.
+- Si agregas un proveedor que reciba datos (PAC, correo, hosting), agrégalo en «Con quién los compartimos» del aviso.
+
+## Pruebas (no lo rompas)
+- `tests/conftest.py` limpia `_test_datos` UNA vez y fija TZ=America/Mexico_City (como el Dockerfile). Ningún archivo de prueba
+  debe borrar `_test_datos` al importarse: en Linux borraba la BD abierta de otro archivo. `pytest.ini` silencia sólo avisos de
+  librerías de terceros; los de Timbra deben salir (y corregirse). Meta: 0 avisos.
+
 ## Backlog (en orden)
 - [ ] Probar contra sandbox real de Finkok y SW con credenciales de Rick (botón "Probar timbrado"); ajustar mensajes por PAC.
 - [ ] Facturama: satcfdi sólo soporta `issue()` (ellos sellan con CSD subido); hoy está bloqueado a propósito.
@@ -292,7 +306,7 @@ No existe "4.4". Los catálogos vienen en satcfdi: `ACTUALIZAR_CATALOGOS.bat` cu
 ## XML del SAT (2.11, no lo rompas)
 - Sustituye al módulo SAT anterior (`routers/sat.py`, `services/descarga_sat.py`: borrados). Pantalla `/sat` con dos pestañas:
   Descargar (e.firma → periodo → avance → tabla) y Datos (gráficas). Rutas en `routers/xml.py`, prefijo `/api/xml`.
-- **La e.firma NO se guarda. Nunca.** `services/xml_firma.py` la valida y la deja abierta sólo en memoria (20 min sin usar,
+- **La e.firma NO se guarda. Nunca.** `services/xml_firma.py` la valida y la deja abierta sólo en memoria (2 h sin usar,
   3 h máximo); se pide cada vez. La migración 0009 borró lo que hubiera guardado. Las columnas `Emisor.fiel_*` quedan vacías.
   No agregues «recordar e.firma», ni la escribas a disco, base, registro o respaldo. tests/test_w6_xml.py lo vigila.
 - `app/xmlsat/` es el núcleo de la app de escritorio DESCARGA XML EDDP (lector, flujo con el SAT, PDF de una hoja, Excel),

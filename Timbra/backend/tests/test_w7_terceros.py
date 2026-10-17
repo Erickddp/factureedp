@@ -50,6 +50,7 @@ def plataforma(monkeypatch):
             eku = db.query(Emisor).filter_by(rfc="EKU9003173C9").first()
             eku.csd_vence = vence_real
             eku.usuario_id = db.query(Usuario).filter_by(email="rick@erickddp.com").first().id
+            db.flush()  # autoflush=False: sin esto el DELETE va antes que los cambios (Postgres sí revisa la llave foránea)
             db.query(Pac).filter_by(id=r.json()["id"]).delete()
             db.commit()
 
@@ -165,6 +166,7 @@ def test_el_dia_del_cambio_a_produccion_nadie_se_queda_en_pruebas():
             with SessionLocal() as db:
                 for em in db.query(Emisor).filter(Emisor.pac_id.in_(creados)):
                     em.pac_id = None
+                db.flush()
                 db.query(Pac).filter(Pac.id.in_(creados)).delete()
                 db.commit()
 

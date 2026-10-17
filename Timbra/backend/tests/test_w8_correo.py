@@ -101,7 +101,7 @@ def test_tope_de_descargas_del_sat_a_la_vez(monkeypatch):
 
     from app.db import SessionLocal
     from app.main import app
-    from app.models import Usuario, XmlTrabajo
+    from app.models import Emisor, Usuario, XmlTrabajo
     from app.routers import xml as xml_router
     from app.services import xml_tareas
     from test_v2 import _preparar
@@ -111,17 +111,22 @@ def test_tope_de_descargas_del_sat_a_la_vez(monkeypatch):
         h, e = _preparar(c)
         with SessionLocal() as db:
             uid = db.query(Usuario).filter_by(email="rick@erickddp.com").first().id
-            falsos = [XmlTrabajo(usuario_id=uid, emisor_id=e["id"] + 1000 + i, clase="sat", estado="curso", params={}, resumen={}, registro="")
-                      for i in range(xml_router.DESCARGAS_POR_CUENTA)]
+            # otros emisores de la misma cuenta, cada uno con una descarga en curso (reales: Postgres revisa la llave foránea)
+            otros = [Emisor(usuario_id=uid, rfc=f"TOP0101010{i}A", nombre=f"TOPE {i}", regimen_fiscal="601", lugar_expedicion="42501")
+                     for i in range(xml_router.DESCARGAS_POR_CUENTA)]
+            db.add_all(otros)
+            db.flush()
+            falsos = [XmlTrabajo(usuario_id=uid, emisor_id=o.id, clase="sat", estado="curso", params={}, resumen={}, registro="") for o in otros]
             db.add_all(falsos)
             db.commit()
-            ids = [f.id for f in falsos]
+            ids, otros_ids = [f.id for f in falsos], [o.id for o in otros]
         try:
             r = c.post("/api/xml/descargas", headers=h, json={"emisor_id": e["id"], "desde": "2026-01-01", "hasta": "2026-01-31", "tipo": "emitidos"})
             assert r.status_code == 429 and "descargas del SAT en curso" in r.json()["detail"], r.text
         finally:
             with SessionLocal() as db:
                 db.query(XmlTrabajo).filter(XmlTrabajo.id.in_(ids)).delete()
+                db.query(Emisor).filter(Emisor.id.in_(otros_ids)).delete()
                 db.commit()
 
 
